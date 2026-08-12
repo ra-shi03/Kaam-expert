@@ -334,7 +334,7 @@ export function AppShell() {
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-lg flex-col">
         {!isIndividualAppHome && (isLabourAppHome || isLabourNotifications) ? (
           <div
-            className="pointer-events-none absolute left-1/2 top-0 z-0 h-[min(52vh,26rem)] w-full max-w-lg -translate-x-1/2 rounded-b-[2rem] bg-brand"
+            className="pointer-events-none absolute left-1/2 top-0 z-0 h-[min(52vh,26rem)] w-full max-w-lg -translate-x-1/2 rounded-b-[2rem] bg-gradient-to-r from-brand to-[#001a38]"
             aria-hidden
           />
         ) : null}
@@ -342,7 +342,7 @@ export function AppShell() {
         {!hideShellHeader ? (
           <header
             ref={headerRef}
-            className={`sticky top-0 z-30 ${isIndividualAppHome ? 'bg-brand px-4 pb-1 pt-3' : 'px-3 pt-3'
+            className={`sticky top-0 z-30 ${isIndividualAppHome ? 'bg-gradient-to-r from-brand to-[#001a38] px-4 pb-1 pt-3' : 'px-3 pt-3'
               }`}
           >
             {isIndividualAppHome ? (
@@ -350,7 +350,7 @@ export function AppShell() {
                 <button
                   type="button"
                   onClick={() => setDrawerOpen(true)}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white transition active:scale-95 hover:bg-white/25"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition active:scale-95 hover:bg-white/25"
                   aria-label="Open menu"
                 >
                   <Menu className="h-5 w-5" />
@@ -377,27 +377,25 @@ export function AppShell() {
                 </button>
                 <Link
                   to="/app/support"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-brand shadow-sm transition hover:bg-white/95"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition active:scale-95 hover:bg-white/25"
                   aria-label="Support and notifications"
                 >
                   <Bell className="h-5 w-5" aria-hidden />
                 </Link>
                 <Link
                   to="/app/profile"
-                  className="flex shrink-0 items-center rounded-full ring-2 ring-white/50 transition hover:ring-white"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition active:scale-95 hover:bg-white/25 overflow-hidden"
                   aria-label="Open profile"
                 >
                   {profileImageUrl ? (
-                    <span className="relative block h-10 w-10 overflow-hidden rounded-full bg-white/20">
-                      <img
-                        src={profileImageUrl}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </span>
+                    <img
+                      src={profileImageUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
                   ) : (
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[11px] font-black text-brand">
+                    <span className="text-[11px] font-black">
                       {drawerInitials}
                     </span>
                   )}

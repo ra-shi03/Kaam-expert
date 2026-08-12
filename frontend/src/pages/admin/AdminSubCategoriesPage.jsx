@@ -10,6 +10,7 @@ import {
 } from '../../api/adminLabourCategoriesApi.js'
 import { ApiError } from '../../api/http.js'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
+import { SearchableSelect } from '../../components/ui/SearchableSelect.jsx'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { getCategoryImageUrl } from '../../lib/labourCategoryDisplay.js'
 import { UPLOAD_FOLDERS } from '../../constants/uploadFolders.js'
@@ -105,17 +106,12 @@ function AddSubCategoryModal({ open, categories, onClose, onSaved, busy, setBusy
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Category</label>
-              <select
+              <SearchableSelect
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
-                required
-              >
-                <option value="">Select a category</option>
-                {categories.map(c => (
-                  <option key={c._id} value={c._id}>{c.name}</option>
-                ))}
-              </select>
+                onChange={setCategoryId}
+                options={categories.map(c => ({ value: c._id, label: c.name }))}
+                placeholder="Select a category"
+              />
             </div>
             
             <div className="col-span-2">
@@ -295,17 +291,12 @@ function EditSubCategoryModal({ open, subcategory, categories, onClose, onSaved,
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Category</label>
-              <select
+              <SearchableSelect
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
-                required
-              >
-                <option value="">Select a category</option>
-                {categories.map(c => (
-                  <option key={c._id} value={c._id}>{c.name}</option>
-                ))}
-              </select>
+                onChange={setCategoryId}
+                options={categories.map(c => ({ value: c._id, label: c.name }))}
+                placeholder="Select a category"
+              />
             </div>
             
             <div className="col-span-2">
@@ -671,7 +662,7 @@ export function AdminSubCategoriesPage() {
         </GlassPanel>
       </div>
 
-      <GlassPanel className="p-4 md:p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <GlassPanel className="relative z-20 p-4 md:p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-sm flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
@@ -682,16 +673,13 @@ export function AdminSubCategoriesPage() {
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={categoryFilter}
-            onChange={e => setCategoryFilter(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-brand/35 max-w-[200px]"
-          >
-            <option value="all">All Categories</option>
-            {categories.map(c => (
-              <option key={c._id} value={c._id}>{c.name}</option>
-            ))}
-          </select>
+          <div className="w-[220px]">
+            <SearchableSelect
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              options={[{ value: 'all', label: 'All Categories' }, ...categories.map(c => ({ value: c._id, label: c.name }))]}
+            />
+          </div>
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
