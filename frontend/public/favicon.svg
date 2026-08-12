@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 130" width="100%" height="100%">
+  <!-- Map Pin Shape (Green Background) -->
+  <path d="M65,0 C29.1,0 0,29.1 0,65 C0,113.8 65,130 65,130 C65,130 130,113.8 130,65 C130,29.1 100.9,0 65,0 Z" fill="#1caf62" />
+  
+  <g transform="translate(15, 10)">
+    <!-- Map Pin Inner Shape (White) -->
+    <path d="M50,0 C20,0 0,20 0,50 C0,87.5 50,110 50,110 C50,110 100,87.5 100,50 C100,20 80,0 50,0 Z" fill="#ffffff" />
+    
+    <!-- Worker Base (Green circle) -->
+    <circle cx="50" cy="45" r="40" fill="#1caf62" />
+
+    <!-- Worker Body (White) -->
+    <path d="M15,75 C15,60 25,50 40,50 L60,50 C75,50 85,60 85,75 L85,95 L15,95 Z" fill="#ffffff" />
+    
+    <!-- Overalls (Green) -->
+    <path d="M30,60 L40,95 L60,95 L70,60 L60,60 L55,95 L45,95 L40,60 Z" fill="#1caf62" />
+    <rect x="35" y="70" width="30" height="25" fill="#1caf62" />
+
+    <!-- Worker Face (White) -->
+    <circle cx="50" cy="35" r="12" fill="#ffffff" />
+
+    <!-- Yellow Hard Hat -->
+    <path d="M34,30 C34,18 42,14 50,14 C58,14 66,18 66,30 L70,30 L70,34 30,34 30,30 Z" fill="#FACC15" />
+    <path d="M50,10 C46,10 44,12.5 44,14 L56,14 C56,12.5 54,10 50,10 Z" fill="#FACC15" />
+  </g>
+</svg>

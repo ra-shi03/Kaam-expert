@@ -1,0 +1,304 @@
+/* Individual home — KaamExpert navy-blue theme */
+
+.lc-swiggy-cat-tile {
+  display: flex;
+  width: 5.75rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: center;
+  cursor: pointer;
+}
+
+.lc-swiggy-cat-img {
+  display: block;
+  height: 5.75rem;
+  width: 5.75rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 2px solid #e2e8f0;
+  background: #f1f5f9;
+  transition:
+    outline 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.lc-swiggy-cat-tile[data-active='true'] .lc-swiggy-cat-img {
+  outline: none;
+  border: 2px solid #002b5c;
+  box-shadow: 0 4px 14px -6px rgb(0 43 92 / 0.3);
+}
+
+.lc-swiggy-cat-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #787776;
+}
+
+.lc-swiggy-cat-tile[data-active='true'] .lc-swiggy-cat-label {
+  color: #002b5c;
+  font-weight: 800;
+}
+
+.lc-img-reveal {
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.lc-img-reveal.lc-img-loaded {
+  opacity: 1;
+}
+
+.lc-individual-home-sheet {
+  position: relative;
+  z-index: 20;
+  margin-top: -0.5rem;
+  flex: 1;
+  border-radius: 1.5rem 1.5rem 0 0;
+  background: #ffffff;
+  padding: 1.25rem 1rem 2.5rem;
+  box-shadow: 0 -8px 32px -16px rgb(0 43 92 / 0.08);
+}
+
+.lc-home-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.lc-home-section-head h3 {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #002b5c;
+}
+
+.lc-home-section-head a,
+.lc-home-section-head button.lc-home-view-all {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #002b5c;
+}
+
+/* Hero promo carousel */
+.lc-home-hero-slide {
+  position: relative;
+  display: flex;
+  min-height: 13rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: #002b5c;
+  color: #ffffff;
+}
+
+.lc-home-hero-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+}
+
+.lc-home-hero-dot {
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 9999px;
+  background: #cbd5e1;
+  transition: width 0.25s ease, background 0.25s ease;
+}
+
+.lc-home-hero-dot[data-active='true'] {
+  width: 1.125rem;
+  background: #002b5c;
+}
+
+/* Service card — reference horizontal list */
+.lc-home-service-card {
+  display: flex;
+  width: 11.5rem;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+  text-align: left;
+  box-shadow: 0 4px 16px -8px rgb(0 43 92 / 0.08);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.lc-home-service-card:active {
+  transform: scale(0.98);
+}
+
+@media (hover: hover) {
+  .lc-home-service-card:hover {
+    box-shadow: 0 8px 24px -10px rgb(0 43 92 / 0.12);
+  }
+}
+
+.lc-home-service-card-img {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  background: #f1f5f9;
+  object-fit: cover;
+}
+
+.lc-home-service-card-body {
+  padding: 0.625rem 0.75rem 0.75rem;
+}
+
+/* Service sections — list, featured, strip */
+.lc-home-service-list-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  box-shadow: 0 4px 16px -10px rgb(0 43 92 / 0.06);
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.lc-home-service-list-row:active {
+  transform: scale(0.99);
+}
+
+.lc-home-service-featured {
+  position: relative;
+  display: flex;
+  min-height: 9.5rem;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.lc-home-service-mini-tile {
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+  text-align: left;
+  box-shadow: 0 4px 14px -10px rgb(0 43 92 / 0.08);
+  transition: transform 0.15s ease;
+}
+
+.lc-home-service-mini-tile:active {
+  transform: scale(0.98);
+}
+
+.lc-home-service-strip {
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+  text-align: left;
+  box-shadow: 0 4px 16px -10px rgb(0 43 92 / 0.06);
+  transition: transform 0.15s ease;
+}
+
+.lc-home-service-strip:active {
+  transform: scale(0.99);
+}
+
+/* Category chips on brand header */
+.lc-swiggy-cat-tile--on-brand .lc-swiggy-cat-label {
+  color: rgb(255 255 255 / 0.92);
+}
+
+.lc-swiggy-cat-tile--on-brand[data-active='true'] .lc-swiggy-cat-label {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.lc-swiggy-cat-tile--on-brand .lc-swiggy-cat-img {
+  border-color: rgb(255 255 255 / 0.35);
+}
+
+.lc-swiggy-cat-tile--on-brand[data-active='true'] .lc-swiggy-cat-img {
+  outline: none;
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.2);
+}
+
+/* Search tab — field + skill cards */
+.lc-search-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 1rem;
+  background: #f1f5f9;
+  padding: 0.875rem 1rem;
+  border: 1px solid transparent;
+  transition: background 0.2s ease;
+}
+
+.lc-search-field:focus-within {
+  background: #ffffff;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.lc-search-field input {
+  min-width: 0;
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.lc-search-field input::placeholder {
+  color: #787776;
+}
+
+.lc-search-field input:focus {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+.lc-search-skill-card {
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  text-align: left;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.lc-search-skill-card:active {
+  transform: scale(0.98);
+}
+
+.lc-search-skill-card[data-active='true'] {
+  border: 2px solid #002b5c;
+  box-shadow: 0 4px 16px -8px rgb(0 43 92 / 0.2);
+}
