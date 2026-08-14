@@ -10,17 +10,21 @@ export const createBanner = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'Banner image file is required', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
+  const isVideo = req.file.mimetype.startsWith('video/')
+  const mediaType = isVideo ? 'video' : 'image'
+
   const asset = await uploadBufferToCloudinary({
     buffer: req.file.buffer,
     mimetype: req.file.mimetype,
     folder: 'banners',
     userId: req.user._id,
     originalName: req.file.originalname,
-    resourceType: 'image',
+    resourceType: isVideo ? 'video' : 'image',
   })
 
   const banner = await Banner.create({
     imageUrl: asset.url,
+    mediaType,
     targetUrl,
     isActive: isActive !== undefined ? isActive : true,
     sortOrder: sortOrder || 0,
@@ -52,15 +56,17 @@ export const updateBanner = asyncHandler(async (req, res) => {
   }
 
   if (req.file) {
+    const isVideo = req.file.mimetype.startsWith('video/')
     const asset = await uploadBufferToCloudinary({
       buffer: req.file.buffer,
       mimetype: req.file.mimetype,
       folder: 'banners',
       userId: req.user._id,
       originalName: req.file.originalname,
-      resourceType: 'image',
+      resourceType: isVideo ? 'video' : 'image',
     })
     banner.imageUrl = asset.url
+    banner.mediaType = isVideo ? 'video' : 'image'
   }
 
   if (targetUrl !== undefined) banner.targetUrl = targetUrl

@@ -8,19 +8,27 @@ import {
   deleteAdminLabourService,
   getAdminLabourServiceById,
 } from '../../api/adminLabourCategoriesApi.js'
+import { adminZonesApi } from '../../api/adminZonesApi.js'
 import { ApiError } from '../../api/http.js'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { SearchableSelect } from '../../components/ui/SearchableSelect.jsx'
+import { MultiSearchableSelect } from '../../components/ui/MultiSearchableSelect.jsx'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { getCategoryImageUrl } from '../../lib/labourCategoryDisplay.js'
 import { UPLOAD_FOLDERS } from '../../constants/uploadFolders.js'
 import { assetUrlFromUpload, uploadMedia } from '../../api/uploadApi.js'
 
-function AddServiceModal({ open, subcategories, onClose, onSaved, busy, setBusy }) {
+function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSaved, busy, setBusy }) {
   const [name, setName] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
   const [description, setDescription] = useState('')
   const [basePrice, setBasePrice] = useState(0)
+  const [hourlyPrice, setHourlyPrice] = useState(0)
+  const [minHours, setMinHours] = useState(1)
+  const [maxHours, setMaxHours] = useState(24)
+  const [discountType, setDiscountType] = useState('PERCENTAGE')
+  const [discountValue, setDiscountValue] = useState(0)
+  const [zones, setZones] = useState([])
   const [iconUrl, setIconUrl] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [uploadBusy, setUploadBusy] = useState(false)
@@ -32,6 +40,12 @@ function AddServiceModal({ open, subcategories, onClose, onSaved, busy, setBusy 
       setSubcategoryId(subcategories[0]?._id ?? '')
       setDescription('')
       setBasePrice(0)
+      setHourlyPrice(0)
+      setMinHours(1)
+      setMaxHours(24)
+      setDiscountType('PERCENTAGE')
+      setDiscountValue(0)
+      setZones(activeZones.map(z => z._id)) // default to all active zones
       setIconUrl('')
       setIsActive(true)
       setError('')
@@ -74,6 +88,13 @@ function AddServiceModal({ open, subcategories, onClose, onSaved, busy, setBusy 
         subcategoryId,
         description: description.trim(),
         basePrice: Number(basePrice),
+        hourlyPrice: Number(hourlyPrice),
+        minHours: Number(minHours),
+        maxHours: Number(maxHours),
+        discountType,
+        discountValue: Number(discountValue),
+        isAllZones: zones.length === activeZones.length,
+        zones,
         iconUrl: iconUrl.trim() || undefined,
         isActive
       }
@@ -138,14 +159,73 @@ function AddServiceModal({ open, subcategories, onClose, onSaved, busy, setBusy 
               />
             </div>
 
-            <div>
-              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Base Price (₹)</label>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Hourly Price (₹/hour)</label>
               <input
                 type="number"
                 min="0"
-                value={basePrice}
-                onChange={(e) => setBasePrice(e.target.value)}
+                value={hourlyPrice}
+                onChange={(e) => setHourlyPrice(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Min Hours</label>
+              <input
+                type="number"
+                min="1"
+                value={minHours}
+                onChange={(e) => setMinHours(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Max Hours</label>
+              <input
+                type="number"
+                min="1"
+                value={maxHours}
+                onChange={(e) => setMaxHours(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Discount Type</label>
+              <select
+                value={discountType}
+                onChange={(e) => setDiscountType(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white"
+              >
+                <option value="PERCENTAGE">Percentage (%)</option>
+                <option value="FIXED">Fixed Amount (₹)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">
+                Discount {discountType === 'PERCENTAGE' ? '(%)' : '(₹)'}
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Zone Availability</label>
+              <MultiSearchableSelect
+                options={activeZones.map(z => ({ value: z._id, label: z.name }))}
+                value={zones}
+                onChange={setZones}
+                placeholder="Select zones"
+                allowAll={true}
+                allLabel="All Zones"
               />
             </div>
 
@@ -219,11 +299,17 @@ function AddServiceModal({ open, subcategories, onClose, onSaved, busy, setBusy 
   )
 }
 
-function EditServiceModal({ open, service, subcategories, onClose, onSaved, busy, setBusy }) {
+function EditServiceModal({ open, service, subcategories, activeZones = [], onClose, onSaved, busy, setBusy }) {
   const [name, setName] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
   const [description, setDescription] = useState('')
   const [basePrice, setBasePrice] = useState(0)
+  const [hourlyPrice, setHourlyPrice] = useState(0)
+  const [minHours, setMinHours] = useState(1)
+  const [maxHours, setMaxHours] = useState(24)
+  const [discountType, setDiscountType] = useState('PERCENTAGE')
+  const [discountValue, setDiscountValue] = useState(0)
+  const [zones, setZones] = useState([])
   const [iconUrl, setIconUrl] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [uploadBusy, setUploadBusy] = useState(false)
@@ -235,6 +321,12 @@ function EditServiceModal({ open, service, subcategories, onClose, onSaved, busy
       setSubcategoryId(service.subcategoryId || (subcategories[0]?._id ?? ''))
       setDescription(service.description || '')
       setBasePrice(service.basePrice ?? 0)
+      setHourlyPrice(service.hourlyPrice ?? 0)
+      setMinHours(service.minHours ?? 1)
+      setMaxHours(service.maxHours ?? 24)
+      setDiscountType(service.discountType ?? 'PERCENTAGE')
+      setDiscountValue(service.discountValue ?? 0)
+      setZones(service.zones ?? [])
       setIconUrl(service.iconUrl || '')
       setIsActive(service.isActive ?? true)
       setError('')
@@ -277,6 +369,13 @@ function EditServiceModal({ open, service, subcategories, onClose, onSaved, busy
         subcategoryId,
         description: description.trim(),
         basePrice: Number(basePrice),
+        hourlyPrice: Number(hourlyPrice),
+        minHours: Number(minHours),
+        maxHours: Number(maxHours),
+        discountType,
+        discountValue: Number(discountValue),
+        isAllZones: zones.length === activeZones.length,
+        zones,
         iconUrl: iconUrl.trim() || undefined,
         isActive
       }
@@ -341,14 +440,73 @@ function EditServiceModal({ open, service, subcategories, onClose, onSaved, busy
               />
             </div>
 
-            <div>
-              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Base Price (₹)</label>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Hourly Price (₹/hour)</label>
               <input
                 type="number"
                 min="0"
-                value={basePrice}
-                onChange={(e) => setBasePrice(e.target.value)}
+                value={hourlyPrice}
+                onChange={(e) => setHourlyPrice(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Min Hours</label>
+              <input
+                type="number"
+                min="1"
+                value={minHours}
+                onChange={(e) => setMinHours(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Max Hours</label>
+              <input
+                type="number"
+                min="1"
+                value={maxHours}
+                onChange={(e) => setMaxHours(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Discount Type</label>
+              <select
+                value={discountType}
+                onChange={(e) => setDiscountType(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white"
+              >
+                <option value="PERCENTAGE">Percentage (%)</option>
+                <option value="FIXED">Fixed Amount (₹)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">
+                Discount {discountType === 'PERCENTAGE' ? '(%)' : '(₹)'}
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={discountValue}
+                onChange={(e) => setDiscountValue(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Zone Availability</label>
+              <MultiSearchableSelect
+                options={activeZones.map(z => ({ value: z._id, label: z.name }))}
+                value={zones}
+                onChange={setZones}
+                placeholder="Select zones"
+                allowAll={true}
+                allLabel="All Zones"
               />
             </div>
 
@@ -490,8 +648,8 @@ function ViewServiceModal({ open, service, onClose }) {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[10px] font-bold uppercase text-slate-400">Base Price</p>
-                    <p className="text-sm font-medium text-blue-600 font-mono">₹{displayData.basePrice}</p>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Hourly Price</p>
+                    <p className="text-sm font-medium text-blue-600 font-mono">₹{displayData.hourlyPrice}</p>
                   </div>
                 </div>
                 <div>
@@ -597,13 +755,19 @@ export function AdminServicesPage() {
   const [editService, setEditService] = useState(null)
   const [viewService, setViewService] = useState(null)
   const [deleteService, setDeleteService] = useState(null)
+  const [activeZones, setActiveZones] = useState([])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetchAdminLabourCategoryTree()
-      const fetchedCategories = res.data?.categories || []
+      const [treeRes, zonesRes] = await Promise.all([
+        fetchAdminLabourCategoryTree(),
+        adminZonesApi.getActiveZones().catch(() => ({ data: { zones: [] } }))
+      ])
+      
+      const fetchedCategories = treeRes.data?.categories || []
+      setActiveZones(zonesRes.data?.zones || [])
       
       const flatSubcategories = fetchedCategories.flatMap(c => 
         (c.subcategories || []).map(sc => ({
@@ -768,7 +932,7 @@ export function AdminServicesPage() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Sub-Category</th>
                 <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3 text-right">Base Price</th>
+                <th className="px-4 py-3 text-right">Hourly Price</th>
                 <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -807,7 +971,7 @@ export function AdminServicesPage() {
                       <p className="text-[11px] font-semibold text-slate-700">{s.categoryName}</p>
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-slate-700">
-                      ₹{s.basePrice}
+                      ₹{s.hourlyPrice}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${
@@ -876,32 +1040,31 @@ export function AdminServicesPage() {
         </div>
       </GlassPanel>
 
-      <AddServiceModal
-        open={addModalOpen}
-        subcategories={subcategories}
-        onClose={() => setAddModalOpen(false)}
-        onSaved={() => {
-          setAddModalOpen(false)
-          setModalBusy(false)
-          load()
-        }}
-        busy={modalBusy}
-        setBusy={setModalBusy}
-      />
-
-      <EditServiceModal
-        open={!!editService}
-        service={editService}
-        subcategories={subcategories}
-        onClose={() => setEditService(null)}
-        onSaved={() => {
-          setEditService(null)
-          setModalBusy(false)
-          load()
-        }}
-        busy={modalBusy}
-        setBusy={setModalBusy}
-      />
+        <AddServiceModal
+          open={addModalOpen}
+          subcategories={subcategories}
+          activeZones={activeZones}
+          onClose={() => setAddModalOpen(false)}
+          onSaved={() => {
+            setAddModalOpen(false)
+            load()
+          }}
+          busy={modalBusy}
+          setBusy={setModalBusy}
+        />
+        <EditServiceModal
+          open={!!editService}
+          service={editService}
+          subcategories={subcategories}
+          activeZones={activeZones}
+          onClose={() => setEditService(null)}
+          onSaved={() => {
+            setEditService(null)
+            load()
+          }}
+          busy={modalBusy}
+          setBusy={setModalBusy}
+        />
 
       <ViewServiceModal
         open={!!viewService}

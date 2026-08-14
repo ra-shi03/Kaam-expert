@@ -42,11 +42,13 @@ import { BookingTypeSheet } from '../../../components/app/booking/BookingTypeShe
 import { writeBookingDraft, readBookingDraft } from '../../../lib/individualBookingDraft.js'
 import { fetchDiscoverLabour, fetchDiscoverLabours } from '../../../api/discoverLaboursApi.js'
 import { bookingsApi } from '../../../api/bookingsApi.js'
+import { fetchActiveBanners } from '../../../api/bannersApi.js'
 import { ApiError } from '../../../api/http.js'
 import { LabourPublicDetailSheet } from '../labour/LabourPublicDetailSheet.jsx'
 import { enrichDiscoverLabourUi, DEMO_LABOUR_ROWS } from '../../../lib/discoverLabourDummyUi.js'
 import { displayBookingsList, loadIndividualBookings } from '../../../lib/individualBookings.js'
 import { buildBookingFlowPath } from '../../../lib/bookingFlowNavigation.js'
+import heroImg from '../../../assets/hero.png'
 
 function formatBookingDay(serviceDate) {
   if (!serviceDate) return 'Soon'
@@ -85,6 +87,7 @@ export function IndividualHomeScreen({ user }) {
   const [quickBookCategory, setQuickBookCategory] = useState(null)
   const [bookingsLoading, setBookingsLoading] = useState(true)
   const [bookings, setBookings] = useState([])
+  const [exploreBanner, setExploreBanner] = useState(null)
 
   const enrichedLabours = useMemo(() => {
     return labours.map((l) => ({ ...l, _ui: enrichDiscoverLabourUi(l) }))
@@ -246,6 +249,19 @@ export function IndividualHomeScreen({ user }) {
     return () => { cancelled = true }
   }, [user])
 
+  useEffect(() => {
+    let cancelled = false
+    fetchActiveBanners('EXPLORE')
+      .then((res) => {
+        if (!cancelled && res.data?.banners?.length > 0) {
+          setExploreBanner(res.data.banners[0])
+        }
+      })
+      .catch(console.error)
+    return () => { cancelled = true }
+  }, [])
+
+
   const openDetail = useCallback((id) => {
     setDetailId(id)
     setDetailLabour(null)
@@ -285,8 +301,17 @@ export function IndividualHomeScreen({ user }) {
       </div>
 
       <section className="lc-individual-home-sheet space-y-6">
-        <IndividualHomeHeroCarousel onBook={goSearch} />
-
+        <div className="relative w-full overflow-hidden rounded-[1.25rem] bg-transparent shadow-sm flex items-center justify-center aspect-[21/9]">
+          {exploreBanner ? (
+            exploreBanner.mediaType === 'video' ? (
+              <video src={exploreBanner.imageUrl} className="w-full h-full object-cover" autoPlay loop muted playsInline />
+            ) : (
+              <img src={exploreBanner.imageUrl} alt="Explore Skills" className="w-full h-full object-cover" />
+            )
+          ) : (
+            <img src={heroImg} alt="Explore Skills" className="w-full h-full object-contain" />
+          )}
+        </div>
 
         <IndividualHomeRecentlyBooked
           bookings={recentBookings}
@@ -294,11 +319,8 @@ export function IndividualHomeScreen({ user }) {
           formatDay={formatBookingDay}
         />
 
-
-
-
         <IndividualHomeWorkerCarousel
-          title="Nearby labour"
+          title="Explore services"
           workers={nearbyLabours}
           loading={laboursLoading}
           error={laboursErr}
@@ -306,6 +328,8 @@ export function IndividualHomeScreen({ user }) {
           onSelectWorker={openDetail}
           onEmptyAction={goSearch}
         />
+
+        <IndividualHomeHeroCarousel onBook={goSearch} />
 
         <IndividualHomeServiceSections
           tradeGroups={tradeGroups}

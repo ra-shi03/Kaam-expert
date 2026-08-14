@@ -77,7 +77,7 @@ function AuthField({ label, hint, children }) {
 }
 
 const inputClass =
-  'w-full rounded-2xl border border-slate-200/90 bg-white px-4 py-3.5 text-base font-medium text-slate-900 shadow-sm outline-none transition focus:border-brand/40 focus:ring-2 focus:ring-brand/25'
+  'w-full rounded-full border border-slate-100 bg-slate-50 px-5 py-3 text-[15px] font-medium text-slate-900 outline-none transition focus:border-brand/30 focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400'
 
 export function AuthEntryPage() {
   const navigate = useNavigate()
@@ -98,6 +98,7 @@ export function AuthEntryPage() {
   const [challengeId, setChallengeId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [banner, setBanner] = useState(null)
+  const [termsAccepted, setTermsAccepted] = useState(false)
 
   const p = isValidIndianMobile(phone) ? phone : null
   const code = otpCells.join('')
@@ -160,6 +161,12 @@ export function AuthEntryPage() {
       })
       return
     }
+    
+    if (mode === 'register' && !termsAccepted) {
+      setBanner({ variant: 'error', message: 'You must agree to the Terms of Service to register.' })
+      return
+    }
+
     setBusy(true)
     try {
       if (mode === 'login') {
@@ -255,7 +262,10 @@ export function AuthEntryPage() {
         setStep('work-setup')
         setBanner(null)
       } else {
-        const returnPath = location.state?.from || getRoleHomePath(signedInUser.role)
+        let returnPath = location.state?.from || getRoleHomePath(signedInUser.role)
+        if (mode === 'register' && signedInUser.role === USER_ROLES.CUSTOMER) {
+          returnPath = '/app/profile'
+        }
         navigate(returnPath, { replace: true })
       }
     } catch (e) {
@@ -282,56 +292,42 @@ export function AuthEntryPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-brand selection:bg-white/20">
-      {/* Top Header Section */}
-      <div className="relative flex flex-col px-6 pb-14 pt-12 text-white">
-        <Link
-          to="/"
-          className="absolute left-6 top-10 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-white shadow-sm backdrop-blur-sm transition hover:bg-white/20"
-          aria-label="Back to home"
-        >
-          <ArrowLeft className="h-5 w-5" aria-hidden />
-        </Link>
-        <div className="mt-16 flex flex-col items-center">
-          {/* Logo */}
-          <div className="mb-6 flex justify-center rounded-2xl bg-white/90 p-3 shadow-lg">
-             <img src="/logo-transparent.png" alt="KaamExpert" className="h-8 w-auto" />
+    <div className="fixed inset-0 flex flex-col bg-white selection:bg-brand/20 overflow-hidden overscroll-none touch-none">
+      {/* Top Header Section with Wave */}
+      <div className="relative flex flex-col pt-10 pb-10 text-white bg-linear-to-b from-brand to-brand-bright overflow-hidden shrink-0">
+        {/* Wave SVG */}
+        <div className="absolute -bottom-1 left-0 right-0 w-full overflow-hidden leading-[0]">
+          <svg viewBox="0 0 1440 320" className="relative block w-[120%] h-[50px] sm:h-[70px] left-[-10%]" preserveAspectRatio="none">
+            <path fill="#ffffff" d="M0,160L48,138.7C96,117,192,75,288,69.3C384,64,480,96,576,128C672,160,768,192,864,186.7C960,181,1056,139,1152,122.7C1248,107,1344,117,1392,122.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+          </svg>
+        </div>
+
+        <div className="mt-4 flex flex-col items-center relative z-10">
+          <div className="flex justify-center mb-0">
+             <img src="/logo-transparent.png" alt="KaamExpert" className="h-24 sm:h-28 w-auto brightness-0 invert drop-shadow-sm" />
           </div>
-          <h1 className="text-center text-3xl font-black tracking-tight">
-            {step === 'otp' ? 'Verify OTP' : mode === 'login' ? 'Welcome Back' : 'Create Account'}
-          </h1>
-          <p className="mt-2 text-center text-sm font-medium text-white/80">
-            {step === 'otp' ? 'Secure verification' : mode === 'login' ? 'Sign in to continue' : 'Join KaamExpert today'}
-          </p>
         </div>
       </div>
 
+      <div className="px-6 pt-2 pb-6 text-center shrink-0">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">
+          {step === 'otp' ? 'Verify OTP' : mode === 'login' ? 'Welcome back !' : 'Welcome !'}
+        </h1>
+        <p className="mt-1.5 text-sm font-medium text-slate-500">
+          {step === 'otp' ? 'Secure verification' : mode === 'login' ? 'Sign in to continue' : 'Join KaamExpert today'}
+        </p>
+      </div>
+
       {/* Bottom Form Section */}
-      <div className="flex-1 rounded-t-[2.5rem] bg-slate-50 px-6 pb-12 pt-8 shadow-[0_-12px_40px_rgba(0,0,40,0.12)]">
-        <div className="mx-auto max-w-lg">
-          <GlassPanel className="mb-6 overflow-hidden border-slate-200/90 p-4 ring-1 ring-slate-100/90">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-brand-bright to-brand text-white shadow-md ring-1 ring-brand/25">
-                <Sparkles className="h-5 w-5" aria-hidden />
-              </span>
-              <div>
-                <p className="text-sm font-bold text-slate-900">Sign in with mobile OTP</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                  No password — we text a 6-digit code to your Indian mobile number.
-                </p>
-                <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                  <ShieldCheck className="h-3.5 w-3.5 text-brand" aria-hidden />
-                  Secure · Aadhaar-verified workers
-                </p>
-              </div>
-            </div>
-          </GlassPanel>
+      <div className="flex-1 bg-white px-6 pb-4 overflow-y-auto overscroll-contain touch-pan-y">
+        <div className="mx-auto max-w-lg h-full flex flex-col">
+
 
         {step === 'form' ? (
-          <div className="mb-5 flex gap-1 rounded-2xl border border-slate-200/90 bg-white/80 p-1 shadow-sm ring-1 ring-slate-100">
+          <div className="mb-6 flex gap-1 rounded-full bg-slate-100 p-1 shrink-0">
             <button
               type="button"
-              className={`flex-1 rounded-xl py-3 text-sm font-bold transition ${mode === 'login' ? 'bg-brand text-white shadow-md shadow-brand/25' : 'text-slate-600 hover:text-slate-900'
+              className={`flex-1 rounded-full py-3 text-[14px] font-bold transition ${mode === 'login' ? 'bg-white text-brand shadow-sm' : 'text-slate-500 hover:text-slate-800'
                 }`}
               onClick={() => switchMode('login')}
             >
@@ -339,9 +335,9 @@ export function AuthEntryPage() {
             </button>
             <button
               type="button"
-              className={`flex-1 rounded-xl py-3 text-sm font-bold transition ${mode === 'register'
-                ? 'bg-brand text-white shadow-md shadow-brand/25'
-                : 'text-slate-600 hover:text-slate-900'
+              className={`flex-1 rounded-full py-3 text-[14px] font-bold transition ${mode === 'register'
+                ? 'bg-white text-brand shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
                 }`}
               onClick={() => switchMode('register')}
             >
@@ -352,17 +348,17 @@ export function AuthEntryPage() {
 
         <AnimatePresence mode="wait">
           {step === 'form' ? (
-            <motion.div
+              <motion.div
               key="form"
               initial={reduce ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={reduce ? false : { opacity: 0, y: -8 }}
-              className="space-y-4"
+              className="flex flex-col"
             >
               {mode === 'register' ? (
-                <div>
+                <div className="shrink-0 mb-4">
                   <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">I am a</p>
-                  <div className="grid gap-2">
+                  <div className="flex gap-3">
                     {ROLE_OPTIONS.map((opt) => {
                       const Icon = opt.icon
                       const active = role === opt.role
@@ -371,34 +367,26 @@ export function AuthEntryPage() {
                           key={opt.role}
                           type="button"
                           onClick={() => setRole(opt.role)}
-                          className={`flex items-start gap-3 rounded-2xl border px-3.5 py-3 text-left transition active:scale-[0.99] ${active
-                            ? 'border-brand/40 bg-linear-to-r from-brand/10 via-white to-blue-50/40 ring-2 ring-brand/20'
-                            : 'border-slate-200/90 bg-white hover:border-brand/25'
+                          className={`flex flex-col flex-1 items-center justify-center gap-2 rounded-2xl border px-2 py-3.5 text-center transition active:scale-[0.99] ${active
+                            ? 'border-brand/30 bg-brand/5 ring-1 ring-brand/20'
+                            : 'border-slate-100 bg-slate-50 hover:border-brand/20'
                             }`}
                         >
                           <span
-                            className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${active ? 'bg-brand text-white' : 'bg-slate-100 text-slate-600'
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${active ? 'bg-brand text-white shadow-sm shadow-brand/20' : 'bg-white text-slate-400 ring-1 ring-slate-200/60'
                               }`}
                           >
                             <Icon className="h-5 w-5" aria-hidden />
                           </span>
-                          <span className="min-w-0">
-                            <span className="block text-sm font-bold text-slate-900">{ROLE_LABELS[opt.role]}</span>
-                            <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{opt.desc}</span>
-                          </span>
+                          <span className={`block text-[12px] font-bold ${active ? 'text-brand' : 'text-slate-700'}`}>{ROLE_LABELS[opt.role]}</span>
                         </button>
                       )
                     })}
                   </div>
-                  {role === USER_ROLES.LABOUR ? (
-                    <p className="mt-2 rounded-xl bg-brand/5 px-3 py-2 text-[11px] leading-relaxed text-slate-600 ring-1 ring-brand/15">
-                      After OTP, you&apos;ll pick your work areas and roles on this screen.
-                    </p>
-                  ) : null}
                 </div>
               ) : null}
 
-              <GlassPanel className="space-y-4 border-slate-200/90 p-4 ring-1 ring-slate-100/90">
+              <div className="space-y-4 shrink-0">
                 <AuthField
                   label="Mobile number"
                   hint={
@@ -410,12 +398,12 @@ export function AuthEntryPage() {
                   }
                 >
                   <div
-                    className={`flex overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm transition focus-within:ring-2 ${banner?.variant === 'error' && phone.length > 0 && !phoneComplete
+                    className={`flex overflow-hidden rounded-full border border-slate-100 bg-slate-50 transition focus-within:ring-2 ${banner?.variant === 'error' && phone.length > 0 && !phoneComplete
                       ? 'ring-amber-300'
-                      : 'focus-within:ring-brand/30'
+                      : 'focus-within:ring-brand/20 focus-within:border-brand/30'
                       }`}
                   >
-                    <span className="flex items-center border-r border-slate-100 bg-slate-50 px-3.5 text-sm font-bold text-slate-600">
+                    <span className="flex items-center border-r border-slate-200/60 bg-transparent px-5 text-[15px] font-bold text-slate-500">
                       +91
                     </span>
                     <input
@@ -425,7 +413,7 @@ export function AuthEntryPage() {
                       autoComplete="tel-national"
                       maxLength={10}
                       placeholder="9876543210"
-                      className="min-w-0 flex-1 border-0 bg-transparent px-4 py-3.5 text-lg font-semibold tracking-wide text-slate-900 outline-none"
+                      className="min-w-0 flex-1 border-0 bg-transparent px-4 py-3 text-[15px] font-semibold tracking-wide text-slate-900 outline-none placeholder:text-slate-400"
                       value={phone}
                       onChange={(e) => setPhoneDigits(e.target.value)}
                       onKeyDown={(e) => {
@@ -483,13 +471,44 @@ export function AuthEntryPage() {
                     ) : null}
                   </>
                 ) : null}
-              </GlassPanel>
+              </div>
 
-              <FeedbackBanner variant={banner?.variant}>{banner?.message}</FeedbackBanner>
-              <AppPrimaryButton type="button" disabled={busy} className="w-full py-3.5 text-[15px]" onClick={() => void handleSendOtp()}>
-                {busy ? 'Please wait…' : 'Send OTP'}
-                <Phone className="h-4 w-4" aria-hidden />
-              </AppPrimaryButton>
+              {mode === 'login' ? null : (
+                <div className="mt-4 mb-2 flex items-center px-1">
+                  <label className="flex items-start gap-2.5 text-[13px] font-medium text-slate-500 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand focus:ring-brand accent-brand" 
+                      checked={termsAccepted}
+                      onChange={(e) => {
+                        setTermsAccepted(e.target.checked)
+                        if (e.target.checked && banner?.variant === 'error') setBanner(null)
+                      }}
+                    />
+                    <span>
+                      I agree to the <a href="#" onClick={(e) => e.preventDefault()} className="font-bold text-brand hover:underline">Terms of Service</a> and <a href="#" onClick={(e) => e.preventDefault()} className="font-bold text-brand hover:underline">Privacy Policy</a>
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              <div className="mt-6 pt-2 pb-6">
+                <FeedbackBanner variant={banner?.variant}>{banner?.message}</FeedbackBanner>
+                <AppPrimaryButton type="button" disabled={busy} className="w-full !rounded-full py-3.5 text-[14px] font-bold shadow-lg shadow-brand/20 mt-3" onClick={() => void handleSendOtp()}>
+                  {busy ? 'Please wait…' : 'Send OTP'}
+                  <Phone className="h-4 w-4" aria-hidden />
+                </AppPrimaryButton>
+  
+                {mode === 'login' ? (
+                  <p className="mt-4 text-center text-[12px] font-medium text-slate-500">
+                    New user? <button type="button" onClick={() => switchMode('register')} className="font-bold text-brand hover:underline">Sign Up</button>
+                  </p>
+                ) : (
+                  <p className="mt-4 text-center text-[12px] font-medium text-slate-500">
+                    Already have an account? <button type="button" onClick={() => switchMode('login')} className="font-bold text-brand hover:underline">Login</button>
+                  </p>
+                )}
+              </div>
             </motion.div>
           ) : (
             <motion.div
@@ -522,7 +541,7 @@ export function AuthEntryPage() {
                       autoComplete={i === 0 ? 'one-time-code' : 'off'}
                       maxLength={1}
                       aria-label={`OTP digit ${i + 1} of 6`}
-                      className="min-w-0 flex-1 rounded-2xl border border-slate-200/90 bg-white py-4 text-center font-mono text-xl font-bold tabular-nums text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-brand/35"
+                      className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-slate-50 py-4 text-center font-mono text-xl font-bold tabular-nums text-slate-900 outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand/30"
                       value={digit}
                       onPaste={handleOtpPaste}
                       onChange={(e) => {
@@ -583,7 +602,7 @@ export function AuthEntryPage() {
               <AppPrimaryButton
                 type="button"
                 disabled={busy}
-                className="w-full py-3.5 text-[15px]"
+                className="w-full !rounded-full py-4 text-[15px] font-bold shadow-lg shadow-brand/20 mt-4"
                 onClick={() => void handleVerifyOtp()}
               >
                 {busy ? 'Verifying…' : mode === 'login' ? 'Verify & login' : 'Verify & continue'}
@@ -591,7 +610,7 @@ export function AuthEntryPage() {
               </AppPrimaryButton>
               <button
                 type="button"
-                className="w-full py-2 text-sm font-bold text-brand"
+                className="w-full py-3 text-[13px] font-bold text-slate-500 hover:text-slate-800 transition mt-2"
                 onClick={resetFlowToForm}
               >
                 Edit mobile number

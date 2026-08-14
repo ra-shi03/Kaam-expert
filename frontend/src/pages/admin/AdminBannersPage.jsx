@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Image as ImageIcon, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Image as ImageIcon, Loader2, Video as VideoIcon } from 'lucide-react'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { fetchAdminBanners, createAdminBanner, deleteAdminBanner } from '../../api/adminBannersApi.js'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 
 export function AdminBannersPage() {
+  const [activeTab, setActiveTab] = useState('APP')
   const [banners, setBanners] = useState([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -14,7 +15,7 @@ export function AdminBannersPage() {
   const loadBanners = async () => {
     try {
       setLoading(true)
-      const res = await fetchAdminBanners('APP')
+      const res = await fetchAdminBanners(activeTab)
       setBanners(res.data?.banners ?? [])
       setError('')
     } catch (e) {
@@ -26,7 +27,7 @@ export function AdminBannersPage() {
 
   useEffect(() => {
     loadBanners()
-  }, [])
+  }, [activeTab])
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0]
@@ -37,7 +38,7 @@ export function AdminBannersPage() {
       setError('')
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('panel', 'APP')
+      formData.append('panel', activeTab)
       
       await createAdminBanner(formData)
       await loadBanners()
@@ -52,7 +53,7 @@ export function AdminBannersPage() {
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this banner?')) return
+    if (!window.confirm('Are you sure you want to delete this item?')) return
     try {
       setError('')
       await deleteAdminBanner(id)
@@ -68,7 +69,7 @@ export function AdminBannersPage() {
         <h1 className="text-2xl font-bold text-slate-900">Banners</h1>
         <input 
           type="file" 
-          accept="image/*" 
+          accept={activeTab === 'EXPLORE' ? "image/*,video/mp4,video/webm,video/quicktime" : "image/*"} 
           className="hidden" 
           ref={fileInputRef}
           onChange={handleFileChange}
@@ -79,8 +80,23 @@ export function AdminBannersPage() {
           ) : (
             <Plus className="mr-2 h-4 w-4" />
           )}
-          Upload Banner
+          Upload {activeTab === 'EXPLORE' ? 'Media' : 'Banner'}
         </AppPrimaryButton>
+      </div>
+
+      <div className="flex border-b border-slate-200">
+        <button
+          className={`px-4 py-2 font-medium text-sm ${activeTab === 'APP' ? 'border-b-2 border-brand text-brand' : 'text-slate-500 hover:text-slate-700'}`}
+          onClick={() => setActiveTab('APP')}
+        >
+          App Banners
+        </button>
+        <button
+          className={`px-4 py-2 font-medium text-sm ${activeTab === 'EXPLORE' ? 'border-b-2 border-brand text-brand' : 'text-slate-500 hover:text-slate-700'}`}
+          onClick={() => setActiveTab('EXPLORE')}
+        >
+          Explore Media
+        </button>
       </div>
 
       {error && (
@@ -96,28 +112,30 @@ export function AdminBannersPage() {
       ) : banners.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 py-12 text-slate-500">
           <ImageIcon className="mb-2 h-10 w-10 opacity-20" />
-          <p>No banners uploaded yet</p>
+          <p>No {activeTab === 'EXPLORE' ? 'media' : 'banners'} uploaded yet</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {banners.map(banner => (
-            <GlassPanel key={banner._id} className="group relative overflow-hidden rounded-xl bg-white shadow-sm transition-shadow hover:shadow-md">
-              <div className="aspect-[21/9] w-full bg-slate-100">
-                <img 
-                  src={banner.imageUrl} 
-                  alt="Banner" 
-                  className="h-full w-full object-cover" 
-                />
+          {banners.map((banner) => (
+            <GlassPanel key={banner._id} className="group relative overflow-hidden">
+              <div className="aspect-video w-full flex items-center justify-center bg-slate-100">
+                {banner.mediaType === 'video' ? (
+                  <video src={banner.imageUrl} className="h-full w-full object-cover" controls preload="metadata" />
+                ) : (
+                  <img 
+                    src={banner.imageUrl} 
+                    alt="Banner" 
+                    className="h-full w-full object-cover"
+                  />
+                )}
               </div>
-              <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
-                <button
-                  onClick={() => handleDelete(banner._id)}
-                  className="rounded-full bg-white/90 p-2 text-red-600 shadow-sm transition-colors hover:bg-red-50 hover:text-red-700"
-                  title="Delete banner"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
+              <button
+                onClick={() => handleDelete(banner._id)}
+                className="absolute right-2 top-2 rounded-full bg-white/90 p-2 text-red-600 opacity-0 shadow-sm transition hover:bg-red-50 group-hover:opacity-100"
+                title="Delete Banner"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             </GlassPanel>
           ))}
         </div>

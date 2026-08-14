@@ -8,6 +8,25 @@ const zoneSchema = new mongoose.Schema(
       unique: true,
       trim: true
     },
+    country: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    state: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    city: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    pincodes: [{
+      type: String,
+      trim: true
+    }],
     // GeoJSON Polygon for the zone boundaries
     polygon: {
       type: {
@@ -23,6 +42,10 @@ const zoneSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true
+    },
+    description: {
+      type: String,
+      trim: true
     }
   },
   { timestamps: true }

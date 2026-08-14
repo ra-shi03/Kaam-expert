@@ -200,11 +200,26 @@ export function AppShell() {
         individualLocationSubtitle: `${la.toFixed(5)}, ${ln.toFixed(5)}`,
       }
     }
+    
+    if (user?.currentLocation?.trim()) {
+      return {
+        individualLocationTitle: user.currentLocation.trim(),
+        individualLocationSubtitle: 'Profile location',
+      }
+    }
+    
+    if (user?.permanentAddress?.trim()) {
+      return {
+        individualLocationTitle: user.permanentAddress.trim(),
+        individualLocationSubtitle: 'Profile address',
+      }
+    }
+
     return {
       individualLocationTitle: 'Your location',
       individualLocationSubtitle: 'Tap to set address or use GPS',
     }
-  }, [appLocation, isIndividualAppHome])
+  }, [appLocation, isIndividualAppHome, user?.currentLocation, user?.permanentAddress])
 
   return (
     <div className="relative min-h-dvh w-full overflow-x-hidden text-slate-900">

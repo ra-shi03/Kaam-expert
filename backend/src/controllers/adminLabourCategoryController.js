@@ -278,7 +278,7 @@ export const patchSubcategory = asyncHandler(async (req, res) => {
 })
 
 export const createService = asyncHandler(async (req, res) => {
-  const { subcategoryId, name, description = '', basePrice = 0, estimatedDurationMins = 60, iconUrl } = req.body
+  const { subcategoryId, name, description = '', basePrice = 0, estimatedDurationMins = 60, iconUrl, hourlyPrice = 0, minHours = 1, maxHours = 24, discountType = 'PERCENTAGE', discountValue = 0, isAllZones = true, zones = [], isActive } = req.body
   const subcat = await LabourSubcategory.findById(subcategoryId)
   if (!subcat) {
     return sendError(res, { message: 'Subcategory not found', statusCode: HTTP_STATUS.NOT_FOUND, code: 'NOT_FOUND' })
@@ -306,7 +306,14 @@ export const createService = asyncHandler(async (req, res) => {
     basePrice: Number(basePrice),
     estimatedDurationMins: Number(estimatedDurationMins),
     iconUrl: image,
-    isActive: true,
+    hourlyPrice: Number(hourlyPrice),
+    minHours: Number(minHours),
+    maxHours: Number(maxHours),
+    discountType,
+    discountValue: Number(discountValue),
+    isAllZones: Boolean(isAllZones),
+    zones: Array.isArray(zones) ? zones : [],
+    isActive: isActive !== undefined ? Boolean(isActive) : true,
   })
   return sendSuccess(res, { message: 'Service created', statusCode: HTTP_STATUS.CREATED, data: { service: s } })
 })
@@ -332,12 +339,19 @@ export const patchService = asyncHandler(async (req, res) => {
   if (!s) {
     return sendError(res, { message: 'Service not found', statusCode: HTTP_STATUS.NOT_FOUND, code: 'NOT_FOUND' })
   }
-  const { name, description, basePrice, estimatedDurationMins, isActive, iconUrl } = req.body
+  const { name, description, basePrice, estimatedDurationMins, isActive, iconUrl, hourlyPrice, minHours, maxHours, discountType, discountValue, isAllZones, zones } = req.body
   if (name != null) s.name = String(name).trim()
   if (description != null) s.description = String(description)
   if (basePrice != null) s.basePrice = Number(basePrice)
   if (estimatedDurationMins != null) s.estimatedDurationMins = Number(estimatedDurationMins)
   if (isActive != null) s.isActive = Boolean(isActive)
+  if (hourlyPrice != null) s.hourlyPrice = Number(hourlyPrice)
+  if (minHours != null) s.minHours = Number(minHours)
+  if (maxHours != null) s.maxHours = Number(maxHours)
+  if (discountType != null) s.discountType = discountType
+  if (discountValue != null) s.discountValue = Number(discountValue)
+  if (isAllZones != null) s.isAllZones = Boolean(isAllZones)
+  if (zones != null && Array.isArray(zones)) s.zones = zones
   if (iconUrl !== undefined) {
     const normalized = normalizeImageUrl(iconUrl)
     if (normalized === null) {

@@ -59,7 +59,6 @@ export const ADMIN_NAV_SECTIONS = [
     title: 'Users',
     items: [
       { to: '/admin/users', label: 'Users', icon: Users },
-      { to: '/admin/user-subscriptions', label: 'User Subscriptions', icon: IdCard },
     ],
   },
   {
@@ -79,14 +78,11 @@ export const ADMIN_NAV_SECTIONS = [
   {
     title: 'Operations',
     items: [
-      { to: '/admin/mart', label: 'Mart', icon: Package },
-      { to: '/admin/mart/reviews', label: 'Product Reviews', icon: ClipboardCheck },
-      { to: '/admin/mart/enquiries', label: 'Quote Leads', icon: MessageSquare },
-      { to: '/admin/mart-subscriptions', label: 'Mart Subscriptions', icon: Package },
       { to: '/admin/bookings', label: 'Bookings & requests', icon: ClipboardList },
       { to: '/admin/allocations', label: 'Workforce allocation', icon: Network },
       { to: '/admin/attendance', label: 'Attendance', icon: Clock },
       { to: '/admin/complaints', label: 'Complaints', icon: MessageSquare },
+      { to: '/admin/zone-management', label: 'Zone Management', icon: Map },
       { to: '/admin/zones', label: 'Manage Radius', icon: Map },
     ],
   },
@@ -136,17 +132,13 @@ const ROUTE_TITLES = [
   { prefix: '/admin/reviews', title: 'Reviews & Ratings' },
   { prefix: '/admin/attendance', title: 'Attendance' },
   { prefix: '/admin/allocations', title: 'Workforce allocation' },
-  { prefix: '/admin/mart/enquiries', title: 'Quote Leads' },
-  { prefix: '/admin/mart/reviews', title: 'Product Reviews' },
-  { prefix: '/admin/mart-subscriptions', title: 'Mart Subscriptions' },
-  { prefix: '/admin/mart', title: 'Mart' },
   { prefix: '/admin/bookings', title: 'Bookings & requests' },
   { prefix: '/admin/services', title: 'Services' },
   { prefix: '/admin/sub-categories', title: 'Sub-Categories' },
   { prefix: '/admin/categories', title: 'Categories' },
   { prefix: '/admin/labour', title: 'Labour & KYC' },
-  { prefix: '/admin/user-subscriptions', title: 'User Subscriptions' },
   { prefix: '/admin/users', title: 'Users' },
+  { prefix: '/admin/zone-management', title: 'Zone Management' },
   { prefix: '/admin/zones', title: 'Manage Radius' },
   { prefix: '/admin', title: 'Dashboard' },
 ]

@@ -2,7 +2,7 @@
 
 .lc-swiggy-cat-tile {
   display: flex;
-  width: 5.5rem;
+  width: 4rem;
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
@@ -15,8 +15,8 @@
 
 .lc-swiggy-cat-img {
   display: block;
-  height: 5.5rem;
-  width: 5.5rem;
+  height: 4rem;
+  width: 4rem;
   overflow: hidden;
   border-radius: 1rem;
   border: 2px solid #e2e8f0;

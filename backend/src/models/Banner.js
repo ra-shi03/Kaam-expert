@@ -23,8 +23,13 @@ const bannerSchema = new mongoose.Schema(
     },
     panel: {
       type: String,
-      enum: ['APP', 'CONTRACTOR', 'VENDOR'],
+      enum: ['APP', 'CONTRACTOR', 'VENDOR', 'EXPLORE'],
       default: 'APP',
+    },
+    mediaType: {
+      type: String,
+      enum: ['image', 'video'],
+      default: 'image',
     },
     targetAudience: [
       {

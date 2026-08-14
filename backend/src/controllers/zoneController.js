@@ -1,8 +1,127 @@
 import { SystemSetting } from '../models/SystemSetting.js'
 import { Booking } from '../models/Booking.js'
 import { User } from '../models/User.js'
+import { Zone } from '../models/Zone.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
+
+export const getActiveZones = asyncHandler(async (req, res) => {
+  const zones = await Zone.find({ isActive: true }).select('name polygon isActive').sort('name')
+  return sendSuccess(res, { data: { zones } })
+})
+
+export const getAllZones = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 50, search = '' } = req.query
+  const query = {}
+  
+  if (search) {
+    query.$or = [
+      { name: { $regex: search, $options: 'i' } },
+      { city: { $regex: search, $options: 'i' } },
+      { state: { $regex: search, $options: 'i' } }
+    ]
+  }
+
+  const skip = (Number(page) - 1) * Number(limit)
+  
+  const [zones, total] = await Promise.all([
+    Zone.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+    Zone.countDocuments(query)
+  ])
+
+  return sendSuccess(res, {
+    data: {
+      zones,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    }
+  })
+})
+
+export const createZone = asyncHandler(async (req, res) => {
+  const { name, country, state, city, pincodes, polygon, isActive, description } = req.body
+
+  if (!name || !country || !state || !city || !polygon || !polygon.coordinates) {
+    return sendError(res, { message: 'Missing required fields', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  const existingZone = await Zone.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } })
+  if (existingZone) {
+    return sendError(res, { message: 'Zone with this name already exists', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  const newZone = await Zone.create({
+    name,
+    country,
+    state,
+    city,
+    pincodes: pincodes || [],
+    polygon,
+    isActive: isActive ?? true,
+    description
+  })
+
+  return sendSuccess(res, { message: 'Zone created successfully', data: newZone })
+})
+
+export const updateZone = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const { name, country, state, city, pincodes, polygon, isActive, description } = req.body
+
+  const zone = await Zone.findById(id)
+  if (!zone) {
+    return sendError(res, { message: 'Zone not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+
+  if (name && name !== zone.name) {
+    const existingZone = await Zone.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } })
+    if (existingZone) {
+      return sendError(res, { message: 'Zone with this name already exists', statusCode: HTTP_STATUS.BAD_REQUEST })
+    }
+    zone.name = name
+  }
+
+  if (country) zone.country = country
+  if (state) zone.state = state
+  if (city) zone.city = city
+  if (pincodes) zone.pincodes = pincodes
+  if (polygon) zone.polygon = polygon
+  if (isActive !== undefined) zone.isActive = isActive
+  if (description !== undefined) zone.description = description
+
+  await zone.save()
+
+  return sendSuccess(res, { message: 'Zone updated successfully', data: zone })
+})
+
+export const toggleZoneStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const zone = await Zone.findById(id)
+  if (!zone) {
+    return sendError(res, { message: 'Zone not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+  
+  zone.isActive = !zone.isActive
+  await zone.save()
+
+  return sendSuccess(res, { message: `Zone ${zone.isActive ? 'activated' : 'deactivated'} successfully`, data: zone })
+})
+
+export const deleteZone = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const zone = await Zone.findById(id)
+  if (!zone) {
+    return sendError(res, { message: 'Zone not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+  
+  await zone.deleteOne()
+
+  return sendSuccess(res, { message: 'Zone deleted successfully' })
+})
 
 export const getZoneSettings = asyncHandler(async (req, res) => {
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })

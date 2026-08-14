@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useDispatch } from 'react-redux'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -18,6 +18,7 @@ import {
   Loader2,
   LogOut,
   Mail,
+  MapPin,
   Menu,
   Pencil,
   Phone,
@@ -160,12 +161,147 @@ export function AppProfilePage() {
   const [editNameValue, setEditNameValue] = useState('')
   const [editPhoneValue, setEditPhoneValue] = useState('')
   const [editEmailValue, setEditEmailValue] = useState('')
+  const [editPermanentAddress, setEditPermanentAddress] = useState('')
+  const [editCurrentLocation, setEditCurrentLocation] = useState('')
+  const [editCity, setEditCity] = useState('')
+  const [editState, setEditState] = useState('')
+  const [editCountry, setEditCountry] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileErr, setProfileErr] = useState('')
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false)
+
+  const cityInputRef = useRef(null)
+  const stateInputRef = useRef(null)
 
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
   const [deleteErr, setDeleteErr] = useState('')
+
+  useEffect(() => {
+    if (!editProfileOpen) return
+    
+    const initAutocomplete = () => {
+      if (!window.google?.maps?.places) return
+      
+      if (cityInputRef.current) {
+        const cityAutocomplete = new window.google.maps.places.Autocomplete(cityInputRef.current, {
+          types: ['(cities)'],
+          componentRestrictions: { country: 'in' },
+          fields: ['address_components', 'name']
+        })
+        
+        cityAutocomplete.addListener('place_changed', () => {
+          const place = cityAutocomplete.getPlace()
+          if (!place.address_components) return
+          
+          let cityName = ''
+          let stateName = ''
+          let countryName = ''
+          
+          place.address_components.forEach(comp => {
+            if (comp.types.includes('locality')) cityName = comp.long_name
+            if (comp.types.includes('administrative_area_level_1')) stateName = comp.long_name
+            if (comp.types.includes('country')) countryName = comp.long_name
+          })
+          
+          if (cityName) setEditCity(cityName)
+          else if (place.name) setEditCity(place.name)
+          
+          if (stateName) setEditState(stateName)
+          if (countryName) setEditCountry(countryName)
+        })
+      }
+      
+      if (stateInputRef.current) {
+        const stateAutocomplete = new window.google.maps.places.Autocomplete(stateInputRef.current, {
+          types: ['(regions)'],
+          componentRestrictions: { country: 'in' },
+          fields: ['address_components', 'name']
+        })
+        
+        stateAutocomplete.addListener('place_changed', () => {
+          const place = stateAutocomplete.getPlace()
+          if (!place.address_components) return
+          
+          let stateName = ''
+          place.address_components.forEach(comp => {
+            if (comp.types.includes('administrative_area_level_1')) stateName = comp.long_name
+          })
+          
+          if (stateName) setEditState(stateName)
+          else if (place.name) setEditState(place.name)
+        })
+      }
+    }
+    
+    if (window.google?.maps?.places) {
+      initAutocomplete()
+    } else {
+      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+      if (!apiKey) return
+      
+      if (!document.querySelector('#google-maps-script')) {
+        const script = document.createElement('script')
+        script.id = 'google-maps-script'
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
+        script.async = true
+        script.onload = initAutocomplete
+        document.head.appendChild(script)
+      } else {
+        setTimeout(initAutocomplete, 500)
+      }
+    }
+  }, [editProfileOpen])
+
+  const handleFetchLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setProfileErr('Geolocation is not supported by your browser')
+      return
+    }
+    
+    setIsFetchingLocation(true)
+    setProfileErr('')
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords
+        
+        if (!window.google?.maps?.Geocoder) {
+          setIsFetchingLocation(false)
+          setProfileErr('Google Maps not loaded')
+          return
+        }
+        
+        const geocoder = new window.google.maps.Geocoder()
+        geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+          setIsFetchingLocation(false)
+          if (status === 'OK' && results[0]) {
+            const addressComponents = results[0].address_components
+            let city = ''
+            let state = ''
+            let country = ''
+            
+            addressComponents.forEach(comp => {
+              if (comp.types.includes('locality')) city = comp.long_name
+              if (comp.types.includes('administrative_area_level_1')) state = comp.long_name
+              if (comp.types.includes('country')) country = comp.long_name
+            })
+            
+            setEditCurrentLocation(results[0].formatted_address)
+            if (city) setEditCity(city)
+            if (state) setEditState(state)
+            if (country) setEditCountry(country)
+          } else {
+            setProfileErr('Could not determine location from coordinates')
+          }
+        })
+      },
+      (error) => {
+        setIsFetchingLocation(false)
+        setProfileErr(error.message)
+      }
+    )
+  }, [])
 
   const labourCategories = user?.labourProfile?.categoryIds
   const labourKyc = user?.labourProfile?.kycStatus
@@ -247,6 +383,11 @@ export function AppProfilePage() {
     setEditNameValue(user?.fullName || '')
     setEditPhoneValue(user?.phone || '')
     setEditEmailValue(user?.email || '')
+    setEditPermanentAddress(user?.permanentAddress || '')
+    setEditCurrentLocation(user?.currentLocation || '')
+    setEditCity(user?.city || '')
+    setEditState(user?.state || '')
+    setEditCountry(user?.country || 'India')
     setProfileErr('')
     setEditProfileOpen(true)
   }, [user])
@@ -272,7 +413,12 @@ export function AppProfilePage() {
       const res = await patchCurrentUser({ 
         fullName: trimmedName,
         phone: trimmedPhone || undefined,
-        email: trimmedEmail || undefined
+        email: trimmedEmail || undefined,
+        permanentAddress: editPermanentAddress.trim() || undefined,
+        currentLocation: editCurrentLocation.trim() || undefined,
+        city: editCity.trim() || undefined,
+        state: editState.trim() || undefined,
+        country: editCountry.trim() || undefined
       })
       dispatch(setUser(res.data.user))
       setEditProfileOpen(false)
@@ -281,7 +427,7 @@ export function AppProfilePage() {
     } finally {
       setSavingProfile(false)
     }
-  }, [editNameValue, editPhoneValue, editEmailValue, dispatch])
+  }, [editNameValue, editPhoneValue, editEmailValue, editPermanentAddress, editCurrentLocation, editCity, editState, editCountry, dispatch])
 
   const handleToggleRole = useCallback(async () => {
     const newRole = user?.role === USER_ROLES.CUSTOMER ? USER_ROLES.CONTRACTOR : USER_ROLES.CUSTOMER
@@ -465,61 +611,199 @@ export function AppProfilePage() {
       ) : null}
 
       <GlassPanel className="border-slate-200/90 p-4 ring-1 ring-slate-100/90">
-        <AppSectionHeader title="Account details" className="mb-1" />
-        <DetailRow 
-          icon={Sparkles} 
-          label="Full name" 
-          value={
-            <div className="flex items-center justify-end gap-2">
-              <span className="truncate">{user?.fullName || '—'}</span>
-              <button
-                type="button"
-                onClick={handleEditProfileOpen}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-brand/10 hover:text-brand"
-                aria-label="Edit name"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
+        <div className="flex justify-between items-center mb-3">
+          <AppSectionHeader title="Account details" className="mb-0" />
+          {!editProfileOpen && (
+            <button
+              type="button"
+              onClick={handleEditProfileOpen}
+              className="flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-600 transition hover:bg-brand/10 hover:text-brand"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </button>
+          )}
+        </div>
+
+        {editProfileOpen ? (
+          <form onSubmit={handleSaveProfile} className="space-y-4 pt-2 border-t border-slate-100/90">
+            <div>
+              <label htmlFor="edit-full-name" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                Full Name
+              </label>
+              <AppTextInput
+                id="edit-full-name"
+                placeholder="e.g. Rahul Kumar"
+                value={editNameValue}
+                onChange={(e) => setEditNameValue(e.target.value)}
+                disabled={savingProfile}
+                autoFocus
+              />
             </div>
-          } 
-        />
-        <DetailRow
-          icon={Phone}
-          label="Mobile"
-          value={
-            <div className="flex items-center justify-end gap-2">
-              <span className="truncate">{user?.phone ? `+91 ${user.phone}` : '—'}</span>
-              <button
-                type="button"
-                onClick={handleEditProfileOpen}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-brand/10 hover:text-brand"
-                aria-label="Edit phone"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
+            <div>
+              <label htmlFor="edit-phone" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                Mobile Number
+              </label>
+              <AppTextInput
+                id="edit-phone"
+                type="tel"
+                placeholder="10-digit number"
+                value={editPhoneValue}
+                onChange={(e) => setEditPhoneValue(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                disabled={savingProfile}
+              />
             </div>
-          }
-          sub="Used for OTP sign-in"
-        />
-        <DetailRow 
-          icon={Mail} 
-          label="Email" 
-          value={
-            <div className="flex items-center justify-end gap-2">
-              <span className="truncate">{user?.email?.trim() || '—'}</span>
-              <button
-                type="button"
-                onClick={handleEditProfileOpen}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition hover:bg-brand/10 hover:text-brand"
-                aria-label="Edit email"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
+            <div>
+              <label htmlFor="edit-email" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                Email Address
+              </label>
+              <AppTextInput
+                id="edit-email"
+                type="email"
+                placeholder="e.g. rahul@example.com"
+                value={editEmailValue}
+                onChange={(e) => setEditEmailValue(e.target.value)}
+                disabled={savingProfile}
+              />
             </div>
-          } 
-          sub="Optional on your account" 
-        />
-        <DetailRow icon={ShieldCheck} label="Last session" value={lastActive || '—'} />
+            <div>
+              <label htmlFor="edit-permanent-address" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                Permanent Address
+              </label>
+              <AppTextInput
+                id="edit-permanent-address"
+                type="text"
+                placeholder="e.g. 123 Main St, Apt 4"
+                value={editPermanentAddress}
+                onChange={(e) => setEditPermanentAddress(e.target.value)}
+                disabled={savingProfile}
+              />
+            </div>
+            <div>
+              <label htmlFor="edit-current-location" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                Current Location / Zone
+              </label>
+              <AppTextInput
+                id="edit-current-location"
+                type="text"
+                placeholder="e.g. MG Road Area"
+                value={editCurrentLocation}
+                onChange={(e) => setEditCurrentLocation(e.target.value)}
+                disabled={savingProfile || isFetchingLocation}
+                rightSlot={
+                  <button
+                    type="button"
+                    onClick={handleFetchLocation}
+                    disabled={savingProfile || isFetchingLocation}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand/10 text-brand transition hover:bg-brand/20 disabled:opacity-50"
+                    title="Fetch current location"
+                  >
+                    {isFetchingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+                  </button>
+                }
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="edit-city" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                  City
+                </label>
+                <AppTextInput
+                  id="edit-city"
+                  ref={cityInputRef}
+                  type="text"
+                  placeholder="e.g. Mumbai"
+                  value={editCity}
+                  onChange={(e) => setEditCity(e.target.value)}
+                  disabled={savingProfile}
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-state" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                  State
+                </label>
+                <AppTextInput
+                  id="edit-state"
+                  ref={stateInputRef}
+                  type="text"
+                  placeholder="e.g. Maharashtra"
+                  value={editState}
+                  onChange={(e) => setEditState(e.target.value)}
+                  disabled={savingProfile}
+                />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="edit-country" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                Country
+              </label>
+              <AppTextInput
+                id="edit-country"
+                type="text"
+                placeholder="e.g. India"
+                value={editCountry}
+                onChange={(e) => setEditCountry(e.target.value)}
+                disabled={savingProfile}
+              />
+            </div>
+            
+            {profileErr ? <p className="mt-1.5 text-xs font-medium text-rose-600">{profileErr}</p> : null}
+            
+            <div className="flex gap-3 pt-4">
+              <AppButton 
+                type="button" 
+                variant="secondary" 
+                onClick={() => setEditProfileOpen(false)} 
+                disabled={savingProfile}
+              >
+                Cancel
+              </AppButton>
+              <AppButton type="submit" loading={savingProfile}>
+                Save changes
+              </AppButton>
+            </div>
+          </form>
+        ) : (
+          <div className="space-y-1">
+            <DetailRow 
+              icon={Sparkles} 
+              label="Full name" 
+              value={<span className="truncate">{user?.fullName || '—'}</span>} 
+            />
+            <DetailRow
+              icon={Phone}
+              label="Mobile"
+              value={<span className="truncate">{user?.phone ? `+91 ${user.phone}` : '—'}</span>}
+              sub="Used for OTP sign-in"
+            />
+            <DetailRow 
+              icon={Mail} 
+              label="Email" 
+              value={<span className="truncate">{user?.email?.trim() || '—'}</span>} 
+              sub="Optional on your account" 
+            />
+            <DetailRow 
+              icon={Home} 
+              label="Permanent Address" 
+              value={<span className="truncate max-w-[200px]">{user?.permanentAddress?.trim() || '—'}</span>} 
+            />
+            <DetailRow 
+              icon={Building2} 
+              label="Location/Zone" 
+              value={<span className="truncate max-w-[200px]">{user?.currentLocation?.trim() || '—'}</span>} 
+            />
+            <DetailRow 
+              icon={Building2} 
+              label="City, State, Country" 
+              value={
+                <span className="truncate max-w-[200px]">
+                  {[user?.city, user?.state, user?.country].filter(Boolean).join(', ') || '—'}
+                </span>
+              } 
+            />
+            <DetailRow icon={ShieldCheck} label="Last session" value={lastActive || '—'} />
+          </div>
+        )}
       </GlassPanel>
 
       {(user?.role === USER_ROLES.CUSTOMER || user?.role === USER_ROLES.CONTRACTOR) && (
@@ -610,69 +894,6 @@ export function AppProfilePage() {
         Delete account
       </button>
 
-      <AppModal 
-        open={editProfileOpen} 
-        onClose={() => !savingProfile && setEditProfileOpen(false)} 
-        title="Edit Profile"
-      >
-        <form onSubmit={handleSaveProfile} className="space-y-4">
-          <div>
-            <label htmlFor="edit-full-name" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
-              Full Name
-            </label>
-            <AppTextInput
-              id="edit-full-name"
-              placeholder="e.g. Rahul Kumar"
-              value={editNameValue}
-              onChange={(e) => setEditNameValue(e.target.value)}
-              disabled={savingProfile}
-              autoFocus
-            />
-          </div>
-          <div>
-            <label htmlFor="edit-phone" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
-              Mobile Number
-            </label>
-            <AppTextInput
-              id="edit-phone"
-              type="tel"
-              placeholder="10-digit number"
-              value={editPhoneValue}
-              onChange={(e) => setEditPhoneValue(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              disabled={savingProfile}
-            />
-          </div>
-          <div>
-            <label htmlFor="edit-email" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
-              Email Address
-            </label>
-            <AppTextInput
-              id="edit-email"
-              type="email"
-              placeholder="e.g. rahul@example.com"
-              value={editEmailValue}
-              onChange={(e) => setEditEmailValue(e.target.value)}
-              disabled={savingProfile}
-            />
-          </div>
-          
-          {profileErr ? <p className="mt-1.5 text-xs font-medium text-rose-600">{profileErr}</p> : null}
-          
-          <div className="flex gap-3 pt-2">
-            <AppButton 
-              type="button" 
-              variant="secondary" 
-              onClick={() => setEditProfileOpen(false)} 
-              disabled={savingProfile}
-            >
-              Cancel
-            </AppButton>
-            <AppButton type="submit" loading={savingProfile}>
-              Save
-            </AppButton>
-          </div>
-        </form>
-      </AppModal>
 
       <AppModal 
         open={deleteOpen} 

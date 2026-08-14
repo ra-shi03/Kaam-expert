@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
+  AlertCircle,
   AlertTriangle,
   Bell,
   Building2,
@@ -543,12 +544,17 @@ export function LabourHomeScreen({ user }) {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4"
+            className="flex items-start gap-3 rounded-2xl bg-white/90 backdrop-blur-md border border-amber-200 p-4 shadow-xl shadow-amber-900/5 relative overflow-hidden"
           >
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" aria-hidden />
-            <div>
-              <h3 className="text-sm font-bold text-amber-500">Currently Offline (Schedule)</h3>
-              <p className="mt-1 text-xs text-slate-300">
+            <div className="pointer-events-none absolute -right-6 -top-6 text-amber-500/10" aria-hidden>
+              <AlertCircle className="h-24 w-24" />
+            </div>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 relative z-10">
+              <AlertCircle className="h-5 w-5" aria-hidden />
+            </div>
+            <div className="relative z-10 flex-1">
+              <h3 className="text-sm font-extrabold text-slate-900">Currently Offline (Schedule)</h3>
+              <p className="mt-1 text-[13px] font-medium text-slate-600 leading-relaxed">
                 Your global toggle is on, but your current schedule shows you are offline or outside working hours. You will not receive any instant or scheduled bookings right now.
               </p>
             </div>

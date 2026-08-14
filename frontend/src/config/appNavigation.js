@@ -23,7 +23,7 @@ const byRole = {
     bottomNav: [
       { id: 'home', to: '/app', label: 'Home', icon: Home, end: true },
       { id: 'book', to: '/app/my-bookings', label: 'Bookings', icon: CalendarClock },
-      { id: 'search', to: '/app/search', label: 'Search', icon: Search, center: true },
+      { id: 'search', to: '/app/search', label: 'Search', icon: Search },
       { id: 'profile', to: '/app/profile', label: 'Profile', icon: UserRound },
     ],
     drawerNav: [

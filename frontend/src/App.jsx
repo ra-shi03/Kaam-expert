@@ -23,8 +23,7 @@ import { AdminBillingPage } from './pages/admin/AdminBillingPage.jsx'
 import { AdminPricingPage } from './pages/admin/AdminPricingPage.jsx'
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage.jsx'
 import { AdminReportsPage } from './pages/admin/AdminReportsPage.jsx'
-import { AdminMartSubscriptionsPage } from './pages/admin/AdminMartSubscriptionsPage.jsx'
-import { AdminUserSubscriptionsPage } from './pages/admin/AdminUserSubscriptionsPage.jsx'
+import { AdminZoneManagementPage } from './pages/admin/AdminZoneManagementPage.jsx'
 import { AdminBannersPage } from './pages/admin/AdminBannersPage.jsx'
 import { AdminComplaintsPage } from './pages/admin/AdminComplaintsPage.jsx'
 import { AdminProfilePage } from './pages/admin/AdminProfilePage.jsx'
@@ -89,8 +88,6 @@ function App() {
             <Route path="sub-categories" element={<AdminSubCategoriesPage />} />
             <Route path="services" element={<AdminServicesPage />} />
             <Route path="users" element={<AdminUsersPage />} />
-            <Route path="mart-subscriptions" element={<AdminMartSubscriptionsPage />} />
-            <Route path="user-subscriptions" element={<AdminUserSubscriptionsPage />} />
             <Route path="labour" element={<AdminLabourPage />} />
 
             <Route path="bookings" element={<AdminBookingsPage />} />
@@ -104,6 +101,7 @@ function App() {
             <Route path="reports" element={<AdminReportsPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
             <Route path="zones" element={<AdminZonesPage />} />
+            <Route path="zone-management" element={<AdminZoneManagementPage />} />
             <Route path="platform-fee" element={<AdminPlatformFeePage />} />
             <Route path="commission-fee" element={<AdminCommissionFeePage />} />
             <Route path="labour-wallet" element={<AdminLabourWalletPage />} />

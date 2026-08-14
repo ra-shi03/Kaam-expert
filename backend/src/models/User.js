@@ -126,6 +126,11 @@ const userSchema = new mongoose.Schema(
       lat: Number,
       lng: Number
     },
+    permanentAddress: { type: String, trim: true },
+    currentLocation: { type: String, trim: true },
+    city: { type: String, trim: true },
+    state: { type: String, trim: true },
+    country: { type: String, trim: true },
     labourProfile: labourProfileSchema,
   },
   { timestamps: true },

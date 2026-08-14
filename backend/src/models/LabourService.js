@@ -35,6 +35,41 @@ const labourServiceSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    hourlyPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    minHours: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+    maxHours: {
+      type: Number,
+      default: 24,
+      min: 1,
+    },
+    discountType: {
+      type: String,
+      enum: ['FIXED', 'PERCENTAGE'],
+      default: 'PERCENTAGE',
+    },
+    discountValue: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    isAllZones: {
+      type: Boolean,
+      default: true,
+    },
+    zones: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Zone',
+      }
+    ],
   },
   { timestamps: true }
 )

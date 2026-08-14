@@ -1,7 +1,6 @@
 import { Star } from 'lucide-react'
 import { AppListSkeleton } from '../../app-ui/feedback/AppListSkeleton.jsx'
 import { hashSeed } from '../../../lib/discoverLabourDummyUi.js'
-import skillImg from '../../../assets/skill.png'
 
 export function IndividualHomeWorkerCarousel({
   title = 'Nearby labour',
@@ -16,6 +15,15 @@ export function IndividualHomeWorkerCarousel({
     <section className="mb-6" aria-label={title}>
       <div className="lc-home-section-head">
         <h3>{title}</h3>
+        {emptyAction && !loading && !error && workers.length === 0 ? (
+          <button
+            type="button"
+            onClick={onEmptyAction}
+            className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-brand-bright"
+          >
+            {emptyAction}
+          </button>
+        ) : null}
       </div>
 
       {error ? (
@@ -25,24 +33,6 @@ export function IndividualHomeWorkerCarousel({
       ) : null}
 
       {loading ? <AppListSkeleton rows={1} className="h-44" /> : null}
-
-      {!loading && !error && workers.length === 0 ? (
-        <div className="relative w-full overflow-hidden rounded-2xl bg-slate-50 shadow-sm">
-          <img src={skillImg} alt="Explore Skills" className="w-full h-auto object-contain" />
-          {emptyAction ? (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={onEmptyAction}
-                className="rounded-xl-
-                . bg-brand rounded-xl px-4 py-2 text-base font-bold text-white shadow-md hover:bg-brand-bright transition-colors"
-              >
-                {emptyAction}
-              </button>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
 
       {!loading && workers.length > 0 ? (
         <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
