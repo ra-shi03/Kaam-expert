@@ -110,6 +110,10 @@ export function AdminSettingsPage() {
   const [selectedGstCategory, setSelectedGstCategory] = useState('')
   const [isGstActive, setIsGstActive] = useState(true)
 
+  // Payment Modes
+  const [cashEnabled, setCashEnabled] = useState(true)
+  const [onlineEnabled, setOnlineEnabled] = useState(true)
+
 
   // Cancellation Penalty
   const [cancellationPenalty, setCancellationPenalty] = useState('')
@@ -118,6 +122,7 @@ export function AdminSettingsPage() {
   const [isUserSubscriptionEnabled, setIsUserSubscriptionEnabled] = useState(true)
   const [dailySubscriptionPrice, setDailySubscriptionPrice] = useState('')
   const [freeTrialDays, setFreeTrialDays] = useState('')
+  const [freeTrialMessage, setFreeTrialMessage] = useState('')
   const [subscriptionStartHour, setSubscriptionStartHour] = useState('')
   const [subscriptionEndHour, setSubscriptionEndHour] = useState('')
 
@@ -143,6 +148,12 @@ export function AdminSettingsPage() {
         if (s.walletLimit != null) {
           setWalletLimit(String(s.walletLimit))
         }
+
+        // Payment Modes
+        if (s.paymentModes) {
+          if (s.paymentModes.cashEnabled != null) setCashEnabled(s.paymentModes.cashEnabled)
+          if (s.paymentModes.onlineEnabled != null) setOnlineEnabled(s.paymentModes.onlineEnabled)
+        }
         
         // GST Categories
         fetchAdminLabourCategoryTree().then(res => {
@@ -160,6 +171,7 @@ export function AdminSettingsPage() {
         if (s.isUserSubscriptionEnabled != null) setIsUserSubscriptionEnabled(s.isUserSubscriptionEnabled)
         if (s.dailySubscriptionPrice != null) setDailySubscriptionPrice(String(s.dailySubscriptionPrice))
         if (s.freeTrialDays != null) setFreeTrialDays(String(s.freeTrialDays))
+        if (s.freeTrialMessage != null) setFreeTrialMessage(String(s.freeTrialMessage))
         if (s.subscriptionStartHour != null) setSubscriptionStartHour(String(s.subscriptionStartHour))
         if (s.subscriptionEndHour != null) setSubscriptionEndHour(String(s.subscriptionEndHour))
         
@@ -421,6 +433,47 @@ export function AdminSettingsPage() {
           </AppPrimaryButton>
         </SettingsSection>
 
+        {/* Payment Modes */}
+        <SettingsSection
+          icon={Wallet}
+          title="Payment Modes"
+          description="Enable or disable available payment modes for customers"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={cashEnabled}
+                onClick={() => setCashEnabled(!cashEnabled)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${cashEnabled ? 'bg-brand' : 'bg-slate-200'}`}
+              >
+                <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${cashEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+              <label className="text-sm font-medium text-slate-700 cursor-pointer" onClick={() => setCashEnabled(!cashEnabled)}>Cash Payments</label>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={onlineEnabled}
+                onClick={() => setOnlineEnabled(!onlineEnabled)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${onlineEnabled ? 'bg-brand' : 'bg-slate-200'}`}
+              >
+                <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${onlineEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+              </button>
+              <label className="text-sm font-medium text-slate-700 cursor-pointer" onClick={() => setOnlineEnabled(!onlineEnabled)}>Online Payments</label>
+            </div>
+          </div>
+          <AppPrimaryButton
+            type="button"
+            loading={saving === 'payment'}
+            onClick={() => handleSave('Payment Modes', adminSettingsApi.updatePaymentModes, { cashEnabled, onlineEnabled })}
+          >
+            Save Payment Modes
+          </AppPrimaryButton>
+        </SettingsSection>
+
         {/* Cancellation Penalty */}
         <SettingsSection
           icon={AlertTriangle}
@@ -488,6 +541,16 @@ export function AdminSettingsPage() {
               onChange={(e) => setFreeTrialDays(e.target.value)}
             />
           </div>
+          <div>
+            <label className={labelClass}>Free Trial Message</label>
+            <input
+              className={inputClass + ' mt-1.5'}
+              type="text"
+              placeholder="e.g. Welcome! Enjoy your free trial period."
+              value={freeTrialMessage}
+              onChange={(e) => setFreeTrialMessage(e.target.value)}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Start Hour (0-23)</label>
@@ -522,6 +585,7 @@ export function AdminSettingsPage() {
               handleSave('Subscription Settings', adminSettingsApi.updateDynamicSubscriptionSettings, {
                 dailySubscriptionPrice: Number(dailySubscriptionPrice),
                 freeTrialDays: Number(freeTrialDays),
+                freeTrialMessage,
                 subscriptionStartHour: Number(subscriptionStartHour),
                 subscriptionEndHour: Number(subscriptionEndHour),
               })

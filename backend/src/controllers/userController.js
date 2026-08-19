@@ -105,9 +105,14 @@ export const updateMe = asyncHandler(async (req, res) => {
     }
   }
 
-  if (req.body.labourProfile?.skills && user.role === USER_ROLES.LABOUR) {
+  if (user.role === USER_ROLES.LABOUR && req.body.labourProfile) {
     user.labourProfile = user.labourProfile || {}
-    user.labourProfile.skills = req.body.labourProfile.skills
+    if (req.body.labourProfile.skills !== undefined) {
+      user.labourProfile.skills = req.body.labourProfile.skills
+    }
+    if (req.body.labourProfile.experienceYears !== undefined) {
+      user.labourProfile.experienceYears = req.body.labourProfile.experienceYears
+    }
   }
 
   try {
@@ -399,7 +404,7 @@ function mergeAnd(base, extraClauses) {
 
 /** Admin: list users with search, role, active/inactive, optional labour KYC filter, pagination */
 export const listUsers = asyncHandler(async (req, res) => {
-  const { search, role, status, kycStatus, page = 1, limit = 20 } = req.query
+  const { search, role, status, kycStatus, freeTrialStatus, categoryId, location, page = 1, limit = 20 } = req.query
   const q = {}
   const andParts = []
 
@@ -466,6 +471,38 @@ export const listUsers = asyncHandler(async (req, res) => {
     q.role = role
   }
 
+  if (freeTrialStatus) {
+    if (role && role !== USER_ROLES.LABOUR) {
+      return sendError(res, {
+        message: 'Free trial filter applies to labour accounts only.',
+        statusCode: HTTP_STATUS.BAD_REQUEST,
+        code: 'TRIAL_REQUIRES_LABOUR',
+      })
+    }
+    q.role = USER_ROLES.LABOUR
+    
+    if (freeTrialStatus === 'active') {
+      andParts.push({ 'labourProfile.trialEndsAt': { $gt: new Date() } })
+    } else if (freeTrialStatus === 'expired') {
+      andParts.push({
+        'labourProfile.trialEndsAt': { $lte: new Date() },
+        'labourProfile.trialStartedAt': { $exists: true }
+      })
+    } else if (freeTrialStatus === 'all') {
+      andParts.push({ 'labourProfile.trialStartedAt': { $exists: true } })
+    }
+  }
+
+  if (categoryId && categoryId !== 'all') {
+    andParts.push({ 'labourProfile.categoryIds': categoryId })
+  }
+
+  if (location && location.trim() !== '' && location !== 'all') {
+    const locRegex = new RegExp(escapeRegexForMongo(location.trim()), 'i')
+    andParts.push({ $or: [{ city: locRegex }, { currentLocation: locRegex }] })
+  }
+
+
   if (andParts.length) {
     q.$and = andParts
   }
@@ -494,6 +531,7 @@ export const listUsers = asyncHandler(async (req, res) => {
     User.find(q)
       .select('-passwordHash')
       .populate({ path: 'labourProfile.categoryIds', select: 'name slug isActive' })
+      .populate({ path: 'labourProfile.serviceIds', select: 'name isActive' })
       .sort({ lastLoginAt: -1, createdAt: -1 })
       .skip(skip)
       .limit(lim)

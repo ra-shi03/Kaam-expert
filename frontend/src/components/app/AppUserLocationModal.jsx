@@ -3,6 +3,10 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ArrowLeft, Loader2, MapPin, Navigation, X } from 'lucide-react'
 import { readAppUserLocation, writeAppUserLocation } from '../../lib/appUserLocationStorage.js'
+import { useAuth } from '../../hooks/useAuth.js'
+import { patchCurrentUser } from '../../api/userProfileApi.js'
+import { useDispatch } from 'react-redux'
+import { setUser } from '../../store/slices/authSlice.js'
 
 function formatCoords(lat, lng) {
   if (lat == null || lng == null) return ''
@@ -22,8 +26,11 @@ export function AppUserLocationModal({
   const [address, setAddress] = useState('')
   const [lat, setLat] = useState(null)
   const [lng, setLng] = useState(null)
+  const [city, setCity] = useState('')
   const [geoBusy, setGeoBusy] = useState(false)
   const [hint, setHint] = useState('')
+  const { user } = useAuth?.() || {}
+  const dispatch = useDispatch?.()
 
   useEffect(() => {
     if (!open) return
@@ -32,6 +39,7 @@ export function AppUserLocationModal({
       setAddress(stored?.address ?? '')
       setLat(stored?.lat ?? null)
       setLng(stored?.lng ?? null)
+      setCity(stored?.city ?? '')
       setHint('')
     })
   }, [open])
@@ -66,7 +74,15 @@ export function AppUserLocationModal({
             const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${la},${ln}&key=${apiKey}`)
             const data = await res.json()
             if (data.status === 'OK' && data.results?.[0]) {
+              const addressComponents = data.results[0].address_components
+              let cityName = ''
+              if (addressComponents) {
+                addressComponents.forEach(comp => {
+                  if (comp.types.includes('locality')) cityName = comp.long_name
+                })
+              }
               setAddress(data.results[0].formatted_address)
+              setCity(cityName)
               setHint('Location and address updated.')
               setGeoBusy(false)
               return
@@ -89,17 +105,35 @@ export function AppUserLocationModal({
 
   const canSave = requireLocation ? Boolean(address.trim() || (lat != null && lng != null)) : true
 
-  const save = useCallback(() => {
+  const save = useCallback(async () => {
     const trimmed = address.trim()
     if (requireLocation && !trimmed && (lat == null || lng == null)) {
       setHint('Enter your area or fetch current location before continuing.')
       return
     }
-    writeAppUserLocation({ address: trimmed, lat, lng })
+    
+    // 1. Optimistically update local app storage so UI reacts instantly
+    writeAppUserLocation({ address: trimmed, lat, lng, city })
     window.dispatchEvent(new CustomEvent('lc-app-user-location-changed'))
+    
+    // 2. Sync to user profile if they are logged in
+    if (user && user._id) {
+      try {
+        const res = await patchCurrentUser({ 
+          currentLocation: trimmed || undefined,
+          city: city || undefined
+        })
+        if (dispatch) {
+          dispatch(setUser(res.data.user))
+        }
+      } catch (err) {
+        console.error('Failed to sync location to user profile', err)
+      }
+    }
+    
     onSaved?.()
     onClose()
-  }, [address, lat, lng, onClose, onSaved, requireLocation])
+  }, [address, lat, lng, city, onClose, onSaved, requireLocation, user, dispatch])
 
   const sheet = (
     <AnimatePresence>
@@ -181,7 +215,12 @@ export function AppUserLocationModal({
               <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Or enter location</span>
               <textarea
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                onChange={(e) => {
+                  setAddress(e.target.value)
+                  setLat(null)
+                  setLng(null)
+                  setCity('')
+                }}
                 rows={4}
                 placeholder="Area, landmark, city…"
                 className="w-full resize-none rounded-2xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 shadow-inner outline-none placeholder:text-slate-400 focus:border-brand/40 focus:ring-2 focus:ring-brand/15"

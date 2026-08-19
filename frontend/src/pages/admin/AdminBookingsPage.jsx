@@ -30,6 +30,7 @@ const REQUEST_STATUS_FILTERS = [
 
 const BOOKING_STATUS_FILTERS = [
   { value: 'ALL', label: 'All' },
+  { value: 'PENDING', label: 'Pending' },
   { value: 'CREATED', label: 'Created' },
   { value: 'ASSIGNED', label: 'Assigned' },
   { value: 'STARTED', label: 'Started' },
@@ -40,14 +41,22 @@ const BOOKING_STATUS_FILTERS = [
 ]
 
 const getStatusBadgeStyle = (status) => {
-  switch (status) {
+  switch (status?.toUpperCase()) {
+    case 'CREATED': return 'bg-slate-100 text-slate-700'
+    case 'BROADCASTING': return 'bg-amber-100 text-amber-700'
+    case 'ACCEPTED': return 'bg-teal-100 text-teal-700'
+    case 'ASSIGNED': return 'bg-indigo-100 text-indigo-700'
+    case 'EN_ROUTE': return 'bg-blue-100 text-blue-700'
+    case 'STARTED': return 'bg-purple-100 text-purple-700'
+    case 'COMPLETED': return 'bg-emerald-100 text-emerald-800'
+    case 'CANCELLED': return 'bg-rose-50 text-rose-600'
+    case 'FAILED': return 'bg-red-100 text-red-700'
+    case 'REFUNDED': return 'bg-zinc-100 text-zinc-700'
+    // Fallbacks for contractor requests
     case 'pending_review': return 'bg-amber-100 text-amber-700'
     case 'confirmed': return 'bg-blue-100 text-blue-700'
     case 'allocating': return 'bg-blue-100 text-blue-700'
-    case 'assigned': return 'bg-indigo-100 text-indigo-700'
     case 'in_progress': return 'bg-purple-100 text-purple-700'
-    case 'completed': return 'bg-blue-100 text-blue-800'
-    case 'cancelled': return 'bg-slate-100 text-slate-600'
     case 'rejected': return 'bg-rose-100 text-rose-700'
     default: return 'bg-slate-100 text-slate-600'
   }
@@ -515,8 +524,12 @@ function BookingDetailsModal({ booking, onClose }) {
               <p className="font-semibold">{booking.serviceId?.name || 'N/A'}</p>
             </div>
             <div>
-              <p className="text-slate-500 text-xs">Subcategory</p>
-              <p className="font-semibold">{booking.subcategoryId?.name || 'N/A'}</p>
+              <p className="text-slate-500 text-xs">Category</p>
+              <p className="font-semibold">{booking.subcategoryId?.categoryId?.name || booking.categoryId?.name || booking.subcategoryId?.name || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs">Zone</p>
+              <p className="font-semibold">{booking.zoneName || 'N/A'}</p>
             </div>
             <div>
               <p className="text-slate-500 text-xs">Status</p>
@@ -525,6 +538,10 @@ function BookingDetailsModal({ booking, onClose }) {
             <div>
               <p className="text-slate-500 text-xs">Payment Method</p>
               <p className="font-semibold">{booking.paymentMethod}</p>
+            </div>
+            <div>
+              <p className="text-slate-500 text-xs">Booking Time</p>
+              <p className="font-semibold">{booking.createdAt ? new Date(booking.createdAt).toLocaleString() : 'N/A'}</p>
             </div>
             <div>
               <p className="text-slate-500 text-xs">Duration</p>
@@ -548,6 +565,9 @@ function BookingDetailsModal({ booking, onClose }) {
               <p className="text-slate-500 text-xs mb-1">Assigned Labour</p>
               <p className="font-semibold">{booking.laborId?.fullName}</p>
               <p className="text-slate-600">{booking.laborId?.phone}</p>
+              {booking.laborId?.savedAddress?.text && (
+                <p className="text-slate-600 mt-1 text-xs">Location: {booking.laborId.savedAddress.text}</p>
+              )}
             </div>
           )}
 
@@ -688,7 +708,6 @@ function IndividualBookingsTab() {
 
       <ul className="space-y-4">
         {bookings.map((b) => {
-          if (b.status === 'FAILED') return null;
           return (
           <li key={b._id}>
             <GlassPanel className="space-y-4 p-5">
@@ -704,9 +723,11 @@ function IndividualBookingsTab() {
                   <p className="mt-1 text-xs text-slate-500">
                     Date: {new Date(b.createdAt).toLocaleDateString()}
                   </p>
-                  <p className="mt-1 text-xs font-bold text-slate-700">
-                    Status: {b.status}
-                  </p>
+                  <div className="mt-2">
+                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getStatusBadgeStyle(b.status)}`}>
+                      {b.status?.replace('_', ' ')}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
                   <button
@@ -790,7 +811,7 @@ export function AdminBookingsPage() {
           }`}
           onClick={() => setActiveTab('contractor')}
         >
-          Contractor Requests
+          Contractor Bookings
         </button>
         <button
           className={`pb-2 text-sm font-bold border-b-2 transition ${

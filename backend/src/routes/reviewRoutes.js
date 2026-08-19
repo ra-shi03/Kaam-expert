@@ -23,4 +23,6 @@ router.get('/user/:userId', review.getReviews)
 
 router.get('/', restrictTo('ADMIN', 'SUPER_ADMIN'), review.getAllReviews)
 
+router.delete('/:id', restrictTo('ADMIN', 'SUPER_ADMIN'), review.deleteReview)
+
 export default router

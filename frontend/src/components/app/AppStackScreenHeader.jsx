@@ -8,35 +8,35 @@ function openAppDrawer() {
 /**
  * Standard header for full-screen app routes without AppShell chrome (bookings, search, etc.).
  */
-export function AppStackScreenHeader({ title, backTo = '/app', onBack }) {
+export function AppStackScreenHeader({ title, backTo = '/app', onBack, className = '' }) {
   return (
-    <header className="-mx-4 flex items-center gap-2 border-b border-slate-200 bg-white px-4 pb-3 pt-[max(0.25rem,env(safe-area-inset-top))]">
+    <header className={`mt-[max(0.75rem,env(safe-area-inset-top))] mb-4 flex items-center justify-between gap-3 rounded-[2.5rem] border border-slate-200 bg-white p-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] backdrop-blur-md sticky top-[max(0.75rem,env(safe-area-inset-top))] z-40 ${className}`}>
       {onBack ? (
         <button
           type="button"
           onClick={onBack}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 active:bg-slate-50"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-800 transition active:scale-95 active:bg-slate-50"
           aria-label="Go back"
         >
-          <ArrowLeft className="h-5 w-5" aria-hidden />
+          <ArrowLeft className="h-5 w-5" strokeWidth={2} aria-hidden />
         </button>
       ) : (
         <Link
           to={backTo}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 active:bg-slate-50"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-800 transition active:scale-95 active:bg-slate-50"
           aria-label="Go back"
         >
-          <ArrowLeft className="h-5 w-5" aria-hidden />
+          <ArrowLeft className="h-5 w-5" strokeWidth={2} aria-hidden />
         </Link>
       )}
-      <h1 className="min-w-0 flex-1 text-lg font-extrabold text-slate-900">{title}</h1>
+      <h1 className="min-w-0 flex-1 text-center text-[17px] font-bold text-slate-900 tracking-tight">{title}</h1>
       <button
         type="button"
         onClick={openAppDrawer}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 active:bg-slate-50"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-800 transition active:scale-95 active:bg-slate-50"
         aria-label="Open menu"
       >
-        <Menu className="h-5 w-5" aria-hidden />
+        <Menu className="h-5 w-5" strokeWidth={2} aria-hidden />
       </button>
     </header>
   )

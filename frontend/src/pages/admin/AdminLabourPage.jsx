@@ -78,6 +78,15 @@ function formatSkillLine(user) {
   return s.length > 48 ? `${s.slice(0, 45)}…` : s
 }
 
+function formatServiceLine(user) {
+  const svcs = user?.labourProfile?.serviceIds
+  if (!Array.isArray(svcs) || svcs.length === 0) return ''
+  const names = svcs.map((s) => (s && typeof s === 'object' && s.name ? s.name : null)).filter(Boolean)
+  if (!names.length) return `${svcs.length} selected`
+  const s = names.join(', ')
+  return s.length > 48 ? `${s.slice(0, 45)}…` : s
+}
+
 export function AdminLabourPage() {
   const reduce = useReducedMotion()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -86,6 +95,8 @@ export function AdminLabourPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(() => searchParams.get('search')?.trim() || '')
   const [kycFilter, setKycFilter] = useState(() => readInitialKyc(searchParams))
   const [status, setStatus] = useState(() => readInitialStatus(searchParams))
+  const [locationFilter, setLocationFilter] = useState(() => searchParams.get('location') || '')
+  const [debouncedLocation, setDebouncedLocation] = useState(() => searchParams.get('location') || '')
   const [page, setPage] = useState(() => Math.max(1, Number(searchParams.get('page')) || 1))
   const limit = 12
 
@@ -108,17 +119,23 @@ export function AdminLabourPage() {
   }, [searchInput])
 
   useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedLocation(locationFilter.trim()), 350)
+    return () => window.clearTimeout(t)
+  }, [locationFilter])
+
+  useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, kycFilter, status])
+  }, [debouncedSearch, debouncedLocation, kycFilter, status])
 
   useEffect(() => {
     const next = new URLSearchParams()
     if (debouncedSearch) next.set('search', debouncedSearch)
     if (kycFilter !== 'all') next.set('kyc', kycFilter)
     if (status !== 'all') next.set('status', status)
+    if (debouncedLocation) next.set('location', debouncedLocation)
     if (page > 1) next.set('page', String(page))
     setSearchParams(next, { replace: true })
-  }, [debouncedSearch, kycFilter, status, page, setSearchParams])
+  }, [debouncedSearch, debouncedLocation, kycFilter, status, page, setSearchParams])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -129,6 +146,7 @@ export function AdminLabourPage() {
         role: USER_ROLES.LABOUR,
         status,
         kycStatus: kycFilter,
+        location: debouncedLocation,
         page,
         limit,
       })
@@ -143,7 +161,7 @@ export function AdminLabourPage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, kycFilter, status, page, limit])
+  }, [debouncedSearch, kycFilter, status, debouncedLocation, page, limit])
 
   useEffect(() => {
     load()
@@ -326,7 +344,7 @@ export function AdminLabourPage() {
       </div>
 
       <GlassPanel className="p-4 md:p-5">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Search</label>
             <div className="relative">
@@ -336,34 +354,58 @@ export function AdminLabourPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Name, email, or mobile…"
-                className="w-full rounded-xl border border-slate-200/90 bg-white py-2.5 pl-10 pr-3 text-sm shadow-sm outline-none ring-slate-200/80 focus:ring-2 focus:ring-brand/35"
+                className="w-full appearance-none rounded-xl border border-slate-200/90 bg-white py-2.5 pl-10 pr-3 text-sm shadow-sm outline-none ring-slate-200/80 focus:ring-2 focus:ring-brand/35"
               />
             </div>
           </div>
           <div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Location</label>
+            <input
+              type="text"
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+              placeholder="City or location..."
+              className="w-full appearance-none rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm shadow-sm outline-none focus:ring-2 focus:ring-brand/35"
+            />
+          </div>
+          <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">KYC status</label>
-            <select
-              value={kycFilter}
-              onChange={(e) => setKycFilter(e.target.value)}
-              className="w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm shadow-sm outline-none focus:ring-2 focus:ring-brand/35"
-            >
-              <option value="all">All KYC states</option>
-              <option value={KYC_STATUS.PENDING}>Pending</option>
-              <option value={KYC_STATUS.VERIFIED}>Verified</option>
-              <option value={KYC_STATUS.FAILED}>Failed</option>
-            </select>
+            <div className="relative">
+              <select
+                value={kycFilter}
+                onChange={(e) => setKycFilter(e.target.value)}
+                className="w-full appearance-none rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 pr-10 text-sm shadow-sm outline-none focus:ring-2 focus:ring-brand/35"
+              >
+                <option value="all">All KYC states</option>
+                <option value={KYC_STATUS.PENDING}>Pending</option>
+                <option value={KYC_STATUS.VERIFIED}>Verified</option>
+                <option value={KYC_STATUS.FAILED}>Failed</option>
+              </select>
+              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
           </div>
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-slate-500">Account</label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm shadow-sm outline-none focus:ring-2 focus:ring-brand/35"
-            >
-              <option value="all">Active & inactive</option>
-              <option value="active">Active only</option>
-              <option value="inactive">Inactive only</option>
-            </select>
+            <div className="relative">
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full appearance-none rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 pr-10 text-sm shadow-sm outline-none focus:ring-2 focus:ring-brand/35"
+              >
+                <option value="all">Active & inactive</option>
+                <option value="active">Active only</option>
+                <option value="inactive">Inactive only</option>
+              </select>
+              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
         <p className="mt-4 text-xs font-medium text-slate-500">
@@ -384,7 +426,8 @@ export function AdminLabourPage() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Phone</th>
                 <th className="px-4 py-3">KYC</th>
-                <th className="px-4 py-3">ID / skills</th>
+                <th className="px-4 py-3">Skill</th>
+                <th className="px-4 py-3">Location</th>
                 <th className="px-4 py-3">Review</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Last login</th>
@@ -394,7 +437,7 @@ export function AdminLabourPage() {
               {loading
                 ? Array.from({ length: 6 }).map((_, i) => (
                     <tr key={i} className="border-b border-slate-100">
-                      {Array.from({ length: 7 }).map((__, j) => (
+                      {Array.from({ length: 8 }).map((__, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 animate-pulse rounded bg-slate-200/80" />
                         </td>
@@ -403,7 +446,10 @@ export function AdminLabourPage() {
                   ))
                 : items.map((u) => (
                     <tr key={u._id} className="border-b border-slate-100 transition hover:bg-slate-50/60">
-                      <td className="px-4 py-3 font-semibold text-slate-900">{u.fullName || '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-900">{u.fullName || '—'}</div>
+                        {u.email ? <div className="text-[11px] text-slate-500">{u.email}</div> : null}
+                      </td>
                       <td className="px-4 py-3 font-mono text-xs tabular-nums text-slate-700">
                         {u.phone ? `+91 ${u.phone}` : '—'}
                       </td>
@@ -411,13 +457,11 @@ export function AdminLabourPage() {
                         <KycPill status={u.labourProfile?.kycStatus} submittedAt={u.labourProfile?.kycSubmittedAt} />
                       </td>
                       <td className="max-w-[280px] px-4 py-3 text-xs text-slate-600">
-                        {u.labourProfile?.aadhaarMasked ? (
-                          <span className="block font-mono text-slate-700">Aadhaar {u.labourProfile.aadhaarMasked}</span>
-                        ) : null}
-                        {u.labourProfile?.panMasked ? (
-                          <span className="block font-mono text-slate-700">PAN {u.labourProfile.panMasked}</span>
-                        ) : null}
-                        <span className="block text-slate-500">{formatSkillLine(u)}</span>
+                        <div className="font-medium text-slate-800">{formatSkillLine(u)}</div>
+                        <div className="mt-0.5 text-slate-500">{formatServiceLine(u)}</div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-700">
+                        {u.city || u.currentLocation || '—'}
                       </td>
                       <td className="px-4 py-3">
                         {u.labourProfile?.kycStatus === KYC_STATUS.PENDING ? (
@@ -467,6 +511,7 @@ export function AdminLabourPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-bold text-slate-900">{u.fullName || '—'}</p>
+                    {u.email ? <p className="mt-0.5 text-[11px] text-slate-500">{u.email}</p> : null}
                     <p className="mt-0.5 font-mono text-xs text-slate-600">+91 {u.phone || '—'}</p>
                   </div>
                   <StatusPill active={u.isActive !== false} />
@@ -484,13 +529,13 @@ export function AdminLabourPage() {
                     Review video KYC
                   </button>
                 ) : null}
-                {u.labourProfile?.aadhaarMasked ? (
-                  <p className="mt-2 font-mono text-xs text-slate-600">Aadhaar {u.labourProfile.aadhaarMasked}</p>
-                ) : null}
-                {u.labourProfile?.panMasked ? (
-                  <p className="font-mono text-xs text-slate-600">PAN {u.labourProfile.panMasked}</p>
-                ) : null}
-                <p className="mt-1 text-xs text-slate-500">{formatSkillLine(u)}</p>
+                <div className="mt-3 rounded bg-slate-50 p-2">
+                  <p className="text-xs font-medium text-slate-800">{formatSkillLine(u)}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">{formatServiceLine(u)}</p>
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500">
+                  Location: <span className="font-medium text-slate-700">{u.city || u.currentLocation || '—'}</span>
+                </p>
               </GlassPanel>
             ))}
         {!loading && items.length === 0 ? (

@@ -29,7 +29,7 @@ export function deleteAdminUser(userId) {
 }
 
 /**
- * @param {{ search?: string, role?: string, status?: 'all' | 'active' | 'inactive', kycStatus?: 'all' | 'pending' | 'verified' | 'failed', page?: number, limit?: number }} params
+ * @param {{ search?: string, role?: string, status?: 'all' | 'active' | 'inactive', kycStatus?: 'all' | 'pending' | 'verified' | 'failed', freeTrialStatus?: 'all' | 'active' | 'expired', categoryId?: string, location?: string, page?: number, limit?: number }} params
  */
 export async function fetchAdminUsers(params = {}) {
   const sp = new URLSearchParams()
@@ -37,6 +37,9 @@ export async function fetchAdminUsers(params = {}) {
   if (params.role) sp.set('role', params.role)
   if (params.status && params.status !== 'all') sp.set('status', params.status)
   if (params.kycStatus && params.kycStatus !== 'all') sp.set('kycStatus', params.kycStatus)
+  if (params.freeTrialStatus && params.freeTrialStatus !== 'all') sp.set('freeTrialStatus', params.freeTrialStatus)
+  if (params.categoryId && params.categoryId !== 'all') sp.set('categoryId', params.categoryId)
+  if (params.location?.trim() && params.location !== 'all') sp.set('location', params.location.trim())
   sp.set('page', String(Math.max(1, params.page ?? 1)))
   sp.set('limit', String(Math.min(100, Math.max(1, params.limit ?? 20))))
   const json = await apiRequest(`/users?${sp.toString()}`)

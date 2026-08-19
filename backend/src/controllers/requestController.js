@@ -137,7 +137,7 @@ export const createRequest = asyncHandler(async (req, res) => {
 
   const SystemSetting = (await import('../models/SystemSetting.js')).SystemSetting
   const globalSettings = await SystemSetting.findOne({ configKey: 'master_config' }).lean()
-  const b2bPlatformFeeConfig = globalSettings?.b2bPlatformFee?.isActive ? globalSettings.b2bPlatformFee : null
+  const platformFeeConfig = globalSettings?.platformFee?.isActive ? globalSettings.platformFee : null
 
   let days = 1
   if (finalStartDate && endDate) {
@@ -153,11 +153,11 @@ export const createRequest = asyncHandler(async (req, res) => {
   }, 0)
 
   let platformFee = 0
-  if (b2bPlatformFeeConfig) {
-    if (b2bPlatformFeeConfig.type === 'fixed') {
-      platformFee = b2bPlatformFeeConfig.value
-    } else {
-      platformFee = (basePriceTotal * b2bPlatformFeeConfig.value) / 100
+  if (platformFeeConfig) {
+    if (platformFeeConfig.type === 'fixed') {
+      platformFee = platformFeeConfig.value
+    } else if (platformFeeConfig.type === 'percentage') {
+      platformFee = (basePriceTotal * platformFeeConfig.value) / 100
     }
   }
   
@@ -393,12 +393,7 @@ export const getRequest = asyncHandler(async (req, res) => {
   // Global settings for platform fee
   const SystemSetting = (await import('../models/SystemSetting.js')).SystemSetting
   const globalSettings = await SystemSetting.findOne({ configKey: 'master_config' }).lean()
-  let platformFeeConfig = null
-  if (request.sourceType === REQUEST_SOURCE.CONTRACTOR) {
-    platformFeeConfig = globalSettings?.b2bPlatformFee?.isActive ? globalSettings.b2bPlatformFee : null
-  } else {
-    platformFeeConfig = globalSettings?.platformFee?.isActive ? globalSettings.platformFee : null
-  }
+  let platformFeeConfig = globalSettings?.platformFee?.isActive ? globalSettings.platformFee : null
 
   // Calculate overall totals
   const perDayBaseTotal = serviceBreakdown.reduce((sum, item) => sum + item.totalPricePerDay, 0)

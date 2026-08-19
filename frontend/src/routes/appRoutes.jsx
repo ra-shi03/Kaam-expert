@@ -92,11 +92,20 @@ export const appShellChildRoutes = (
     <Route
       path="subscriptions"
       element={
-        <RoleRoute allow={[USER_ROLES.CUSTOMER]}>
+        <RoleRoute allow={[USER_ROLES.LABOUR]}>
           <AppSubscriptionPage />
         </RoleRoute>
       }
     />
+    <Route
+      path="subscription"
+      element={
+        <RoleRoute allow={[USER_ROLES.LABOUR]}>
+          <AppSubscriptionPage />
+        </RoleRoute>
+      }
+    />
+
     {/* New: My Bookings (API-backed) */}
     <Route
       path="my-bookings"

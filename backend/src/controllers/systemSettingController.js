@@ -11,11 +11,11 @@ export const getSystemSettings = asyncHandler(async (req, res) => {
 })
 
 export const updatePlatformFees = asyncHandler(async (req, res) => {
-  const { type, value, isActive, bookingType = 'B2C' } = req.body
+  const { type, value, isActive } = req.body
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })
   if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
   
-  const targetObj = bookingType === 'B2B' ? settings.b2bPlatformFee : settings.platformFee
+  const targetObj = settings.platformFee
   
   if (type) targetObj.type = type
   if (value !== undefined) targetObj.value = Number(value)
@@ -113,12 +113,13 @@ export const updateUserSubscriptionToggle = asyncHandler(async (req, res) => {
 })
 
 export const updateDynamicSubscriptionSettings = asyncHandler(async (req, res) => {
-  const { dailySubscriptionPrice, freeTrialDays, subscriptionStartHour, subscriptionEndHour } = req.body
+  const { dailySubscriptionPrice, freeTrialDays, freeTrialMessage, subscriptionStartHour, subscriptionEndHour } = req.body
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })
   if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
 
   if (dailySubscriptionPrice !== undefined) settings.dailySubscriptionPrice = Number(dailySubscriptionPrice)
   if (freeTrialDays !== undefined) settings.freeTrialDays = Number(freeTrialDays)
+  if (freeTrialMessage !== undefined) settings.freeTrialMessage = String(freeTrialMessage)
   if (subscriptionStartHour !== undefined) settings.subscriptionStartHour = Number(subscriptionStartHour)
   if (subscriptionEndHour !== undefined) settings.subscriptionEndHour = Number(subscriptionEndHour)
 
@@ -135,4 +136,20 @@ export const updateMaxHourDiscount = asyncHandler(async (req, res) => {
 
   await settings.save()
   return sendSuccess(res, { message: 'Max-hour discount updated', data: { settings } })
+})
+
+export const updatePaymentModes = asyncHandler(async (req, res) => {
+  const { cashEnabled, onlineEnabled } = req.body
+  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
+
+  if (!settings.paymentModes) {
+    settings.paymentModes = { cashEnabled: true, onlineEnabled: true }
+  }
+
+  if (cashEnabled !== undefined) settings.paymentModes.cashEnabled = Boolean(cashEnabled)
+  if (onlineEnabled !== undefined) settings.paymentModes.onlineEnabled = Boolean(onlineEnabled)
+
+  await settings.save()
+  return sendSuccess(res, { message: 'Payment modes updated', data: { settings } })
 })

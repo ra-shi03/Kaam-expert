@@ -5,6 +5,7 @@ import { SystemSetting } from '../models/SystemSetting.js'
 import { checkWalletEligibility } from '../controllers/walletController.js'
 import { getRoadDistances } from '../utils/googleMapsDistance.js'
 import { UserSubscription } from '../models/UserSubscription.js'
+import { Review } from '../models/Review.js'
 
 export const BROADCAST_TIMEOUT_MS = 300000 // 5 minutes flash broadcast timeout
 
@@ -17,7 +18,7 @@ export async function startBroadcastCycle(bookingId) {
 
   // 1. Get Radius Setting
   const settings = await SystemSetting.findOne({ configKey: 'master_config' })
-  const radiusKm = settings?.bookingBroadcastRadius || 10
+  const radiusKm = settings?.globalBroadcastRadius || 10
 
   // Log snapshot of radius onto booking
   booking.broadcastRadius = radiusKm
@@ -55,14 +56,27 @@ export async function startBroadcastCycle(bookingId) {
   }).select('acceptedLabourId').lean()
   const busyLabourIds = busyBookings.map(b => b.acceptedLabourId)
 
-  const potentialLaborersRaw = await User.find({
+  const query = {
     _id: { $nin: busyLabourIds },
     role: { $in: ['labour', 'contractor'] },
     'labourProfile.availabilityStatus': 'available',
+    'labourProfile.kycStatus': 'verified',
     'labourProfile.currentLatitude': { $gte: bookingLat - bufferLatDiff, $lte: bookingLat + bufferLatDiff },
-    'labourProfile.currentLongitude': { $gte: bookingLng - bufferLngDiff, $lte: bookingLng + bufferLngDiff },
-    'labourProfile.subcategoryIds': booking.subcategoryId
-  }).lean()
+    'labourProfile.currentLongitude': { $gte: bookingLng - bufferLngDiff, $lte: bookingLng + bufferLngDiff }
+  }
+
+  if (booking.serviceId && booking.subcategoryId) {
+    query.$or = [
+      { 'labourProfile.serviceIds': booking.serviceId },
+      { 'labourProfile.subcategoryIds': booking.subcategoryId }
+    ]
+  } else if (booking.serviceId) {
+    query['labourProfile.serviceIds'] = booking.serviceId
+  } else if (booking.subcategoryId) {
+    query['labourProfile.subcategoryIds'] = booking.subcategoryId
+  }
+
+  const potentialLaborersRaw = await User.find(query).lean()
 
   const to24Hour = (timeStr) => {
     if (!timeStr) return ''
@@ -110,7 +124,7 @@ export async function startBroadcastCycle(bookingId) {
       if (targetEndTimeStr > eTime) return false
     } else {
       let [h, m] = targetStartTimeStr.split(':')
-      h = parseInt(h, 10) + 1
+      h = parseInt(h, 10) + (booking.hours || 1)
       const bufferEndTime = `${String(h).padStart(2, '0')}:${m}`
       if (bufferEndTime <= '23:59' && bufferEndTime > eTime) return false
     }
@@ -183,14 +197,64 @@ export async function startBroadcastCycle(bookingId) {
     return distData && distData.distanceKm <= radiusKm
   })
 
-  // 5. Update eligible count
-  booking.eligibleLabourCount = eligibleLaborers.length
-  await booking.save()
-
   if (eligibleLaborers.length === 0) {
     await markBookingFailed(booking, 'No laborers within actual driving radius')
     return
   }
+
+  // --- Calculate Secondary Match Scores ---
+  const eligibleIds = eligibleLaborers.map(l => l._id)
+
+  const reviews = await Review.aggregate([
+    { $match: { revieweeId: { $in: eligibleIds } } },
+    { $group: { _id: '$revieweeId', avgRating: { $avg: '$rating' } } }
+  ])
+  const ratingMap = {}
+  reviews.forEach(r => ratingMap[String(r._id)] = r.avgRating)
+
+  const completedBookings = await Booking.aggregate([
+    { $match: { acceptedLabourId: { $in: eligibleIds }, status: 'COMPLETED' } },
+    { $group: { _id: '$acceptedLabourId', count: { $sum: 1 } } }
+  ])
+  const completedMap = {}
+  completedBookings.forEach(c => completedMap[String(c._id)] = c.count)
+
+  eligibleLaborers.forEach(labor => {
+    const idStr = String(labor._id)
+    const distData = distances.find(d => d.id === idStr)
+    const dist = distData ? distData.distanceKm : radiusKm
+    
+    // Distance (closer is better)
+    const distScore = Math.max(0, radiusKm - dist) * 2 
+    
+    // Experience
+    const exp = labor.labourProfile?.experienceYears || 0
+    const expScore = exp * 1.5 
+    
+    // Rating
+    const rating = ratingMap[idStr] || 0
+    const ratingScore = rating * 3
+    
+    // Completed Bookings
+    const completed = completedMap[idStr] || 0
+    const completedScore = Math.min(completed, 100) * 0.1
+    
+    // Response Rate
+    const received = labor.labourProfile?.lifetimeBroadcastsReceived || 0
+    const accepted = labor.labourProfile?.lifetimeBroadcastsAccepted || 0
+    const responseRate = received > 0 ? (accepted / received) : 0
+    const responseScore = responseRate * 10
+    
+    labor.matchScore = distScore + expScore + ratingScore + completedScore + responseScore
+    labor.approximateDistance = dist
+  })
+
+  // Sort by highest score first
+  eligibleLaborers.sort((a, b) => b.matchScore - a.matchScore)
+
+  // 5. Update eligible count
+  booking.eligibleLabourCount = eligibleLaborers.length
+  await booking.save()
 
   // 6. Flash Broadcast via WebSockets
   console.log(`Flash broadcasting Booking ${booking._id} to ${eligibleLaborers.length} laborers`)
@@ -204,24 +268,40 @@ export async function startBroadcastCycle(bookingId) {
     })
 
     // Notify all eligible laborers
-    eligibleLaborers.forEach(labor => {
-      emitToUser(labor._id, 'BOOKING_RECEIVED', {
-        bookingId: booking._id,
-        basePrice: booking.basePrice,
-        laborShare: booking.laborShare,
-        address: booking.address,
-        scheduledAt: booking.scheduledAt,
-        type: booking.type,
-        customer: booking.userId,
-        timeoutMs: BROADCAST_TIMEOUT_MS
+    const laborUpdates = []
+
+    import('../models/LabourService.js').then(async ({ LabourService }) => {
+      const service = await LabourService.findById(booking.serviceId)
+      const serviceName = service ? service.name : 'Requested Service'
+
+      eligibleLaborers.forEach(labor => {
+        emitToUser(labor._id, 'BOOKING_RECEIVED', {
+          bookingId: booking._id,
+          customerName: booking.userId?.fullName || 'Customer',
+          serviceName: serviceName,
+          date: booking.scheduledAt || booking.createdAt,
+          time: booking.timeSlot || 'Earliest available',
+          duration: booking.hours || 1,
+          customerLocation: booking.address?.locationText || 'Service Location',
+          approximateDistance: labor.approximateDistance,
+          estimatedEarnings: booking.laborShare || booking.basePrice,
+          timeoutMs: BROADCAST_TIMEOUT_MS
+        })
+        
+        const sub = activeSubsMap[labor._id]
+        if (sub) {
+          sub.bookingsReceived += 1
+          sub.save().catch(err => console.error('Failed to increment bookingsReceived', err))
+        }
+
+        laborUpdates.push(
+          User.findByIdAndUpdate(labor._id, {
+            $inc: { 'labourProfile.lifetimeBroadcastsReceived': 1 }
+          }).exec()
+        )
       })
-      
-      // Track the opportunity received
-      const sub = activeSubsMap[labor._id]
-      if (sub) {
-        sub.bookingsReceived += 1
-        sub.save().catch(err => console.error('Failed to increment bookingsReceived', err))
-      }
+
+      Promise.all(laborUpdates).catch(err => console.error('Failed to update lifetime received', err))
     })
   }).catch(err => console.error('Failed to load socket emitter:', err))
 

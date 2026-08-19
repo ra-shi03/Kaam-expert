@@ -209,7 +209,7 @@ export function AppKycPage() {
             initial={reduce ? false : { opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? undefined : { opacity: 0 }}
-            className={`fixed left-4 right-4 top-[max(4.5rem,env(safe-area-inset-top))] z-120 mx-auto max-w-md rounded-2xl px-4 py-3 text-center text-sm font-semibold text-white shadow-xl ${
+            className={`fixed left-6 right-6 top-[max(4.5rem,env(safe-area-inset-top))] z-120 mx-auto max-w-[27rem] rounded-2xl px-4 py-3 text-center text-sm font-semibold text-white shadow-xl ${
               banner.variant === 'success' ? 'bg-blue-900/95 border border-blue-300/40' : 'bg-rose-900/95 border border-rose-300/40'
             }`}
             role="status"

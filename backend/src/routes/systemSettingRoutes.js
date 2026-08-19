@@ -14,9 +14,11 @@ router.get('/public', async (req, res) => {
     const { sendSuccess } = await import('../utils/apiResponse.js')
     let settings = await SystemSetting.findOne({ configKey: 'master_config' })
     const timeSlots = settings?.timeSlots || ['08:00 AM', '10:00 AM', '12:00 PM', '02:00 PM', '04:00 PM', '06:00 PM']
-    return sendSuccess(res, { data: { timeSlots } })
+    const freeTrialMessage = settings?.freeTrialMessage || 'Welcome! Enjoy your free trial period.'
+    const paymentModes = settings?.paymentModes || { cashEnabled: true, onlineEnabled: true }
+    return sendSuccess(res, { data: { timeSlots, freeTrialMessage, paymentModes } })
   } catch (e) {
-    res.status(500).json({ success: false, message: 'Could not load time slots' })
+    res.status(500).json({ success: false, message: 'Could not load public settings' })
   }
 })
 
@@ -109,6 +111,7 @@ router.patch(
   [
     body('dailySubscriptionPrice').optional().isNumeric(),
     body('freeTrialDays').optional().isNumeric(),
+    body('freeTrialMessage').optional().isString().trim(),
     body('subscriptionStartHour').optional().isNumeric(),
     body('subscriptionEndHour').optional().isNumeric(),
   ],
@@ -123,6 +126,16 @@ router.patch(
   ],
   validateRequest,
   settings.updateMaxHourDiscount,
+)
+
+router.patch(
+  '/payment-modes',
+  [
+    body('cashEnabled').optional().isBoolean(),
+    body('onlineEnabled').optional().isBoolean(),
+  ],
+  validateRequest,
+  settings.updatePaymentModes,
 )
 
 export default router

@@ -10,22 +10,37 @@ export const getAllBookings = asyncHandler(async (req, res) => {
   const query = {}
 
   if (status && status !== 'ALL') {
-    query.status = status
+    if (status === 'PENDING') {
+      query.status = { $in: ['CREATED', 'BROADCASTING', 'ACCEPTED', 'EN_ROUTE'] }
+    } else {
+      query.status = status
+    }
   }
 
   // Populate users beforehand if search exists, though typical simple search just matches IDs
   // To keep it simple, we'll just filter by status for now.
 
   const total = await Booking.countDocuments(query)
-  const bookings = await Booking.find(query)
+  const bookingsRaw = await Booking.find(query)
     .populate('userId', 'fullName phone email profileImageUrl')
-    .populate('laborId', 'fullName phone email profileImageUrl')
-    .populate('subcategoryId', 'name')
+    .populate('laborId', 'fullName phone email profileImageUrl savedAddress')
+    .populate({
+      path: 'subcategoryId',
+      select: 'name',
+      populate: { path: 'categoryId', select: 'name' }
+    })
     .populate('serviceId', 'name basePrice')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(Number(limit))
     .lean()
+
+  const activeZones = await Zone.find({ isActive: true }).lean()
+  const bookings = bookingsRaw.map(b => {
+    const loc = b.address?.locationText?.toLowerCase() || ''
+    const matchingZone = activeZones.find(z => loc.includes(z.city.toLowerCase()))
+    return { ...b, zoneName: matchingZone ? matchingZone.name : 'Unknown Zone' }
+  })
 
   return sendSuccess(res, {
     data: {
@@ -40,17 +55,28 @@ export const getAllBookings = asyncHandler(async (req, res) => {
   })
 })
 
+import { Zone } from '../models/Zone.js'
+
 export const getBookingDetails = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id)
     .populate('userId', 'fullName phone email profileImageUrl')
-    .populate('laborId', 'fullName phone email profileImageUrl')
-    .populate('subcategoryId', 'name')
+    .populate('laborId', 'fullName phone email profileImageUrl savedAddress')
+    .populate({
+      path: 'subcategoryId',
+      select: 'name',
+      populate: { path: 'categoryId', select: 'name' }
+    })
     .populate('serviceId', 'name basePrice')
     .lean()
 
   if (!booking) {
     return sendError(res, { message: 'Booking not found', statusCode: HTTP_STATUS.NOT_FOUND })
   }
+
+  const activeZones = await Zone.find({ isActive: true }).lean()
+  const loc = booking.address?.locationText?.toLowerCase() || ''
+  const matchingZone = activeZones.find(z => loc.includes(z.city.toLowerCase()))
+  booking.zoneName = matchingZone ? matchingZone.name : 'Unknown Zone'
 
   return sendSuccess(res, { data: { booking } })
 })

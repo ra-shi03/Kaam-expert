@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { ChevronRight, Loader2, Search, Sparkles } from 'lucide-react'
 import { fetchLabourCategoriesGrouped } from '../../api/labourCategoriesApi.js'
+import { readAppUserLocation } from '../../lib/appUserLocationStorage.js'
 import { ApiError } from '../../api/http.js'
 import { AppStackScreenHeader } from '../../components/app/AppStackScreenHeader.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
@@ -20,18 +21,29 @@ export function ServiceCatalog() {
 
   useEffect(() => {
     let cancelled = false
-    fetchLabourCategoriesGrouped()
-      .then((res) => {
-        if (cancelled) return
-        setGroups(res.data?.groups ?? [])
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof ApiError ? err.message : 'Failed to load services')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => { cancelled = true }
+    const loadCategories = () => {
+      setLoading(true)
+      const loc = readAppUserLocation()
+      fetchLabourCategoriesGrouped(loc?.lat, loc?.lng, loc?.city, loc?.address)
+        .then((res) => {
+          if (cancelled) return
+          setGroups(res.data?.groups ?? [])
+        })
+        .catch((err) => {
+          if (!cancelled) setError(err instanceof ApiError ? err.message : 'Failed to load services')
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
+    }
+    
+    loadCategories()
+    window.addEventListener('lc-app-user-location-changed', loadCategories)
+    
+    return () => { 
+      cancelled = true 
+      window.removeEventListener('lc-app-user-location-changed', loadCategories)
+    }
   }, [])
 
   const handleSubcategorySelect = useCallback((subcategory, category, group) => {
@@ -124,21 +136,21 @@ export function ServiceCatalog() {
 
                         {expandedCategory === category._id && (
                           <div className="bg-white pb-2">
-                            {(category.subcategories || []).length === 0 ? (
-                              <p className="px-8 py-2 text-xs text-slate-500">No subcategories</p>
+                            {(category.services || []).length === 0 ? (
+                              <p className="px-8 py-2 text-xs text-slate-500">No services</p>
                             ) : (
-                              (category.subcategories || []).map((sub) => (
+                              (category.services || []).map((sub) => (
                                 <button
                                   key={sub._id}
                                   type="button"
-                                  onClick={() => handleSubcategorySelect(sub, category, group)}
+                                  onClick={() => handleSubcategorySelect(category, null, group)}
                                   className="flex w-full items-center justify-between gap-3 px-8 py-2.5 text-left transition hover:bg-brand/5"
                                 >
                                   <div>
                                     <p className="text-sm font-semibold text-slate-800">{sub.name}</p>
                                   </div>
                                   <span className="shrink-0 rounded-lg bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">
-                                    ₹{sub.basePrice}
+                                    ₹{sub.hourlyPrice}/hr
                                   </span>
                                 </button>
                               ))

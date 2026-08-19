@@ -38,6 +38,7 @@ router.patch(
     body('email').optional({ checkFalsy: true }).trim().isEmail().withMessage('Enter a valid email address'),
     body('labourProfile.skills').optional().isArray(),
     body('labourProfile.skills.*').optional().trim().isLength({ min: 1, max: 64 }),
+    body('labourProfile.experienceYears').optional().isNumeric(),
   ],
   validateRequest,
   user.updateMe,

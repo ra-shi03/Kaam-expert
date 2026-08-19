@@ -256,18 +256,24 @@ export function AuthEntryPage() {
         signedInUser = user
       }
 
-      const needsWorkSetup =
-        signedInUser.role === USER_ROLES.LABOUR && !(signedInUser.labourProfile?.categoryIds?.length > 0)
-      if (needsWorkSetup) {
-        setStep('work-setup')
-        setBanner(null)
-      } else {
         let returnPath = location.state?.from || getRoleHomePath(signedInUser.role)
         if (mode === 'register' && signedInUser.role === USER_ROLES.CUSTOMER) {
           returnPath = '/app/profile'
         }
-        navigate(returnPath, { replace: true })
-      }
+        if (mode === 'register' && signedInUser.role === USER_ROLES.LABOUR) {
+          returnPath = '/app/profile'
+          navigate(returnPath, { replace: true })
+          return
+        }
+
+        const needsWorkSetup =
+          signedInUser.role === USER_ROLES.LABOUR && !(signedInUser.labourProfile?.categoryIds?.length > 0)
+        if (needsWorkSetup) {
+          setStep('work-setup')
+          setBanner(null)
+        } else {
+          navigate(returnPath, { replace: true })
+        }
     } catch (e) {
       setBanner({
         variant: 'error',

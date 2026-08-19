@@ -10,19 +10,34 @@ import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import { parseISTDateTime } from '../utils/dateHelper.js'
 
 export const calculateBill = asyncHandler(async (req, res) => {
-  const { serviceId, hours = 1, quantity = 1 } = req.body
+  const { serviceId, hours = 1, quantity = 1, address } = req.body
   const service = await LabourService.findById(serviceId)
   let hourlyRate = 0
   
   if (service) {
     hourlyRate = service.basePrice
+    if (address) {
+      const activeZones = await Zone.find({ isActive: true }).lean()
+      const matchedZone = activeZones.find(z => address.toLowerCase().includes(z.city.toLowerCase()))
+      if (matchedZone && service.zones && service.zones.length > 0) {
+        const zonePricing = service.zones.find(z => String(z.zone) === String(matchedZone._id))
+        if (zonePricing && typeof zonePricing.price === 'number') {
+          hourlyRate = zonePricing.price
+        }
+      }
+    }
   } else {
-    const { LabourCategory } = await import('../models/LabourCategory.js')
-    const category = await LabourCategory.findById(serviceId)
-    if (category) {
-      hourlyRate = 800 // Fallback
+    const subcategory = await LabourSubcategory.findById(serviceId)
+    if (subcategory) {
+      hourlyRate = subcategory.basePrice || 800 // Fallback
     } else {
-      return sendError(res, { message: 'Service or Category not found', statusCode: HTTP_STATUS.NOT_FOUND })
+      const { LabourCategory } = await import('../models/LabourCategory.js')
+      const category = await LabourCategory.findById(serviceId)
+      if (category) {
+        hourlyRate = 800 // Fallback
+      } else {
+        return sendError(res, { message: 'Service or Category not found', statusCode: HTTP_STATUS.NOT_FOUND })
+      }
     }
   }
 
@@ -74,7 +89,8 @@ export const calculateBill = asyncHandler(async (req, res) => {
       taxes,
       totalAmount,
       commissionAmount, // Internal calculation preview
-      laborShare: basePrice - commissionAmount
+      laborShare: basePrice - commissionAmount,
+      paymentModes: settings.paymentModes || { cashEnabled: true, onlineEnabled: true }
     }
   })
 })
@@ -105,36 +121,23 @@ export const createBooking = asyncHandler(async (req, res) => {
   const parsedLat = parseFloat(lat)
 
   // Enforce Zone matching
-  const matchingZone = await Zone.findOne({
-    isActive: true,
-    polygon: {
-      $geoIntersects: {
-        $geometry: {
-          type: 'Point',
-          coordinates: [parsedLng, parsedLat]
-        }
-      }
-    }
-  })
+  const activeZones = await Zone.find({ isActive: true })
+  const normalizedLocation = locationText.toLowerCase()
+  const matchingZone = activeZones.find(z => normalizedLocation.includes(z.city.toLowerCase()))
 
   if (!matchingZone) {
     return sendError(res, { message: 'We currently do not provide service in this area (Zone not found).', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
   
-  let activeSub = null
-  if (settings?.isUserSubscriptionEnabled) {
-    const { UserSubscription } = await import('../models/UserSubscription.js')
-    activeSub = await UserSubscription.findOne({ user: req.user._id, status: 'active' }).populate('plan')
-    
-    if (!activeSub) {
-      return sendError(res, { message: 'You must have an active subscription to create a booking.', statusCode: HTTP_STATUS.FORBIDDEN })
-    }
-    if (activeSub.bookingsUsed >= (activeSub.snapshotPlanDetails?.allowedBookings || 0)) {
-      return sendError(res, { message: 'You have reached the maximum number of bookings allowed for your current subscription plan.', statusCode: HTTP_STATUS.FORBIDDEN })
+  let hourlyRate = service.basePrice
+  if (service.zones && service.zones.length > 0) {
+    const zonePricing = service.zones.find(z => String(z.zone) === String(matchingZone._id))
+    if (zonePricing && typeof zonePricing.price === 'number') {
+      hourlyRate = zonePricing.price
     }
   }
 
-  let subTotal = service.basePrice * hours * quantity
+  let subTotal = hourlyRate * hours * quantity
   let maxHourDiscount = 0
   if (hours >= 8 && settings?.maxHourDiscountPercentage > 0) {
     maxHourDiscount = (subTotal * settings.maxHourDiscountPercentage) / 100
@@ -198,10 +201,6 @@ export const createBooking = asyncHandler(async (req, res) => {
     completionOtp
   })
 
-  if (activeSub) {
-    const { UserSubscription } = await import('../models/UserSubscription.js')
-    await UserSubscription.findByIdAndUpdate(activeSub._id, { $inc: { bookingsUsed: 1 } })
-  }
 
   // Phase 3: Trigger the Broadcast Engine asynchronously
   // Only trigger immediately for INSTANT bookings.

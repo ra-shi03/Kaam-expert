@@ -40,12 +40,14 @@ import { assetUrlFromUpload, uploadMedia } from '../../api/uploadApi.js'
 import { UPLOAD_FOLDERS } from '../../constants/uploadFolders.js'
 import { AppBadge } from '../../components/app-ui/data-display/AppBadge.jsx'
 import { AppSectionHeader } from '../../components/app-ui/layout/AppSectionHeader.jsx'
+import { AppStackScreenHeader } from '../../components/app/AppStackScreenHeader.jsx'
 import { AppModal } from '../../components/app-ui/feedback/AppModal.jsx'
 import { AppTextInput } from '../../components/app-ui/inputs/AppTextInput.jsx'
 import { AppButton } from '../../components/app-ui/buttons/AppButton.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { patchCurrentUser, deleteCurrentUser } from '../../api/userProfileApi.js'
 import { ApiError } from '../../api/http.js'
+import { writeAppUserLocation } from '../../lib/appUserLocationStorage.js'
 import { setUser } from '../../store/slices/authSlice.js'
 
 function openAppDrawer() {
@@ -63,36 +65,7 @@ function roleStatusPill(user) {
   return null
 }
 
-function ProfileScreenHeader() {
-  return (
-    <motion.div className="pb-1">
-      <div className="flex items-start gap-2 sm:gap-3">
-        <Link
-          to="/app"
-          className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-800 shadow-sm transition hover:border-brand/35 hover:text-brand"
-          aria-label="Back to home"
-        >
-          <ArrowLeft className="h-5 w-5" aria-hidden />
-        </Link>
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-brand">Account</p>
-          <h1 className="mt-0.5 text-xl font-black tracking-tight text-slate-900">Profile</h1>
-          <p className="mt-1 text-xs font-medium leading-relaxed text-slate-600 sm:text-sm">
-            Your identity, verification status, and app shortcuts.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={openAppDrawer}
-          className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-700 shadow-sm transition hover:border-brand/35 hover:text-brand"
-          aria-label="Open menu"
-        >
-          <Menu className="h-5 w-5" aria-hidden />
-        </button>
-      </div>
-    </motion.div>
-  )
-}
+
 
 function StatTile({ icon: Icon, label, value, tone = 'slate' }) {
   const tones = {
@@ -166,6 +139,7 @@ export function AppProfilePage() {
   const [editCity, setEditCity] = useState('')
   const [editState, setEditState] = useState('')
   const [editCountry, setEditCountry] = useState('')
+  const [editExperienceYears, setEditExperienceYears] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileErr, setProfileErr] = useState('')
   const [isFetchingLocation, setIsFetchingLocation] = useState(false)
@@ -388,6 +362,7 @@ export function AppProfilePage() {
     setEditCity(user?.city || '')
     setEditState(user?.state || '')
     setEditCountry(user?.country || 'India')
+    setEditExperienceYears(user?.labourProfile?.experienceYears || '')
     setProfileErr('')
     setEditProfileOpen(true)
   }, [user])
@@ -418,9 +393,24 @@ export function AppProfilePage() {
         currentLocation: editCurrentLocation.trim() || undefined,
         city: editCity.trim() || undefined,
         state: editState.trim() || undefined,
-        country: editCountry.trim() || undefined
+        country: editCountry.trim() || undefined,
+        ...(user?.role === USER_ROLES.LABOUR ? {
+          labourProfile: {
+            experienceYears: editExperienceYears ? Number(editExperienceYears) : undefined
+          }
+        } : {})
       })
       dispatch(setUser(res.data.user))
+      
+      // Update local storage so Home Page reflects this location
+      if (editCurrentLocation.trim()) {
+        writeAppUserLocation({ 
+          address: editCurrentLocation.trim(),
+          city: editCity.trim() || undefined
+        })
+        window.dispatchEvent(new CustomEvent('lc-app-user-location-changed'))
+      }
+
       setEditProfileOpen(false)
     } catch (err) {
       setProfileErr(err instanceof ApiError ? err.message : 'Could not save profile')
@@ -485,7 +475,7 @@ export function AppProfilePage() {
       initial={reduce ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
     >
-      <ProfileScreenHeader />
+      <AppStackScreenHeader title="Profile" backTo="/app" />
 
       <motion.section
         initial={reduce ? false : { opacity: 0, y: 10 }}
@@ -746,6 +736,22 @@ export function AppProfilePage() {
                 disabled={savingProfile}
               />
             </div>
+            {user?.role === USER_ROLES.LABOUR ? (
+              <div>
+                <label htmlFor="edit-experience" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                  Experience (Years)
+                </label>
+                <AppTextInput
+                  id="edit-experience"
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 5"
+                  value={editExperienceYears}
+                  onChange={(e) => setEditExperienceYears(e.target.value)}
+                  disabled={savingProfile}
+                />
+              </div>
+            ) : null}
             
             {profileErr ? <p className="mt-1.5 text-xs font-medium text-rose-600">{profileErr}</p> : null}
             
@@ -801,6 +807,13 @@ export function AppProfilePage() {
                 </span>
               } 
             />
+            {user?.role === USER_ROLES.LABOUR ? (
+              <DetailRow 
+                icon={Wrench} 
+                label="Experience" 
+                value={<span className="truncate">{user?.labourProfile?.experienceYears != null ? `${user.labourProfile.experienceYears} Years` : '—'}</span>} 
+              />
+            ) : null}
             <DetailRow icon={ShieldCheck} label="Last session" value={lastActive || '—'} />
           </div>
         )}

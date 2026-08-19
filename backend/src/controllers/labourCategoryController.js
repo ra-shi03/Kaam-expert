@@ -4,16 +4,61 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { sendSuccess } from '../utils/apiResponse.js'
 
 /** GET /labour-categories/grouped — active catalogue for worker UI & admin */
-export const listGrouped = asyncHandler(async (_req, res) => {
+export const listGrouped = asyncHandler(async (req, res) => {
+  const { lat, lng, city, address } = req.query
+  let userZoneId = null
+  console.log('listGrouped hit! query:', req.query);
+
+  const Zone = (await import('../models/Zone.js')).Zone
+
+  if (city) {
+    const zone = await Zone.findOne({
+      isActive: true,
+      city: { $regex: new RegExp(`^${city}$`, 'i') }
+    }).lean()
+    if (zone) {
+      userZoneId = String(zone._id)
+    }
+  }
+  
+  if (!userZoneId && address) {
+    // Fallback: Check if address contains the zone's city name
+    const activeZones = await Zone.find({ isActive: true }).lean()
+    const matchedZone = activeZones.find(z => address.toLowerCase().includes(z.city.toLowerCase()))
+    if (matchedZone) {
+      userZoneId = String(matchedZone._id)
+    }
+  }
+
   const categories = await LabourCategory.find({ isActive: true })
     .sort({ sortOrder: 1, name: 1 })
     .lean()
 
   const subcats = await import('../models/LabourSubcategory.js').then(m => m.LabourSubcategory.find({ isActive: true }).sort({ name: 1 }).lean())
-  const services = await import('../models/LabourService.js').then(m => m.LabourService.find({ isActive: true }).sort({ name: 1 }).lean())
+  
+  const serviceFilter = { isActive: true }
+  if (userZoneId) {
+    serviceFilter.$or = [
+      { isAllZones: true },
+      { "zones.zone": userZoneId }
+    ]
+  } else if (lat && lng) {
+    // If lat/lng provided but no zone found, they are outside serviceable areas
+    // Only show globally available services
+    serviceFilter.isAllZones = true
+  }
+  
+  const services = await import('../models/LabourService.js').then(m => m.LabourService.find(serviceFilter).sort({ name: 1 }).lean())
 
   const servicesBySubcat = new Map()
   for (const s of services) {
+    if (userZoneId && s.zones && s.zones.length > 0) {
+      const zonePricing = s.zones.find(z => String(z.zone) === userZoneId)
+      if (zonePricing && typeof zonePricing.price === 'number') {
+        s.hourlyPrice = zonePricing.price
+      }
+    }
+    delete s.basePrice
     const k = String(s.subcategoryId)
     if (!servicesBySubcat.has(k)) servicesBySubcat.set(k, [])
     servicesBySubcat.get(k).push(s)

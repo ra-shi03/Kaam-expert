@@ -1,7 +1,7 @@
 const KEY = 'lc-app-user-location'
 
 /**
- * @returns {{ address: string, lat: number | null, lng: number | null } | null}
+ * @returns {{ address: string, lat: number | null, lng: number | null, city: string | null } | null}
  */
 export function readAppUserLocation() {
   try {
@@ -11,23 +11,25 @@ export function readAppUserLocation() {
     const address = typeof j.address === 'string' ? j.address.trim() : ''
     const lat = typeof j.lat === 'number' && Number.isFinite(j.lat) ? j.lat : null
     const lng = typeof j.lng === 'number' && Number.isFinite(j.lng) ? j.lng : null
-    if (!address && lat == null && lng == null) return null
-    return { address, lat, lng }
+    const city = typeof j.city === 'string' ? j.city.trim() : null
+    if (!address && lat == null && lng == null && !city) return null
+    return { address, lat, lng, city }
   } catch {
     return null
   }
 }
 
-/** @param {{ address?: string, lat?: number | null, lng?: number | null }} loc */
+/** @param {{ address?: string, lat?: number | null, lng?: number | null, city?: string | null }} loc */
 export function writeAppUserLocation(loc) {
   const address = typeof loc.address === 'string' ? loc.address.trim() : ''
   const lat = loc.lat != null && Number.isFinite(Number(loc.lat)) ? Number(loc.lat) : null
   const lng = loc.lng != null && Number.isFinite(Number(loc.lng)) ? Number(loc.lng) : null
-  if (!address && lat == null && lng == null) {
+  const city = typeof loc.city === 'string' ? loc.city.trim() : null
+  if (!address && lat == null && lng == null && !city) {
     localStorage.removeItem(KEY)
     return
   }
-  localStorage.setItem(KEY, JSON.stringify({ address, lat, lng, updatedAt: Date.now() }))
+  localStorage.setItem(KEY, JSON.stringify({ address, lat, lng, city, updatedAt: Date.now() }))
 }
 
 export function clearAppUserLocation() {

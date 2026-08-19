@@ -60,6 +60,7 @@ import { useLabourSocket } from '../../../hooks/useLabourSocket.js'
 import { bookingsApi } from '../../../api/bookingsApi.js'
 import { broadcastsApi } from '../../../api/broadcastsApi.js'
 import { withdrawalsApi } from '../../../api/withdrawalsApi.js'
+import { getPublicSettings } from '../../../api/adminSettingsApi.js'
 import { readWalletState, subscribeWallet } from '../../../lib/labourWalletStorage.js'
 import {
   buildAttendanceHistoryRows,
@@ -137,6 +138,7 @@ export function LabourHomeScreen({ user }) {
   const { liveOffers, removeOfferLocal } = useLabourSocket()
   const [activeBookings, setActiveBookings] = useState([])
   const [withdrawals, setWithdrawals] = useState([])
+  const [freeTrialMessage, setFreeTrialMessage] = useState('')
 
   const loadBookings = useCallback(() => {
     if (!user || user.id === 'guest') return
@@ -155,6 +157,16 @@ export function LabourHomeScreen({ user }) {
   useEffect(() => {
     loadBookings()
   }, [loadBookings])
+
+  useEffect(() => {
+    let cancelled = false
+    getPublicSettings().then(res => {
+      if (!cancelled && res.data?.freeTrialMessage) {
+        setFreeTrialMessage(res.data.freeTrialMessage)
+      }
+    }).catch(console.error)
+    return () => { cancelled = true }
+  }, [])
   const [toast, setToast] = useState('')
   const [safetyIdx, setSafetyIdx] = useState(0)
   const [appLocation, setAppLocation] = useState(() => readAppUserLocation())
@@ -209,6 +221,11 @@ export function LabourHomeScreen({ user }) {
         ? categories[0].name
         : 'Skilled worker'
       : 'Worker'
+
+  const isOnFreeTrial = useMemo(() => {
+    if (!user?.labourProfile?.trialEndsAt) return false
+    return new Date(user.labourProfile.trialEndsAt).getTime() > Date.now()
+  }, [user])
 
   useEffect(() => subscribeAttendance(setEntries), [])
   useEffect(() => subscribeWallet(setWallet), [])
@@ -540,6 +557,26 @@ export function LabourHomeScreen({ user }) {
       </section>
 
       <div className="space-y-5 px-4">
+        {kycOk && isOnFreeTrial && freeTrialMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-emerald-500/20 to-emerald-500/10 px-4 py-3 border border-emerald-500/30 shadow-lg shadow-emerald-900/20"
+          >
+            <div className="flex items-start gap-3 w-full">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 mt-0.5">
+                <Sparkles className="h-4 w-4" aria-hidden />
+              </span>
+              <div className="flex flex-col gap-0.5 w-full">
+                <p className="text-[13px] font-bold text-emerald-50">{freeTrialMessage}</p>
+                <p className="text-[11px] font-medium text-emerald-200/90">
+                  Valid until {new Date(user.labourProfile.trialEndsAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {isScheduleOffline && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}

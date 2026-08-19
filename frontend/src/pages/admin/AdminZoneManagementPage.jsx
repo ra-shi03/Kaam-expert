@@ -1,12 +1,11 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { adminZonesApi } from '../../api/adminZonesApi.js'
 import { ApiError } from '../../api/http.js'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
-import { Map, Plus, Edit2, Trash2, Search, CheckCircle2, AlertTriangle, X } from 'lucide-react'
+import { Map, Plus, Edit2, Trash2, Search, CheckCircle2, AlertTriangle, X, ChevronDown } from 'lucide-react'
 import { Country, State, City } from 'country-state-city'
-import { PolygonDrawer } from '../../components/admin/zones/PolygonDrawer.jsx'
 
 function Toast({ message, variant = 'success' }) {
   if (!message) return null
@@ -27,23 +26,92 @@ function Toast({ message, variant = 'success' }) {
   )
 }
 
+function CustomSelect({ value, onChange, options, placeholder, emptyMessage = "No results found" }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const dropdownRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false)
+        setSearchQuery('')
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [dropdownRef])
+
+  const selectedOption = options.find(opt => opt.value === value)
+  const filteredOptions = options.filter(opt => 
+    opt.label.toLowerCase().includes(searchQuery.toLowerCase())
+  ).slice(0, 100)
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <div 
+        className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-sm outline-none bg-white transition-colors ${isOpen ? 'border-brand ring-2 ring-brand/20' : 'border-slate-200 hover:border-slate-300'}`}
+      >
+        <input
+          type="text"
+          className="w-full outline-none text-slate-900 bg-transparent placeholder-slate-400"
+          placeholder={isOpen && selectedOption ? selectedOption.label : placeholder}
+          value={isOpen ? searchQuery : (selectedOption ? selectedOption.label : '')}
+          onChange={(e) => {
+            setSearchQuery(e.target.value)
+            if (!isOpen) setIsOpen(true)
+          }}
+          onClick={() => setIsOpen(true)}
+        />
+        <ChevronDown 
+          className={`h-4 w-4 text-slate-400 transition-transform cursor-pointer shrink-0 ${isOpen ? 'rotate-180' : ''}`} 
+          onClick={() => setIsOpen(!isOpen)}
+        />
+      </div>
+      
+      {isOpen && (
+        <div className="absolute z-[70] mt-1.5 w-full max-h-64 flex flex-col rounded-xl border border-slate-100 bg-white shadow-xl py-1">
+          <div className="overflow-y-auto flex-1 custom-scrollbar">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-slate-400 text-center">{emptyMessage}</div>
+            ) : (
+              filteredOptions.map((opt, idx) => (
+                <div
+                  key={opt.value || idx}
+                  onClick={() => {
+                    onChange(opt.value)
+                    setSearchQuery('')
+                    setIsOpen(false)
+                  }}
+                  className={`cursor-pointer px-3 py-2 text-sm transition-colors ${value === opt.value ? 'bg-brand/10 text-brand font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  {opt.label}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ZoneModal({ open, zone, onClose, onSaved }) {
   const [name, setName] = useState('')
   const [countryIso, setCountryIso] = useState('IN')
   const [stateIso, setStateIso] = useState('')
   const [cityName, setCityName] = useState('')
-  
-  const [pincodeInput, setPincodeInput] = useState('')
-  const [pincodes, setPincodes] = useState([])
-  const [polygon, setPolygon] = useState(null)
   const [isActive, setIsActive] = useState(true)
-  const [description, setDescription] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
   const countries = Country.getAllCountries()
   const states = State.getStatesOfCountry(countryIso)
-  const cities = City.getCitiesOfState(countryIso, stateIso)
+  const cities = stateIso 
+    ? City.getCitiesOfState(countryIso, stateIso) 
+    : City.getCitiesOfCountry(countryIso)
 
   useEffect(() => {
     if (open) {
@@ -67,29 +135,12 @@ function ZoneModal({ open, zone, onClose, onSaved }) {
       setStateIso(foundStateIso)
       
       setCityName(zone?.city || '')
-      setPincodes(zone?.pincodes || [])
-      setPolygon(zone?.polygon || null)
       setIsActive(zone?.isActive ?? true)
-      setDescription(zone?.description || '')
       setError('')
-      setPincodeInput('')
     }
   }, [open, zone])
 
   if (!open) return null
-
-  const handleAddPincode = (e) => {
-    e.preventDefault()
-    const val = pincodeInput.trim()
-    if (val && !pincodes.includes(val)) {
-      setPincodes([...pincodes, val])
-      setPincodeInput('')
-    }
-  }
-
-  const handleRemovePincode = (index) => {
-    setPincodes(pincodes.filter((_, i) => i !== index))
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -101,24 +152,13 @@ function ZoneModal({ open, zone, onClose, onSaved }) {
       setError('Zone Name, Country, State, and City are required.')
       return
     }
-    if (pincodes.length === 0) {
-      setError('At least one Pincode/Area is required.')
-      return
-    }
-    if (!polygon) {
-      setError('Please draw a geographic boundary on the map (min 3 points).')
-      return
-    }
 
     const payload = {
       name: name.trim(),
       country: countryName,
       state: stName,
       city: cityName,
-      pincodes: pincodes,
-      polygon,
-      isActive,
-      description: description.trim()
+      isActive
     }
 
     setBusy(true)
@@ -163,54 +203,51 @@ function ZoneModal({ open, zone, onClose, onSaved }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Country *</label>
-                <select
+                <CustomSelect
                   value={countryIso}
-                  onChange={e => {
-                    setCountryIso(e.target.value)
+                  onChange={(val) => {
+                    setCountryIso(val)
                     setStateIso('')
                     setCityName('')
                   }}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white"
-                  required
-                >
-                  <option value="">Select Country</option>
-                  {countries.map(c => (
-                    <option key={c.isoCode} value={c.isoCode}>{c.name}</option>
-                  ))}
-                </select>
+                  placeholder="Select Country"
+                  options={countries.map(c => ({ value: c.isoCode, label: c.name }))}
+                />
               </div>
 
               <div>
                 <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">State *</label>
-                <select
+                <CustomSelect
                   value={stateIso}
-                  onChange={e => {
-                    setStateIso(e.target.value)
+                  onChange={(val) => {
+                    setStateIso(val)
                     setCityName('')
                   }}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white"
-                  required
-                >
-                  <option value="">Select State</option>
-                  {states.map(s => (
-                    <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
-                  ))}
-                </select>
+                  placeholder="Select State"
+                  options={states.map(s => ({ value: s.isoCode, label: s.name }))}
+                />
               </div>
 
               <div>
                 <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">City *</label>
-                <select
+                <CustomSelect
                   value={cityName}
-                  onChange={e => setCityName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white"
-                  required
-                >
-                  <option value="">Select City</option>
-                  {cities.map(c => (
-                    <option key={c.name} value={c.name}>{c.name}</option>
-                  ))}
-                </select>
+                  onChange={(val) => {
+                    setCityName(val)
+                    if (!stateIso) {
+                      const selectedCity = cities.find(c => c.name === val)
+                      if (selectedCity && selectedCity.stateCode) {
+                        setStateIso(selectedCity.stateCode)
+                      }
+                    }
+                  }}
+                  placeholder="Select City"
+                  options={cities.map(c => ({ 
+                    value: c.name, 
+                    label: stateIso ? c.name : `${c.name}, ${c.stateCode}` 
+                  }))}
+                  emptyMessage={!countryIso ? "Select Country first" : "No results found"}
+                />
               </div>
 
               <div>
@@ -218,63 +255,11 @@ function ZoneModal({ open, zone, onClose, onSaved }) {
                 <input
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white text-slate-900"
                   placeholder="e.g. Nanakheda Zone"
                   required
                 />
               </div>
-            </div>
-          </div>
-
-          {/* COVERAGE */}
-          <div className="space-y-4 pt-4 border-t border-slate-100">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Coverage</h4>
-            
-            <div className="space-y-2">
-              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Pincode / Area *</label>
-              <div className="flex gap-2">
-                <input
-                  value={pincodeInput}
-                  onChange={e => setPincodeInput(e.target.value)}
-                  className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
-                  placeholder="e.g. 456010 or Nanakheda, Dewas Road"
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddPincode(e);
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleAddPincode}
-                  className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200 transition"
-                >
-                  + Add
-                </button>
-              </div>
-              
-              {pincodes.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {pincodes.map((pin, idx) => (
-                    <div key={idx} className="flex items-center gap-1 bg-brand/10 text-brand px-3 py-1 rounded-full text-sm">
-                      <span>{pin}</span>
-                      <button type="button" onClick={() => handleRemovePincode(idx)} className="text-brand hover:text-brand-dark p-0.5 rounded-full hover:bg-brand/20">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <label className="block text-[11px] font-bold uppercase text-slate-500">Geographic Boundary *</label>
-              <PolygonDrawer 
-                value={polygon} 
-                onChange={setPolygon} 
-                searchQuery={[cityName, states.find(s=>s.isoCode===stateIso)?.name, countries.find(c=>c.isoCode===countryIso)?.name].filter(Boolean).join(', ')} 
-              />
             </div>
           </div>
 
@@ -303,21 +288,6 @@ function ZoneModal({ open, zone, onClose, onSaved }) {
                 />
                 <span className="text-sm font-semibold text-slate-700">○ Inactive</span>
               </label>
-            </div>
-          </div>
-
-          {/* DESCRIPTION */}
-          <div className="space-y-4 pt-4 border-t border-slate-100">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Description</h4>
-            
-            <div>
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={3}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 resize-none"
-                placeholder="Optional description... e.g. Covers Nanakheda and surrounding residential areas."
-              />
             </div>
           </div>
 
@@ -423,7 +393,7 @@ export function AdminZoneManagementPage() {
               placeholder="Search zones by name, city, state..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm outline-none transition focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20 text-slate-900"
             />
           </div>
         </div>
@@ -434,7 +404,6 @@ export function AdminZoneManagementPage() {
               <tr>
                 <th className="px-5 py-4">Zone Name</th>
                 <th className="px-5 py-4">Location</th>
-                <th className="px-5 py-4">Pincodes</th>
                 <th className="px-5 py-4 text-center">Status</th>
                 <th className="px-5 py-4 text-right">Actions</th>
               </tr>
@@ -456,17 +425,7 @@ export function AdminZoneManagementPage() {
                       {zone.city}, {zone.state} <br/>
                       <span className="text-xs text-slate-400">{zone.country}</span>
                     </td>
-                    <td className="px-5 py-4 text-slate-600">
-                      <div className="flex flex-wrap gap-1 max-w-[200px]">
-                        {zone.pincodes?.slice(0, 3).map(p => (
-                          <span key={p} className="bg-slate-100 text-[10px] px-2 py-0.5 rounded-full">{p}</span>
-                        ))}
-                        {zone.pincodes?.length > 3 && (
-                          <span className="bg-slate-100 text-[10px] px-2 py-0.5 rounded-full">+{zone.pincodes.length - 3}</span>
-                        )}
-                        {!zone.pincodes?.length && <span className="text-xs text-slate-400">—</span>}
-                      </div>
-                    </td>
+
                     <td className="px-5 py-4 text-center">
                       <button
                         onClick={() => handleToggleStatus(zone)}

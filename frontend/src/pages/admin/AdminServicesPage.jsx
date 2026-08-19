@@ -22,7 +22,6 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
   const [name, setName] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
   const [description, setDescription] = useState('')
-  const [basePrice, setBasePrice] = useState(0)
   const [hourlyPrice, setHourlyPrice] = useState(0)
   const [minHours, setMinHours] = useState(1)
   const [maxHours, setMaxHours] = useState(24)
@@ -39,13 +38,12 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
       setName('')
       setSubcategoryId(subcategories[0]?._id ?? '')
       setDescription('')
-      setBasePrice(0)
       setHourlyPrice(0)
       setMinHours(1)
       setMaxHours(24)
       setDiscountType('PERCENTAGE')
       setDiscountValue(0)
-      setZones(activeZones.map(z => z._id)) // default to all active zones
+      setZones([])
       setIconUrl('')
       setIsActive(true)
       setError('')
@@ -87,7 +85,7 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
         name: name.trim(),
         subcategoryId,
         description: description.trim(),
-        basePrice: Number(basePrice),
+        basePrice: Number(hourlyPrice), // Keep schema happy with basePrice = hourlyPrice
         hourlyPrice: Number(hourlyPrice),
         minHours: Number(minHours),
         maxHours: Number(maxHours),
@@ -99,6 +97,7 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
         isActive
       }
       await createAdminLabourService(payload)
+      setBusy(false)
       onSaved()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save service')
@@ -160,7 +159,7 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
             </div>
 
             <div className="col-span-2 sm:col-span-1">
-              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Hourly Price (₹/hour)</label>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Price (₹)</label>
               <input
                 type="number"
                 min="0"
@@ -217,16 +216,60 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
               />
             </div>
 
-            <div className="col-span-2">
-              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Zone Availability</label>
-              <MultiSearchableSelect
-                options={activeZones.map(z => ({ value: z._id, label: z.name }))}
-                value={zones}
-                onChange={setZones}
-                placeholder="Select zones"
-                allowAll={true}
-                allLabel="All Zones"
-              />
+            <div className="col-span-2 space-y-3">
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Zone Availability & Pricing</label>
+              {zones.map((zoneItem, idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <select
+                      value={typeof zoneItem.zone === 'object' ? zoneItem.zone._id : (zoneItem.zone || '')}
+                      onChange={(e) => {
+                        const newZones = [...zones];
+                        newZones[idx].zone = e.target.value;
+                        setZones(newZones);
+                      }}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white"
+                    >
+                      <option value="">Select Zone</option>
+                      {activeZones.map(z => (
+                        <option key={z._id} value={z._id}>{z.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-32">
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Price"
+                      value={zoneItem.price}
+                      onChange={(e) => {
+                        const newZones = [...zones];
+                        newZones[idx].price = Number(e.target.value);
+                        setZones(newZones);
+                      }}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newZones = zones.filter((_, i) => i !== idx);
+                      setZones(newZones);
+                    }}
+                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setZones([...zones, { zone: '', price: 0 }])}
+                className="flex items-center gap-1 text-sm font-semibold text-brand hover:text-brand/80"
+              >
+                <Plus className="h-4 w-4" />
+                Add Zone Price
+              </button>
             </div>
 
             <div className="flex items-center pt-5">
@@ -303,7 +346,6 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
   const [name, setName] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
   const [description, setDescription] = useState('')
-  const [basePrice, setBasePrice] = useState(0)
   const [hourlyPrice, setHourlyPrice] = useState(0)
   const [minHours, setMinHours] = useState(1)
   const [maxHours, setMaxHours] = useState(24)
@@ -320,13 +362,18 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
       setName(service.name || '')
       setSubcategoryId(service.subcategoryId || (subcategories[0]?._id ?? ''))
       setDescription(service.description || '')
-      setBasePrice(service.basePrice ?? 0)
       setHourlyPrice(service.hourlyPrice ?? 0)
       setMinHours(service.minHours ?? 1)
       setMaxHours(service.maxHours ?? 24)
       setDiscountType(service.discountType ?? 'PERCENTAGE')
       setDiscountValue(service.discountValue ?? 0)
-      setZones(service.zones ?? [])
+      
+      const safeZones = (service.zones ?? []).map(z => {
+        if (typeof z === 'string') return { zone: z, price: service.hourlyPrice ?? 0 }
+        return z
+      })
+      setZones(safeZones)
+      
       setIconUrl(service.iconUrl || '')
       setIsActive(service.isActive ?? true)
       setError('')
@@ -368,7 +415,7 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
         name: name.trim(),
         subcategoryId,
         description: description.trim(),
-        basePrice: Number(basePrice),
+        basePrice: Number(hourlyPrice), // Keep schema happy
         hourlyPrice: Number(hourlyPrice),
         minHours: Number(minHours),
         maxHours: Number(maxHours),
@@ -380,6 +427,7 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
         isActive
       }
       await updateAdminLabourService(service._id, payload)
+      setBusy(false)
       onSaved()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save service')
@@ -441,7 +489,7 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
             </div>
 
             <div className="col-span-2 sm:col-span-1">
-              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Hourly Price (₹/hour)</label>
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Price (₹)</label>
               <input
                 type="number"
                 min="0"
@@ -498,16 +546,60 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
               />
             </div>
 
-            <div className="col-span-2">
-              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Zone Availability</label>
-              <MultiSearchableSelect
-                options={activeZones.map(z => ({ value: z._id, label: z.name }))}
-                value={zones}
-                onChange={setZones}
-                placeholder="Select zones"
-                allowAll={true}
-                allLabel="All Zones"
-              />
+            <div className="col-span-2 space-y-3">
+              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Zone Availability & Pricing</label>
+              {zones.map((zoneItem, idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <select
+                      value={typeof zoneItem.zone === 'object' ? zoneItem.zone._id : (zoneItem.zone || '')}
+                      onChange={(e) => {
+                        const newZones = [...zones];
+                        newZones[idx].zone = e.target.value;
+                        setZones(newZones);
+                      }}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white"
+                    >
+                      <option value="">Select Zone</option>
+                      {activeZones.map(z => (
+                        <option key={z._id} value={z._id}>{z.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-32">
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Price"
+                      value={zoneItem.price}
+                      onChange={(e) => {
+                        const newZones = [...zones];
+                        newZones[idx].price = Number(e.target.value);
+                        setZones(newZones);
+                      }}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newZones = zones.filter((_, i) => i !== idx);
+                      setZones(newZones);
+                    }}
+                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setZones([...zones, { zone: '', price: 0 }])}
+                className="flex items-center gap-1 text-sm font-semibold text-brand hover:text-brand/80"
+              >
+                <Plus className="h-4 w-4" />
+                Add Zone Price
+              </button>
             </div>
 
             <div className="flex items-center pt-5">
@@ -648,7 +740,7 @@ function ViewServiceModal({ open, service, onClose }) {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[10px] font-bold uppercase text-slate-400">Hourly Price</p>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Price</p>
                     <p className="text-sm font-medium text-blue-600 font-mono">₹{displayData.hourlyPrice}</p>
                   </div>
                 </div>
@@ -684,6 +776,7 @@ function DeleteServiceModal({ open, service, onClose, onDeleted, busy, setBusy }
     setBusy(true)
     try {
       await deleteAdminLabourService(service._id)
+      setBusy(false)
       onDeleted()
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'Delete failed')
@@ -744,6 +837,7 @@ export function AdminServicesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [subcategoryFilter, setSubcategoryFilter] = useState('all')
+  const [zoneFilter, setZoneFilter] = useState('all')
 
   // Pagination
   const [page, setPage] = useState(1)
@@ -809,7 +903,7 @@ export function AdminServicesPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [statusFilter, subcategoryFilter, limit])
+  }, [statusFilter, subcategoryFilter, zoneFilter, limit])
 
   const filteredServices = useMemo(() => {
     let result = services
@@ -830,8 +924,18 @@ export function AdminServicesPage() {
       result = result.filter(s => s.subcategoryId === subcategoryFilter)
     }
 
+    if (zoneFilter !== 'all') {
+      result = result.filter(s => {
+        if (s.isAllZones) return true;
+        return (s.zones || []).some(z => {
+          const zid = typeof z === 'string' ? z : (typeof z.zone === 'object' ? z.zone?._id : z.zone);
+          return String(zid) === zoneFilter;
+        });
+      });
+    }
+
     return result
-  }, [services, debouncedSearch, statusFilter, subcategoryFilter])
+  }, [services, debouncedSearch, statusFilter, subcategoryFilter, zoneFilter])
 
   const totalPages = Math.ceil(filteredServices.length / limit) || 1
   const paginatedServices = filteredServices.slice((page - 1) * limit, page * limit)
@@ -891,7 +995,14 @@ export function AdminServicesPage() {
           />
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="w-[220px]">
+          <div className="w-[180px]">
+            <SearchableSelect
+              value={zoneFilter}
+              onChange={setZoneFilter}
+              options={[{ value: 'all', label: 'All Zones (Global)' }, ...activeZones.map(z => ({ value: z._id, label: z.name }))]}
+            />
+          </div>
+          <div className="w-[200px]">
             <SearchableSelect
               value={subcategoryFilter}
               onChange={setSubcategoryFilter}
@@ -932,7 +1043,7 @@ export function AdminServicesPage() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Sub-Category</th>
                 <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3 text-right">Hourly Price</th>
+                <th className="px-4 py-3 text-right">Price</th>
                 <th className="px-4 py-3 text-center">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -971,7 +1082,38 @@ export function AdminServicesPage() {
                       <p className="text-[11px] font-semibold text-slate-700">{s.categoryName}</p>
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-sm text-slate-700">
-                      ₹{s.hourlyPrice}
+                      {(() => {
+                        let displayPrice = s.hourlyPrice;
+                        let isZonePrice = false;
+                        if (zoneFilter !== 'all') {
+                          const matchedZone = (s.zones || []).find(z => {
+                            const zid = typeof z === 'string' ? z : (typeof z.zone === 'object' ? z.zone?._id : z.zone);
+                            return String(zid) === zoneFilter;
+                          });
+                          if (matchedZone) {
+                            if (typeof matchedZone === 'string') {
+                              // If it's a legacy string zone, it doesn't have a specific price override
+                              // But it IS in the zone, so we could show GLOBAL badge, or ZONE badge.
+                              // Let's stick with GLOBAL since there's no price override.
+                            } else if (typeof matchedZone.price === 'number') {
+                              displayPrice = matchedZone.price;
+                              isZonePrice = true;
+                            }
+                          }
+                        }
+                        return (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span>₹{displayPrice}</span>
+                            {zoneFilter !== 'all' ? (
+                              isZonePrice ? (
+                                <span className="rounded bg-brand/10 px-1 py-0.5 text-[9px] font-bold text-brand uppercase tracking-wider">Zone</span>
+                              ) : (
+                                <span className="rounded bg-slate-100 px-1 py-0.5 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Global</span>
+                              )
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${

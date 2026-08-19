@@ -65,3 +65,12 @@ export const getAllReviews = asyncHandler(async (req, res) => {
     
   return sendSuccess(res, { data: { reviews, totalReviews: reviews.length } })
 })
+
+export const deleteReview = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const review = await Review.findByIdAndDelete(id)
+  if (!review) {
+    return sendError(res, { message: 'Review not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+  return sendSuccess(res, { message: 'Review deleted successfully' })
+})

@@ -36,13 +36,11 @@ export function BookingFindingScreen({ categoryLabel }) {
         <div className="absolute inset-20 rounded-full border border-brand/20"></div>
         
         {/* Radar sweep */}
-        <motion.div
-          className="absolute inset-0 rounded-full origin-center"
+        <div
+          className="absolute inset-0 rounded-full origin-center animate-[spin_2s_linear_infinite]"
           style={{
             background: 'conic-gradient(from 0deg, transparent 70%, rgba(16, 185, 129, 0.4) 100%)',
           }}
-          animate={reduce ? undefined : { rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
         />
         
         {/* Center Pin */}

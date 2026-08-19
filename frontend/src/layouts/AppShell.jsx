@@ -222,7 +222,7 @@ export function AppShell() {
   }, [appLocation, isIndividualAppHome, user?.currentLocation, user?.permanentAddress])
 
   return (
-    <div className="relative min-h-dvh w-full overflow-x-hidden text-slate-900">
+    <div className="relative min-h-dvh w-full overflow-x-clip text-slate-900">
       <AppAmbientBackground />
 
       <AnimatePresence>

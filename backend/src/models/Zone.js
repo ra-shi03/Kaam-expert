@@ -23,22 +23,6 @@ const zoneSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
-    pincodes: [{
-      type: String,
-      trim: true
-    }],
-    // GeoJSON Polygon for the zone boundaries
-    polygon: {
-      type: {
-        type: String,
-        enum: ['Polygon'],
-        required: true
-      },
-      coordinates: {
-        type: [[[Number]]], // Array of arrays of arrays of numbers [lng, lat]
-        required: true
-      }
-    },
     isActive: {
       type: Boolean,
       default: true
@@ -51,6 +35,6 @@ const zoneSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-zoneSchema.index({ polygon: '2dsphere' })
+
 
 export const Zone = mongoose.model('Zone', zoneSchema)

@@ -43,9 +43,9 @@ export const getAllZones = asyncHandler(async (req, res) => {
 })
 
 export const createZone = asyncHandler(async (req, res) => {
-  const { name, country, state, city, pincodes, polygon, isActive, description } = req.body
+  const { name, country, state, city, isActive, description } = req.body
 
-  if (!name || !country || !state || !city || !polygon || !polygon.coordinates) {
+  if (!name || !country || !state || !city) {
     return sendError(res, { message: 'Missing required fields', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
@@ -59,8 +59,6 @@ export const createZone = asyncHandler(async (req, res) => {
     country,
     state,
     city,
-    pincodes: pincodes || [],
-    polygon,
     isActive: isActive ?? true,
     description
   })
@@ -70,7 +68,7 @@ export const createZone = asyncHandler(async (req, res) => {
 
 export const updateZone = asyncHandler(async (req, res) => {
   const { id } = req.params
-  const { name, country, state, city, pincodes, polygon, isActive, description } = req.body
+  const { name, country, state, city, isActive, description } = req.body
 
   const zone = await Zone.findById(id)
   if (!zone) {
@@ -88,8 +86,6 @@ export const updateZone = asyncHandler(async (req, res) => {
   if (country) zone.country = country
   if (state) zone.state = state
   if (city) zone.city = city
-  if (pincodes) zone.pincodes = pincodes
-  if (polygon) zone.polygon = polygon
   if (isActive !== undefined) zone.isActive = isActive
   if (description !== undefined) zone.description = description
 
@@ -130,21 +126,16 @@ export const getZoneSettings = asyncHandler(async (req, res) => {
   }
   return sendSuccess(res, { 
     data: { 
-      bookingBroadcastRadius: settings.bookingBroadcastRadius,
-      b2bBroadcastRadius: settings.b2bBroadcastRadius
+      globalBroadcastRadius: settings.globalBroadcastRadius
     } 
   })
 })
 
 export const updateZoneSettings = asyncHandler(async (req, res) => {
-  const { bookingBroadcastRadius, b2bBroadcastRadius } = req.body
+  const { globalBroadcastRadius } = req.body
 
-  if (bookingBroadcastRadius !== undefined && (typeof bookingBroadcastRadius !== 'number' || bookingBroadcastRadius < 1)) {
-    return sendError(res, { message: 'Invalid booking radius', statusCode: HTTP_STATUS.BAD_REQUEST })
-  }
-  
-  if (b2bBroadcastRadius !== undefined && (typeof b2bBroadcastRadius !== 'number' || b2bBroadcastRadius < 1)) {
-    return sendError(res, { message: 'Invalid B2B radius', statusCode: HTTP_STATUS.BAD_REQUEST })
+  if (globalBroadcastRadius !== undefined && (typeof globalBroadcastRadius !== 'number' || globalBroadcastRadius < 1)) {
+    return sendError(res, { message: 'Invalid radius', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })
@@ -152,8 +143,7 @@ export const updateZoneSettings = asyncHandler(async (req, res) => {
     settings = new SystemSetting({ configKey: 'master_config' })
   }
 
-  if (bookingBroadcastRadius !== undefined) settings.bookingBroadcastRadius = bookingBroadcastRadius
-  if (b2bBroadcastRadius !== undefined) settings.b2bBroadcastRadius = b2bBroadcastRadius
+  if (globalBroadcastRadius !== undefined) settings.globalBroadcastRadius = globalBroadcastRadius
 
   settings.updatedBy = req.user._id
   await settings.save()
@@ -161,8 +151,7 @@ export const updateZoneSettings = asyncHandler(async (req, res) => {
   return sendSuccess(res, { 
     message: 'Radius updated successfully', 
     data: { 
-      bookingBroadcastRadius: settings.bookingBroadcastRadius,
-      b2bBroadcastRadius: settings.b2bBroadcastRadius
+      globalBroadcastRadius: settings.globalBroadcastRadius
     } 
   })
 })

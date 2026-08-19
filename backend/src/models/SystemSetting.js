@@ -52,15 +52,15 @@ const systemSettingSchema = new mongoose.Schema(
       type: platformFeeSchema,
       default: () => ({}),
     },
-    b2bPlatformFee: {
-      type: platformFeeSchema,
-      default: () => ({}),
-    },
+
     commission: {
       type: commissionSchema,
       default: () => ({}),
     },
-
+    paymentModes: {
+      cashEnabled: { type: Boolean, default: true },
+      onlineEnabled: { type: Boolean, default: true }
+    },
     walletLimit: {
       type: Number,
       min: 0,
@@ -76,15 +76,10 @@ const systemSettingSchema = new mongoose.Schema(
       min: 0,
       default: 50,
     },
-    bookingBroadcastRadius: {
+    globalBroadcastRadius: {
       type: Number,
       min: 1,
       default: 10,
-    },
-    b2bBroadcastRadius: {
-      type: Number,
-      min: 1,
-      default: 50, // Vendors usually cover larger areas
     },
     timeSlots: {
       type: [String],
@@ -92,6 +87,7 @@ const systemSettingSchema = new mongoose.Schema(
     },
     dailySubscriptionPrice: { type: Number, default: 19 },
     freeTrialDays: { type: Number, default: 3 },
+    freeTrialMessage: { type: String, default: 'Welcome! Enjoy your free trial period.' },
     subscriptionStartHour: { type: Number, default: 8 }, // 8 AM
     subscriptionEndHour: { type: Number, default: 20 }, // 8 PM
     maxHourDiscountPercentage: { type: Number, default: 10 },

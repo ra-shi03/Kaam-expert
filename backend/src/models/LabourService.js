@@ -66,8 +66,14 @@ const labourServiceSchema = new mongoose.Schema(
     },
     zones: [
       {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Zone',
+        zone: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Zone',
+        },
+        price: {
+          type: Number,
+          default: 0,
+        }
       }
     ],
   },

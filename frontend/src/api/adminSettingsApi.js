@@ -79,6 +79,13 @@ export const adminSettingsApi = {
       body: payload,
     })
   },
+
+  updatePaymentModes: (payload) => {
+    return apiRequest('/admin/settings/payment-modes', {
+      method: 'PATCH',
+      body: payload,
+    })
+  },
 }
 
 // Public endpoint (no admin auth) — used in Checkout to fetch time slots

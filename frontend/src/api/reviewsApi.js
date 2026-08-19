@@ -15,4 +15,8 @@ export const reviewsApi = {
   getAllReviews: () => {
     return apiRequest('/reviews', { method: 'GET' })
   },
+  
+  deleteReview: (reviewId) => {
+    return apiRequest(`/reviews/${reviewId}`, { method: 'DELETE' })
+  },
 }

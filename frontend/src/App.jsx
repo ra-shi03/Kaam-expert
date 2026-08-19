@@ -17,10 +17,8 @@ import { AdminUsersPage } from './pages/admin/AdminUsersPage.jsx'
 import { AdminLabourPage } from './pages/admin/AdminLabourPage.jsx'
 
 import { AdminBookingsPage } from './pages/admin/AdminBookingsPage.jsx'
-import { AdminAllocationsPage } from './pages/admin/AdminAllocationsPage.jsx'
 import { AdminAttendancePage } from './pages/admin/AdminAttendancePage.jsx'
 import { AdminBillingPage } from './pages/admin/AdminBillingPage.jsx'
-import { AdminPricingPage } from './pages/admin/AdminPricingPage.jsx'
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage.jsx'
 import { AdminReportsPage } from './pages/admin/AdminReportsPage.jsx'
 import { AdminZoneManagementPage } from './pages/admin/AdminZoneManagementPage.jsx'
@@ -33,6 +31,8 @@ import { AdminCommissionFeePage } from './pages/admin/AdminCommissionFeePage.jsx
 import { AdminLabourWalletPage } from './pages/admin/AdminLabourWalletPage.jsx'
 import { AdminCashManagementPage } from './pages/admin/AdminCashManagementPage.jsx'
 import { AdminReviewsRatingsPage } from './pages/admin/AdminReviewsRatingsPage.jsx'
+import { AdminLabourSubscriptionsPage } from './pages/admin/AdminLabourSubscriptionsPage.jsx'
+import { AdminFreeTrialPage } from './pages/admin/AdminFreeTrialPage.jsx'
 
 import { BroadcastPopup } from './components/app/BroadcastPopup.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
@@ -91,10 +91,8 @@ function App() {
             <Route path="labour" element={<AdminLabourPage />} />
 
             <Route path="bookings" element={<AdminBookingsPage />} />
-            <Route path="allocations" element={<AdminAllocationsPage />} />
             <Route path="attendance" element={<AdminAttendancePage />} />
             <Route path="billing" element={<AdminBillingPage />} />
-            <Route path="pricing" element={<AdminPricingPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
             <Route path="complaints" element={<AdminComplaintsPage />} />
             <Route path="profile" element={<AdminProfilePage />} />
@@ -107,6 +105,8 @@ function App() {
             <Route path="labour-wallet" element={<AdminLabourWalletPage />} />
             <Route path="cash-management" element={<AdminCashManagementPage />} />
             <Route path="reviews" element={<AdminReviewsRatingsPage />} />
+            <Route path="labour-subscriptions" element={<AdminLabourSubscriptionsPage />} />
+            <Route path="free-trials" element={<AdminFreeTrialPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

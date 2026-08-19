@@ -1,44 +1,45 @@
-import { useState, useEffect } from 'react'
-import { MapContainer, TileLayer, Polygon, useMapEvents, useMap } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { GoogleMap, useJsApiLoader, Polygon, Polyline, Marker } from '@react-google-maps/api'
 
-function MapEvents({ onMapClick }) {
-  useMapEvents({
-    click(e) {
-      onMapClick([e.latlng.lat, e.latlng.lng])
-    },
-  })
-  return null
-}
-
-function MapController({ center }) {
-  const map = useMap()
-  
-  useEffect(() => {
-    if (center) {
-      map.flyTo(center, 12, { duration: 1.5 })
-    }
-  }, [center, map])
-  
-  return null
+const containerStyle = {
+  width: '100%',
+  height: '100%'
 }
 
 export function PolygonDrawer({ value, onChange, searchQuery }) {
-  // value is expected to be a GeoJSON polygon: { type: 'Polygon', coordinates: [[[lng, lat], ...]] }
-  // Leaflet uses [lat, lng], GeoJSON uses [lng, lat]
-  
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  })
+
+  // points are stored as [lat, lng] array format internally to match original logic and GeoJSON conversion
   const [points, setPoints] = useState([])
   const [mapCenter, setMapCenter] = useState(null)
+  
+  const mapRef = useRef(null)
+
+  const onLoad = useCallback(function callback(map) {
+    mapRef.current = map
+  }, [])
+
+  const onUnmount = useCallback(function callback(map) {
+    mapRef.current = null
+  }, [])
 
   // Geocode searchQuery
   useEffect(() => {
     if (!searchQuery) return
     const delayDebounce = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`)
+        const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(searchQuery)}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`)
         const data = await res.json()
-        if (data && data.length > 0) {
-          setMapCenter([parseFloat(data[0].lat), parseFloat(data[0].lon)])
+        if (data.results && data.results.length > 0) {
+          const loc = data.results[0].geometry.location
+          setMapCenter({ lat: loc.lat, lng: loc.lng })
+          if (mapRef.current) {
+            mapRef.current.panTo({ lat: loc.lat, lng: loc.lng })
+            mapRef.current.setZoom(12)
+          }
         }
       } catch (err) {
         console.error('Geocoding failed:', err)
@@ -60,12 +61,18 @@ export function PolygonDrawer({ value, onChange, searchQuery }) {
         parsed = parsed.slice(0, -1)
       }
       setPoints(parsed)
+      // also if we have points, center the map to the first point
+      if (parsed.length > 0 && !mapCenter) {
+        setMapCenter({ lat: parsed[0][0], lng: parsed[0][1] })
+      }
     } else {
       setPoints([])
     }
-  }, [value])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]) // mapCenter is excluded so it only centers on init
 
-  const handleMapClick = (latlng) => {
+  const handleMapClick = (e) => {
+    const latlng = [e.latLng.lat(), e.latLng.lng()]
     const newPoints = [...points, latlng]
     setPoints(newPoints)
     triggerOnChange(newPoints)
@@ -99,6 +106,17 @@ export function PolygonDrawer({ value, onChange, searchQuery }) {
     })
   }
 
+  const handleMarkerDragEnd = (e, idx) => {
+    const lat = e.latLng.lat()
+    const lng = e.latLng.lng()
+    const newPoints = [...points]
+    newPoints[idx] = [lat, lng]
+    setPoints(newPoints)
+    triggerOnChange(newPoints)
+  }
+
+  const googleMapPaths = points.map(p => ({ lat: p[0], lng: p[1] }))
+
   return (
     <div className="w-full flex flex-col gap-2">
       <div className="flex gap-2">
@@ -124,23 +142,63 @@ export function PolygonDrawer({ value, onChange, searchQuery }) {
       </div>
       
       <div className="h-[300px] w-full rounded-xl overflow-hidden border border-slate-200 relative z-0">
-        <MapContainer 
-          center={[20.5937, 78.9629]} // default center India
-          zoom={4} 
-          style={{ height: '100%', width: '100%', zIndex: 0 }}
-        >
-          <MapController center={mapCenter} />
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <MapEvents onMapClick={handleMapClick} />
-          {points.length > 0 && (
-            <Polygon positions={points} pathOptions={{ color: '#4f46e5', weight: 2, fillColor: '#4f46e5', fillOpacity: 0.2 }} />
-          )}
-        </MapContainer>
+        {!isLoaded ? (
+          <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-400 text-sm">
+            Loading Google Maps...
+          </div>
+        ) : (
+          <GoogleMap
+            mapContainerStyle={containerStyle}
+            center={mapCenter || { lat: 20.5937, lng: 78.9629 }}
+            zoom={mapCenter ? 12 : 4}
+            onClick={handleMapClick}
+            onLoad={onLoad}
+            onUnmount={onUnmount}
+            options={{
+              streetViewControl: false,
+              mapTypeControl: false,
+              fullscreenControl: false
+            }}
+          >
+            {points.length > 0 && points.length < 3 && (
+               <Polyline 
+                 path={googleMapPaths} 
+                 options={{ strokeColor: '#4f46e5', strokeWeight: 2 }} 
+               />
+            )}
+            
+            {points.length >= 3 && (
+              <Polygon 
+                paths={googleMapPaths} 
+                options={{ 
+                  fillColor: '#4f46e5', 
+                  fillOpacity: 0.2, 
+                  strokeColor: '#4f46e5', 
+                  strokeWeight: 2 
+                }} 
+              />
+            )}
+            
+            {points.map((p, idx) => (
+              <Marker 
+                key={idx} 
+                draggable={true}
+                onDragEnd={(e) => handleMarkerDragEnd(e, idx)}
+                position={{ lat: p[0], lng: p[1] }} 
+                icon={{
+                  path: window.google.maps.SymbolPath.CIRCLE,
+                  scale: 6,
+                  fillColor: '#4f46e5',
+                  fillOpacity: 1,
+                  strokeWeight: 2,
+                  strokeColor: '#ffffff'
+                }}
+              />
+            ))}
+          </GoogleMap>
+        )}
       </div>
-      <p className="text-[10px] text-slate-400">Click on the map to draw points of the boundary.</p>
+      <p className="text-[10px] text-slate-400">Click on the map to draw points, drag points to adjust the boundary.</p>
     </div>
   )
 }

@@ -59,6 +59,7 @@ const labourProfileSchema = new mongoose.Schema(
     ],
     minAcceptedPrice: { type: Number, min: 0 },
     maxAcceptedPrice: { type: Number, min: 0 },
+    experienceYears: { type: Number, min: 0 },
     availabilityStatus: {
       type: String,
       enum: ['available', 'busy', 'offline'],
@@ -86,6 +87,8 @@ const labourProfileSchema = new mongoose.Schema(
     currentLatitude: { type: Number },
     currentLongitude: { type: Number },
     lastLocationUpdatedAt: { type: Date },
+    lifetimeBroadcastsReceived: { type: Number, default: 0 },
+    lifetimeBroadcastsAccepted: { type: Number, default: 0 },
   },
   { _id: false },
 )

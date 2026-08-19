@@ -25,7 +25,7 @@ function categoryId(c) {
   return String(c._id)
 }
 
-function SelectRow({ label, subtitle, selected, onToggle, pricing, onUpdatePrice }) {
+function SelectRow({ label, subtitle, selected, onToggle }) {
   return (
     <div className={`flex w-full flex-col overflow-hidden rounded-2xl border transition ${
       selected
@@ -50,44 +50,6 @@ function SelectRow({ label, subtitle, selected, onToggle, pricing, onUpdatePrice
           {subtitle ? <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{subtitle}</span> : null}
         </span>
       </button>
-
-      <AnimatePresence>
-        {selected && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="border-t border-brand/10 bg-white/50 px-3.5 py-3"
-          >
-            <p className="mb-2 text-xs font-bold text-slate-600">Set your price range for this service</p>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">₹</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={pricing?.minPrice || ''}
-                  onChange={(e) => onUpdatePrice('minPrice', e.target.value)}
-                  placeholder="Min price"
-                  className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-7 pr-3 text-sm font-bold text-slate-800 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
-              </div>
-              <span className="text-sm font-bold text-slate-400">to</span>
-              <div className="flex-1 relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">₹</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={pricing?.maxPrice || ''}
-                  onChange={(e) => onUpdatePrice('maxPrice', e.target.value)}
-                  placeholder="Max price"
-                  className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-7 pr-3 text-sm font-bold text-slate-800 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-                />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
@@ -199,13 +161,10 @@ export function LabourCategorySetup({ variant = 'app', onComplete }) {
       if (!raw || raw.length === 0) raw = user?.labourProfile?.categoryIds ?? []
     }
     const m = new Map()
-    const pricings = user?.labourProfile?.servicePricing || []
     
     raw.forEach((x) => {
       const id = typeof x === 'object' && x?._id ? String(x._id) : String(x)
-      // First try to match by serviceId, fallback to subcategoryId for legacy profiles
-      const pricing = pricings.find(p => String(p.serviceId) === id || String(p.subcategoryId) === id)
-      m.set(id, { minPrice: pricing?.minPrice || '', maxPrice: pricing?.maxPrice || '' })
+      m.set(id, true)
     })
     setSelected(m)
   }, [user])
@@ -274,18 +233,7 @@ export function LabourCategorySetup({ variant = 'app', onComplete }) {
         next.delete(key)
       } else {
         next.clear()
-        next.set(key, { minPrice: '', maxPrice: '' })
-      }
-      return next
-    })
-  }
-
-  function updatePrice(id, field, value) {
-    setSelected((prev) => {
-      const next = new Map(prev)
-      const current = next.get(id)
-      if (current) {
-        next.set(id, { ...current, [field]: value })
+        next.set(key, true)
       }
       return next
     })
@@ -311,16 +259,7 @@ export function LabourCategorySetup({ variant = 'app', onComplete }) {
     }
     
     const servicesPayload = []
-    for (const [id, pricing] of selected.entries()) {
-      if (!pricing.minPrice || !pricing.maxPrice) {
-        setError('Please enter both minimum and maximum price for all selected roles.')
-        return
-      }
-      if (Number(pricing.minPrice) > Number(pricing.maxPrice)) {
-        setError('Maximum price must be greater than or equal to minimum price.')
-        return
-      }
-      
+    for (const [id] of selected.entries()) {
       // Look up the subcategoryId from the active groups
       let subcategoryId = id
       for (const group of tradeGroups) {
@@ -334,8 +273,8 @@ export function LabourCategorySetup({ variant = 'app', onComplete }) {
       servicesPayload.push({
         serviceId: id,
         subcategoryId: subcategoryId,
-        minPrice: Number(pricing.minPrice),
-        maxPrice: Number(pricing.maxPrice)
+        minPrice: 0,
+        maxPrice: 0
       })
     }
 
@@ -512,8 +451,6 @@ export function LabourCategorySetup({ variant = 'app', onComplete }) {
                           subtitle={c.subtitle || undefined}
                           selected={selected.has(id)}
                           onToggle={() => toggle(id)}
-                          pricing={selected.get(id)}
-                          onUpdatePrice={(field, val) => updatePrice(id, field, val)}
                         />
                       </li>
                     )

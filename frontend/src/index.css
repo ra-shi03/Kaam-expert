@@ -37,7 +37,15 @@ body {
   background: var(--color-page);
   color: #0f172a;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+  max-width: 100%;
   overscroll-behavior-y: none;
+}
+
+#root {
+  overflow-x: clip;
+  position: relative;
+  width: 100%;
 }
 
 ::selection {

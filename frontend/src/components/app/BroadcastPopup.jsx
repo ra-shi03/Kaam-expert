@@ -150,16 +150,16 @@ export function BroadcastPopup() {
               </div>
 
               {/* Customer Details */}
-              {incoming.customer && (
+              {(incoming.customerName || incoming.customer) && (
                 <div className="mt-4 rounded-2xl bg-brand/5 p-3 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-semibold text-brand/80">Customer</p>
-                    <p className="text-sm font-bold text-slate-900">{incoming.customer.fullName || incoming.customer.name}</p>
+                    <p className="text-sm font-bold text-slate-900">{incoming.customerName || incoming.customer?.fullName || incoming.customer?.name}</p>
                   </div>
-                  {incoming.customer.phone && (
+                  {incoming.serviceName && (
                     <div className="text-right">
-                      <p className="text-xs font-semibold text-brand/80">Phone</p>
-                      <p className="text-sm font-bold text-slate-900">{incoming.customer.phone}</p>
+                      <p className="text-xs font-semibold text-brand/80">Service</p>
+                      <p className="text-sm font-bold text-slate-900 line-clamp-1">{incoming.serviceName}</p>
                     </div>
                   )}
                 </div>
@@ -170,19 +170,40 @@ export function BroadcastPopup() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1.5 text-slate-500">
                     <IndianRupee className="h-3.5 w-3.5" aria-hidden />
-                    Your Share
+                    Estimated Earnings
                   </span>
-                  <span className="text-lg font-extrabold text-blue-700">₹{incoming.laborShare || incoming.basePrice}</span>
+                  <span className="text-lg font-extrabold text-blue-700">₹{incoming.estimatedEarnings || incoming.laborShare || incoming.basePrice}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Base Price</span>
-                  <span className="font-bold text-slate-800">₹{incoming.basePrice}</span>
-                </div>
-                {incoming.address && (
-                  <div className="flex items-start gap-1.5 text-sm">
+                {(incoming.date || incoming.time) && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Schedule</span>
+                    <span className="font-bold text-slate-800">
+                      {incoming.date ? new Date(incoming.date).toLocaleDateString() : ''} {incoming.time ? `at ${incoming.time}` : ''}
+                    </span>
+                  </div>
+                )}
+                {incoming.duration && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Duration</span>
+                    <span className="font-bold text-slate-800">{incoming.duration} {incoming.duration === 1 ? 'Hour' : 'Hours'}</span>
+                  </div>
+                )}
+                {(incoming.customerLocation || incoming.address) && (
+                  <div className="flex items-start gap-1.5 text-sm mt-2 border-t border-slate-200 pt-2">
                     <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" aria-hidden />
                     <span className="text-slate-700">
-                      {typeof incoming.address === 'object' ? incoming.address.locationText : incoming.address}
+                      {incoming.customerLocation || (typeof incoming.address === 'object' ? incoming.address.locationText : incoming.address)}
+                    </span>
+                  </div>
+                )}
+                {incoming.approximateDistance !== undefined && (
+                  <div className="flex items-center justify-between text-sm mt-1">
+                    <span className="text-slate-500">Distance</span>
+                    <span className="font-bold text-slate-800">
+                      {incoming.approximateDistance < 1 
+                        ? `${(incoming.approximateDistance * 1000).toFixed(0)} m`
+                        : `${incoming.approximateDistance.toFixed(1)} km`
+                      }
                     </span>
                   </div>
                 )}

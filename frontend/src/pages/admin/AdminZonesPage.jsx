@@ -70,9 +70,7 @@ export function AdminZonesPage() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState({ message: '', variant: 'success' })
 
-  const [bookingBroadcastRadius, setBookingBroadcastRadius] = useState('')
-  const [b2bBroadcastRadius, setB2bBroadcastRadius] = useState('')
-  const [stats, setStats] = useState(null)
+  const [globalBroadcastRadius, setGlobalBroadcastRadius] = useState('')
 
   const showToast = useCallback((message, variant = 'success') => {
     setToast({ message, variant })
@@ -82,22 +80,12 @@ export function AdminZonesPage() {
   useEffect(() => {
     let cancelled = false
     
-    Promise.all([
-      adminZonesApi.getZoneSettings(),
-      adminZonesApi.getZoneStatistics().catch(() => ({ data: {} })) // Prevent UI block if stats fail
-    ])
-    .then(([settingsRes, statsRes]) => {
+    adminZonesApi.getZoneSettings()
+    .then((settingsRes) => {
       if (cancelled) return
       
-      if (settingsRes.data?.bookingBroadcastRadius != null) {
-        setBookingBroadcastRadius(String(settingsRes.data.bookingBroadcastRadius))
-      }
-      if (settingsRes.data?.b2bBroadcastRadius != null) {
-        setB2bBroadcastRadius(String(settingsRes.data.b2bBroadcastRadius))
-      }
-      
-      if (statsRes.data?.data) {
-        setStats(statsRes.data.data)
+      if (settingsRes.data?.globalBroadcastRadius != null) {
+        setGlobalBroadcastRadius(String(settingsRes.data.globalBroadcastRadius))
       }
     })
     .catch((err) => {
@@ -111,20 +99,15 @@ export function AdminZonesPage() {
   }, [showToast])
 
   const handleSave = async () => {
-    if (!bookingBroadcastRadius || Number(bookingBroadcastRadius) <= 0) {
-      showToast('Booking Radius must be greater than 0', 'error')
-      return
-    }
-    if (!b2bBroadcastRadius || Number(b2bBroadcastRadius) <= 0) {
-      showToast('Contractor/Vendor Radius must be greater than 0', 'error')
+    if (!globalBroadcastRadius || Number(globalBroadcastRadius) <= 0) {
+      showToast('Radius must be greater than 0', 'error')
       return
     }
     
     setSaving(true)
     try {
       await adminZonesApi.updateZoneSettings({
-        bookingBroadcastRadius: Number(bookingBroadcastRadius),
-        b2bBroadcastRadius: Number(b2bBroadcastRadius)
+        globalBroadcastRadius: Number(globalBroadcastRadius)
       })
       showToast('Broadcast radius updated successfully')
     } catch (err) {
@@ -161,104 +144,38 @@ export function AdminZonesPage() {
         </div>
       </motion.div>
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Left Column: Settings */}
-        <div className="lg:col-span-5 space-y-6">
-          <SettingsSection
-            icon={Target}
-            title="Individuals -> Labour Radius"
-            description="Maximum distance (in km) to notify labourers about a new individual booking"
-            accent="indigo-600"
-          >
-            <div>
-              <label className={labelClass}>Radius (in kilometers)</label>
-              <input
-                className={inputClass + ' mt-1.5'}
-                type="number"
-                min={1}
-                max={500}
-                placeholder="e.g. 10"
-                value={bookingBroadcastRadius}
-                onChange={(e) => setBookingBroadcastRadius(e.target.value)}
-              />
-              <p className="mt-2 text-xs text-slate-500">
-                A larger radius increases matching chances but may increase travel time for workers.
-              </p>
-            </div>
-          </SettingsSection>
-
-          <SettingsSection
-            icon={Target}
-            title="Contractor -> Vendors Radius"
-            description="Maximum distance (in km) to notify vendors about a new contractor request"
-            accent="brand"
-          >
-            <div>
-              <label className={labelClass}>Radius (in kilometers)</label>
-              <input
-                className={inputClass + ' mt-1.5'}
-                type="number"
-                min={1}
-                max={500}
-                placeholder="e.g. 50"
-                value={b2bBroadcastRadius}
-                onChange={(e) => setB2bBroadcastRadius(e.target.value)}
-              />
-              <p className="mt-2 text-xs text-slate-500">
-                Contractor requests typically cover a larger area as vendors are equipped for travel.
-              </p>
-            </div>
-          </SettingsSection>
-
-          <AppPrimaryButton
-            type="button"
-            loading={saving}
-            onClick={handleSave}
-            className="w-full"
-          >
-            Save All Settings
-          </AppPrimaryButton>
-        </div>
-
-        {/* Right Column: Statistics */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="flex items-center justify-between">
-             <h2 className="text-lg font-extrabold text-slate-900">Broadcast Statistics</h2>
+      <div className="max-w-2xl space-y-6">
+        <SettingsSection
+          icon={Target}
+          title="Global Broadcast Radius"
+          description="Maximum distance (in km) to notify workers about a new booking"
+          accent="indigo-600"
+        >
+          <div>
+            <label className={labelClass}>Radius (in kilometers)</label>
+            <input
+              className={inputClass + ' mt-1.5'}
+              type="number"
+              min={1}
+              max={500}
+              placeholder="e.g. 10"
+              value={globalBroadcastRadius}
+              onChange={(e) => setGlobalBroadcastRadius(e.target.value)}
+            />
+            <p className="mt-2 text-xs text-slate-500">
+              A larger radius increases matching chances but may increase travel time for workers.
+            </p>
           </div>
-          
-          {stats ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <StatCard
-                icon={BookOpen}
-                label="Total Bookings"
-                value={stats.totalBookings || 0}
-                description="Bookings processed by the system"
-              />
-              <StatCard
-                icon={Users}
-                label="Eligible Labourers"
-                value={stats.totalEligibleLabourers || 0}
-                description="Total labourers matched across bookings"
-              />
-              <StatCard
-                icon={Map}
-                label="Average Radius"
-                value={stats.avgRadius ? `${stats.avgRadius.toFixed(1)} km` : 'N/A'}
-                description="Average distance from customer to labourer"
-              />
-              <StatCard
-                icon={CheckCircle2}
-                label="Success Rate"
-                value={stats.broadcastSuccessRate ? `${stats.broadcastSuccessRate.toFixed(1)}%` : '0%'}
-                description="Percentage of successful broadcasts"
-              />
-            </div>
-          ) : (
-            <GlassPanel className="p-8 text-center">
-              <p className="text-sm font-semibold text-slate-500">No statistics available yet.</p>
-            </GlassPanel>
-          )}
-        </div>
+        </SettingsSection>
+
+        <AppPrimaryButton
+          type="button"
+          loading={saving}
+          onClick={handleSave}
+          className="w-full"
+        >
+          Save All Settings
+        </AppPrimaryButton>
       </div>
     </div>
   )

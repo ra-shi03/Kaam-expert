@@ -10,13 +10,14 @@ router.use(protect, restrictTo(USER_ROLES.ADMIN))
 
 router.get('/', zoneController.getActiveZones)
 router.get('/list', zoneController.getAllZones)
-router.post('/', zoneController.createZone)
-router.put('/:id', zoneController.updateZone)
-router.patch('/:id/status', zoneController.toggleZoneStatus)
-router.delete('/:id', zoneController.deleteZone)
 
 router.get('/settings', zoneController.getZoneSettings)
 router.put('/settings', zoneController.updateZoneSettings)
 router.get('/statistics', zoneController.getZoneStatistics)
+
+router.post('/', zoneController.createZone)
+router.put('/:id', zoneController.updateZone)
+router.patch('/:id/status', zoneController.toggleZoneStatus)
+router.delete('/:id', zoneController.deleteZone)
 
 export default router

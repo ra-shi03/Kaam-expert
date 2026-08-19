@@ -32,6 +32,7 @@ const TypewriterText = ({ text, className }) => {
 import instantAnimation from '../../../assets/lotties/booking (1).json'
 import scheduleAnimation from '../../../assets/lotties/schedule.json'
 import { fetchLabourCategoriesGrouped } from '../../../api/labourCategoriesApi.js'
+import { readAppUserLocation } from '../../../lib/appUserLocationStorage.js'
 import { IndividualHomeCategoryRail } from '../../../components/app/individual/IndividualHomeCategoryRail.jsx'
 import { IndividualHomeHeroCarousel } from '../../../components/app/individual/IndividualHomeHeroCarousel.jsx'
 import { IndividualHomeRecentlyBooked } from '../../../components/app/individual/IndividualHomeRecentlyBooked.jsx'
@@ -88,6 +89,7 @@ export function IndividualHomeScreen({ user }) {
   const [bookingsLoading, setBookingsLoading] = useState(true)
   const [bookings, setBookings] = useState([])
   const [exploreBanner, setExploreBanner] = useState(null)
+  const [bannerLoading, setBannerLoading] = useState(true)
 
   const enrichedLabours = useMemo(() => {
     return labours.map((l) => ({ ...l, _ui: enrichDiscoverLabourUi(l) }))
@@ -177,22 +179,32 @@ export function IndividualHomeScreen({ user }) {
 
   useEffect(() => {
     let cancelled = false
-    fetchLabourCategoriesGrouped()
-      .then((res) => {
-        if (cancelled) return
-        const groups = res.data?.groups ?? []
-        const meta = res.data?.meta ?? {}
-        const tradeKind = meta.tradeKind ?? 'trade'
-        setTradeGroups(groups.filter((g) => g.kind === tradeKind && (g.categories?.length ?? 0) > 0))
-      })
-      .catch(() => {
-        if (!cancelled) setTradeGroups([])
-      })
-      .finally(() => {
-        if (!cancelled) setGroupsLoading(false)
-      })
+    const loadCategories = () => {
+      setGroupsLoading(true)
+      const loc = readAppUserLocation()
+      console.log('IndividualHomeScreen fetch loc:', loc);
+      fetchLabourCategoriesGrouped(loc?.lat, loc?.lng, loc?.city, loc?.address)
+        .then((res) => {
+          if (cancelled) return
+          const groups = res.data?.groups ?? []
+          const meta = res.data?.meta ?? {}
+          const tradeKind = meta.tradeKind ?? 'trade'
+          setTradeGroups(groups.filter((g) => g.kind === tradeKind && (g.categories?.length ?? 0) > 0))
+        })
+        .catch(() => {
+          if (!cancelled) setTradeGroups([])
+        })
+        .finally(() => {
+          if (!cancelled) setGroupsLoading(false)
+        })
+    }
+    
+    loadCategories()
+    window.addEventListener('lc-app-user-location-changed', loadCategories)
+    
     return () => {
       cancelled = true
+      window.removeEventListener('lc-app-user-location-changed', loadCategories)
     }
   }, [])
 
@@ -251,6 +263,7 @@ export function IndividualHomeScreen({ user }) {
 
   useEffect(() => {
     let cancelled = false
+    setBannerLoading(true)
     fetchActiveBanners('EXPLORE')
       .then((res) => {
         if (!cancelled && res.data?.banners?.length > 0) {
@@ -258,6 +271,9 @@ export function IndividualHomeScreen({ user }) {
         }
       })
       .catch(console.error)
+      .finally(() => {
+        if (!cancelled) setBannerLoading(false)
+      })
     return () => { cancelled = true }
   }, [])
 
@@ -290,7 +306,10 @@ export function IndividualHomeScreen({ user }) {
       className="-mx-4 flex flex-col pb-2"
       aria-label={user?.fullName ? `Home for ${user.fullName}` : 'Discover workers home'}
     >
-      <div className="relative z-10 bg-gradient-to-r from-brand to-[#001a38] px-4 pb-3">
+      <div 
+        className="sticky z-20 bg-gradient-to-r from-brand to-[#001a38] px-4 pb-3"
+        style={{ top: 'var(--individual-home-sticky-top, 3.5rem)' }}
+      >
         <IndividualHomeCategoryRail
           groups={tradeGroups}
           loading={groupsLoading}
@@ -302,7 +321,9 @@ export function IndividualHomeScreen({ user }) {
 
       <section className="lc-individual-home-sheet space-y-6">
         <div className="relative w-full overflow-hidden rounded-[1.25rem] bg-transparent shadow-sm flex items-center justify-center aspect-[21/9]">
-          {exploreBanner ? (
+          {bannerLoading ? (
+            <div className="w-full h-full bg-slate-100 animate-pulse" />
+          ) : exploreBanner ? (
             exploreBanner.mediaType === 'video' ? (
               <video src={exploreBanner.imageUrl} className="w-full h-full object-cover" autoPlay loop muted playsInline />
             ) : (

@@ -14,12 +14,26 @@ const userSubscriptionSchema = new mongoose.Schema({
     default: 'pending' 
   },
   refundReason: { type: String },
-  transactionId: { type: String }
+  transactionId: { type: String },
+  // Enhanced refund tracking fields
+  refundTransactionId: { type: String },
+  refundTimestamp: { type: Date },
+  refundProcessedAt: { type: Date },
+  adminActionBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  adminActionNote: { type: String },
+  refundAttemptCount: { type: Number, default: 0 },
+  // Track booking details for audit
+  bookingOpportunitiesOffered: { type: Number, default: 0 }, // bookings offered (even rejected ones)
+  bookingOpportunitiesAccepted: { type: Number, default: 0 },
+  subscriptionStartHour: { type: Number }, // snapshot of window at time of purchase
+  subscriptionEndHour: { type: Number },   // snapshot of window at time of purchase
 }, {
   timestamps: true
 })
 
 // Ensure one subscription per labour per day
 userSubscriptionSchema.index({ labour: 1, date: 1 }, { unique: true })
+userSubscriptionSchema.index({ date: 1, status: 1 })
+userSubscriptionSchema.index({ date: 1, refundEligibility: 1 })
 
 export const UserSubscription = mongoose.model('UserSubscription', userSubscriptionSchema)
