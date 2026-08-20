@@ -1,5 +1,5 @@
 import { KYC_STATUS } from '../constants/userRoles.js'
-import { dayKey, lastTodayType, readAttendanceEntries } from './labourAttendanceStorage.js'
+
 import { offerDistanceKm } from './labourHomeHelpers.js'
 import { loadJobDemoState } from './labourJobDemoStorage.js'
 import { hasAppUserLocation, readAppUserLocation } from './appUserLocationStorage.js'
@@ -205,21 +205,6 @@ export function buildLabourNotifications(user, jobs = loadJobDemoState(), earnin
     })
   }
 
-  const entries = readAttendanceEntries()
-  const today = dayKey()
-  if (hasAppUserLocation(readAppUserLocation()) && lastTodayType(entries) !== 'in' && !dismissed.has(`attendance:${today}`)) {
-    list.push({
-      id: `attendance:${today}`,
-      kind: 'attendance',
-      category: 'updates',
-      title: 'Check in for today',
-      body: 'Tap check-in on Home when you reach the site — your pay depends on accurate attendance.',
-      createdAt: now,
-      priority: 'normal',
-      href: '/app',
-      ctaLabel: 'Go to home',
-    })
-  }
 
   const available = earnings.availablePaise ?? earnings.pendingPaise ?? 0
   if (available > 0 && !dismissed.has('earnings:pending')) {

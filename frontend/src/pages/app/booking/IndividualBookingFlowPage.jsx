@@ -15,6 +15,7 @@ import {
   Navigation,
   Phone,
   Star,
+  Wallet,
   Zap,
 } from 'lucide-react'
 import { AppStackScreenHeader } from '../../../components/app/AppStackScreenHeader.jsx'
@@ -24,6 +25,18 @@ import { AppSearchableSelect } from '../../../components/app-ui/inputs/AppSearch
 import { GlassPanel } from '../../../components/ui/GlassPanel.jsx'
 import { fetchLabourCategoriesGrouped } from '../../../api/labourCategoriesApi.js'
 import { bookingsApi } from '../../../api/bookingsApi.js'
+import { paymentsApi } from '../../../api/paymentsApi.js'
+
+function loadRazorpay() {
+  return new Promise((resolve) => {
+    if (window.Razorpay) { resolve(true); return }
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.onload = () => resolve(true)
+    script.onerror = () => resolve(false)
+    document.body.appendChild(script)
+  })
+}
 import { uploadMedia, assetUrlFromUpload } from '../../../api/uploadApi.js'
 import { BookingFindingScreen } from '../../../components/app/booking/BookingFindingScreen.jsx'
 import { BookingTypeSheet } from '../../../components/app/booking/BookingTypeSheet.jsx'
@@ -83,12 +96,20 @@ export function IndividualBookingFlowPage() {
 
   const categoryIdParam = searchParams.get('categoryId')?.trim() || ''
   const groupIdParam = searchParams.get('groupId')?.trim() || ''
+  const bookingIdParam = searchParams.get('bookingId')?.trim() || ''
 
   const [draft, setDraft] = useState(() => readBookingDraft() || {})
   const [formError, setFormError] = useState('')
   const [typeSheetOpen, setTypeSheetOpen] = useState(false)
-  const [activeBookingId, setActiveBookingId] = useState(() => readBookingDraft()?.lastRef || null)
+  const [activeBookingId, setActiveBookingId] = useState(() => bookingIdParam || readBookingDraft()?.lastRef || null)
   const [activeBooking, setActiveBooking] = useState(null)
+  
+  useEffect(() => {
+    if (bookingIdParam && bookingIdParam !== activeBookingId) {
+      setActiveBookingId(bookingIdParam)
+    }
+  }, [bookingIdParam, activeBookingId])
+
   const [noMatch, setNoMatch] = useState(false)
   const [imageFiles, setImageFiles] = useState([])
 
@@ -96,6 +117,7 @@ export function IndividualBookingFlowPage() {
   const [isCalculating, setIsCalculating] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
 
 
   const inputRef = useRef(null)
@@ -196,13 +218,18 @@ export function IndividualBookingFlowPage() {
       const newStatus = bookingEvent.data?.status
       setActiveBooking(prev => prev ? { ...prev, status: newStatus } : null)
       if (newStatus === 'COMPLETED') {
-        // Refresh booking details then show review prompt
+        // Refresh booking details
         if (realUser) {
           bookingsApi.getBookingStatus(activeBookingId).then(res => {
-            if (res.data?.booking) setActiveBooking(res.data.booking)
+            if (res.data?.booking) {
+              setActiveBooking(res.data.booking)
+              const b = res.data.booking
+              if (b.paymentStatus === 'PAID') {
+                setReviewOpen(true)
+              }
+            }
           }).catch(() => { })
         }
-        setReviewOpen(true)
       }
     }
   }, [bookingEvent, activeBookingId, goStep, realUser])
@@ -225,8 +252,7 @@ export function IndividualBookingFlowPage() {
           if (gid && String(g._id) !== gid) continue
           const cat = (g.categories || []).find((c) => String(c._id) === String(cid))
           if (cat) {
-            const subcat = cat.subcategories?.[0]
-            const srv = subcat?.services?.[0]
+            const srv = current?.serviceId ? (cat.services || []).find(s => String(s._id) === current.serviceId) : (cat.services || [])[0]
             syncDraft({
               categoryId: String(cat._id),
               serviceId: srv ? String(srv._id) : String(cat._id),
@@ -264,11 +290,12 @@ export function IndividualBookingFlowPage() {
 
   useEffect(() => {
     if (location.pathname !== BOOKING_FLOW_PATH) return
+    if (step === 'active' || step === 'payment' || step === 'billing') return // allow active flows without a draft
     if (!draft.categoryId && !categoryIdParam) {
       // If they somehow enter without a category, they need to pick one.
       navigate('/app/search', { replace: true })
     }
-  }, [categoryIdParam, draft.categoryId, navigate, location.pathname])
+  }, [categoryIdParam, draft.categoryId, navigate, location.pathname, step])
 
   useEffect(() => {
     if (location.pathname !== BOOKING_FLOW_PATH) return
@@ -356,7 +383,8 @@ export function IndividualBookingFlowPage() {
       let cancelled = false
       setIsCalculating(true)
       const days = durationKindToDays(draft.durationKind, draft.durationDays)
-      const hours = draft.bookingType === 'instant' ? (draft.hours || 1) : (days > 0 ? days * 8 : (draft.hours || 4))
+      const kind = draft.durationKind || 'few_hours'
+      const hours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
       bookingsApi.calculateBill({
         serviceId: draft.serviceId || draft.categoryId,
         hours,
@@ -448,16 +476,8 @@ export function IndividualBookingFlowPage() {
         setFormError('Pick a start time.')
         return false
       }
-      if (!draft.endTime) {
-        setFormError('Pick an end time.')
-        return false
-      }
       if (draft.serviceDate === todayISODate() && draft.timeSlot < currentIstStr) {
         setFormError('Start time cannot be in the past.')
-        return false
-      }
-      if (draft.timeSlot >= draft.endTime) {
-        setFormError('End time must be after start time.')
         return false
       }
     }
@@ -465,12 +485,73 @@ export function IndividualBookingFlowPage() {
     return true
   }
 
+  const [isPaying, setIsPaying] = useState(false)
+  const handlePayNow = async () => {
+    if (!activeBooking) return
+    setIsPaying(true)
+    try {
+      const razorpayLoaded = await loadRazorpay()
+      if (!razorpayLoaded) {
+        alert('Payment gateway failed to load. Please try again.')
+        return
+      }
+      const payRes = await paymentsApi.initPayment({
+        amount: activeBooking.totalAmount,
+        purpose: 'BOOKING',
+        bookingId: activeBooking._id,
+      })
+      const order = payRes.data?.order
+      if (!order) throw new Error('Payment initialization failed')
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+        amount: order.amount,
+        currency: order.currency || 'INR',
+        order_id: order.id,
+        name: 'KaamExpert',
+        description: `Payment for Booking`,
+        handler: async function (response) {
+          try {
+            await paymentsApi.verifyPayment({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            })
+            // Payment successful!
+            setActiveBooking(prev => prev ? { ...prev, paymentStatus: 'PAID' } : null)
+            if (activeBooking?.type === 'SCHEDULED') {
+              setPaymentSuccess(true)
+            } else {
+              setReviewOpen(true)
+            }
+          } catch (err) {
+            alert('Payment verification failed. Contact support.')
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setIsPaying(false)
+          }
+        },
+        theme: { color: '#002b5c' },
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.open()
+    } catch (err) {
+      alert(err.message || 'Payment failed')
+    } finally {
+      setIsPaying(false)
+    }
+  }
+
   const handleReviewBooking = async () => {
     if (!validateDetails()) return
     setIsCalculating(true)
     try {
       const days = durationKindToDays(draft.durationKind, draft.durationDays)
-      const hours = draft.bookingType === 'instant' ? (draft.hours || 1) : (days > 0 ? days * 8 : (draft.hours || 4))
+      const kind = draft.durationKind || 'few_hours'
+      const hours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
       const res = await bookingsApi.calculateBill({
         serviceId: draft.serviceId || draft.categoryId, // Fallback
         hours,
@@ -517,7 +598,8 @@ export function IndividualBookingFlowPage() {
       }
 
       const days = durationKindToDays(draft.durationKind, draft.durationDays)
-      const hours = draft.bookingType === 'instant' ? (draft.hours || 1) : (days > 0 ? days * 8 : (draft.hours || 4))
+      const kind = draft.durationKind || 'few_hours'
+      const hours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
       const payload = {
         serviceId: draft.serviceId || draft.categoryId,
         type: draft.bookingType === 'scheduled' ? 'SCHEDULED' : 'INSTANT',
@@ -531,7 +613,6 @@ export function IndividualBookingFlowPage() {
         hours,
         quantity: draft.quantity || 1,
         timeSlot: draft.timeSlot,
-        endTime: draft.endTime,
         scheduledAt: draft.serviceDate,
         imageNames: uploadedImageUrls,
       }
@@ -568,8 +649,8 @@ export function IndividualBookingFlowPage() {
               <span className="text-slate-900 font-bold">{new Date(draft.serviceDate).toLocaleDateString()}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500 font-semibold">Time slot</span>
-              <span className="text-slate-900 font-bold">{draft.timeSlot} - {draft.endTime}</span>
+              <span className="text-slate-500 font-semibold">Time</span>
+              <span className="text-slate-900 font-bold">{draft.timeSlot}</span>
             </div>
           </div>
           <motion.div className="mt-6 flex flex-col gap-2">
@@ -645,7 +726,7 @@ export function IndividualBookingFlowPage() {
     )
   }
 
-  if (step === 'active' || step === 'payment') {
+  if (step === 'active' || step === 'payment' || step === 'billing') {
     const booking = activeBooking
     const worker = booking?.laborId
     const statusSequence = ['CREATED', 'BROADCASTING', 'ACCEPTED', 'EN_ROUTE', 'STARTED', 'COMPLETED']
@@ -654,12 +735,12 @@ export function IndividualBookingFlowPage() {
     return (
       <div className="space-y-4 pb-8">
         <AppStackScreenHeader
-          title={step === 'payment' ? 'Payment' : 'Worker on the way'}
-          onBack={() => (step === 'payment' ? goStep('active') : navigate('/app/my-bookings', { replace: true }))}
+          title={step === 'payment' ? 'Payment' : (step === 'billing' || booking?.status === 'COMPLETED') ? 'Billing' : 'Worker on the way'}
+          onBack={() => (step === 'payment' ? goStep(booking?.status === 'COMPLETED' ? 'billing' : 'active') : navigate('/app/my-bookings', { replace: true }))}
         />
         <BookingServiceHighlight categoryName={draft.categoryName} serviceName={draft.serviceName} />
 
-        {worker ? (
+        {worker && step !== 'billing' ? (
           <GlassPanel className="overflow-hidden border-slate-200/90 p-0">
             <motion.div className="flex gap-4 p-4">
               <img
@@ -685,68 +766,165 @@ export function IndividualBookingFlowPage() {
           </GlassPanel>
         ) : null}
 
-        <div className="lc-booking-flow-card">
-          <p className="lc-booking-flow-label">Status</p>
-          <ol className="mt-3 space-y-2">
-            {[
-              { id: 'accepted', label: 'Accepted' },
-              { id: 'en_route', label: 'En Route' },
-              { id: 'started', label: 'Job Started' },
-              { id: 'completed', label: 'Completed' },
-            ].map((t, i) => {
-              const done = i <= Math.max(0, timelineIdx)
-              return (
-                <li key={t.id} className="flex items-center gap-3">
-                  <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${done ? 'bg-brand text-white' : 'bg-slate-100 text-slate-400'
-                      }`}
-                  >
-                    {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
-                  </span>
-                  <span className={`text-sm font-semibold ${done ? 'text-black' : 'text-black/40'}`}>{t.label}</span>
-                </li>
-              )
-            })}
-          </ol>
-        </div>
+        {step !== 'billing' && (
+          <div className="lc-booking-flow-card">
+            <p className="lc-booking-flow-label">Status</p>
+            <ol className="mt-3 space-y-2">
+              {[
+                { id: 'accepted', label: 'Accepted' },
+                { id: 'en_route', label: 'En Route' },
+                { id: 'started', label: 'Job Started' },
+                { id: 'completed', label: 'Completed' },
+              ].map((t, i) => {
+                const done = i <= Math.max(0, timelineIdx)
+                return (
+                  <li key={t.id} className="flex items-center gap-3">
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${done ? 'bg-brand text-white' : 'bg-slate-100 text-slate-400'
+                        }`}
+                    >
+                      {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                    </span>
+                    <span className={`text-sm font-semibold ${done ? 'text-black' : 'text-black/40'}`}>{t.label}</span>
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
+        )}
 
         {booking && (
           <div className="space-y-4">
-            <div className="lc-booking-flow-card">
-              <p className="lc-booking-flow-label mb-2">Booking Details</p>
-              <div className="space-y-2 text-sm text-slate-700">
-                <div className="flex justify-between">
-                  <span className="font-semibold text-slate-500">Date</span>
-                  <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? new Date(booking.scheduledAt).toLocaleDateString() : 'ASAP'}</span>
+            {step !== 'billing' && (
+              <>
+                <div className="lc-booking-flow-card">
+                  <p className="lc-booking-flow-label mb-2">Booking Details</p>
+                  <div className="space-y-2 text-sm text-slate-700">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-slate-500">Date</span>
+                      <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? new Date(booking.scheduledAt).toLocaleDateString() : 'ASAP'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-slate-500">Time</span>
+                      <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? booking.timeSlot : 'Earliest available'}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-slate-500">Location</span>
+                      <span className="line-clamp-2 mt-0.5 text-slate-900 font-medium">{booking.address?.locationText}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-slate-900 mt-2">
+                      <span>Total Bill</span>
+                      <span>₹{booking.totalAmount?.toLocaleString('en-IN') || 0}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-semibold text-slate-500">Time</span>
-                  <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? booking.timeSlot : 'Earliest available'}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-semibold text-slate-500">Location</span>
-                  <span className="line-clamp-2 mt-0.5 text-slate-900 font-medium">{booking.address?.locationText}</span>
-                </div>
-                <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-slate-900 mt-2">
-                  <span>Total Bill</span>
-                  <span>₹{booking.totalAmount?.toLocaleString('en-IN') || 0}</span>
-                </div>
-              </div>
-            </div>
 
-            <div className="lc-booking-flow-card">
-              <p className="lc-booking-flow-label mb-2">Security OTPs</p>
-              <div className="flex gap-4">
-                <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
-                  <p className="text-[10px] text-slate-500 font-semibold">Start OTP</p>
-                  <p className="text-xl font-black text-slate-800 tracking-widest">{booking.startOtp}</p>
+                {booking.status !== 'COMPLETED' && (
+                  <div className="lc-booking-flow-card">
+                    <p className="lc-booking-flow-label mb-2">Security OTPs</p>
+                    <div className="flex gap-4">
+                      <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                        <p className="text-[10px] text-slate-500 font-semibold">Start OTP</p>
+                        <p className="text-xl font-black text-slate-800 tracking-widest">{booking.startOtp}</p>
+                      </div>
+                      <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                        <p className="text-[10px] text-slate-500 font-semibold">Completion OTP</p>
+                        <p className="text-xl font-black text-slate-800 tracking-widest">{booking.completionOtp}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            
+            {(step === 'billing' || booking.status === 'COMPLETED') && (
+              <div className="lc-booking-flow-card space-y-3 text-sm lc-booking-flow-body">
+                <div className="flex justify-between gap-2">
+                  <span className="lc-booking-flow-muted">Service</span>
+                  <span className="text-right font-bold text-black">
+                    <span className="lc-booking-highlight-title block text-base">{booking.category?.name || draft.categoryName}</span>
+                    {booking.service?.name || draft.serviceName ? <span className="text-xs font-semibold">{booking.service?.name || draft.serviceName}</span> : null}
+                  </span>
                 </div>
-                <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
-                  <p className="text-[10px] text-slate-500 font-semibold">Completion OTP</p>
-                  <p className="text-xl font-black text-slate-800 tracking-widest">{booking.completionOtp}</p>
+                <div className="flex justify-between">
+                  <span className="lc-booking-flow-muted">Booking</span>
+                  <span className="font-bold capitalize text-black">{booking.type?.toLowerCase() || 'scheduled'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="lc-booking-flow-muted">Date</span>
+                  <span className="font-bold text-black">
+                    {booking.type === 'INSTANT' ? 'Today (ASAP)' : booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="lc-booking-flow-muted">Time</span>
+                  <span className="font-bold text-black">
+                    {booking.type === 'INSTANT' ? 'Earliest Available' : booking.timeSlot || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="lc-booking-flow-muted">Duration</span>
+                  <span className="font-bold text-black">
+                    {booking.duration ? `${booking.duration} Hour${booking.duration > 1 ? 's' : ''}` : 'Few hours'}
+                  </span>
+                </div>
+
+                <p className="flex items-start gap-2 font-medium text-black">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
+                  {booking.address?.locationText || 'N/A'}
+                </p>
+
+                <div className="border-t border-slate-200 pt-3 mt-2">
+                  <div className="flex justify-between font-semibold text-black">
+                    <span className="flex flex-col">
+                      <span>Service fee</span>
+                    </span>
+                    <span>₹{booking.basePrice?.toLocaleString('en-IN') || 0}</span>
+                  </div>
+                  <div className="mt-1 flex justify-between lc-booking-flow-muted">
+                    <span>Platform fee</span>
+                    <span>₹{booking.platformFee?.toLocaleString('en-IN') || 0}</span>
+                  </div>
+                  <div className="flex justify-between lc-booking-flow-muted">
+                    <span>Taxes</span>
+                    <span>₹{booking.taxes?.toLocaleString('en-IN') || 0}</span>
+                  </div>
+                  <div className="mt-2 flex justify-between text-base font-extrabold text-black">
+                    <span>Total</span>
+                    <span>₹{booking.totalAmount?.toLocaleString('en-IN') || 0}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+            {step === 'billing' && (
+              <div className="lc-booking-flow-card space-y-3 mt-4">
+                <p className="lc-booking-flow-label font-bold text-slate-800">Payment Method</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => syncDraft({ paymentMethod: 'CASH' })}
+                    className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 font-bold transition-all ${(draft.paymentMethod || booking.paymentMethod) === 'CASH'
+                        ? 'border-brand bg-brand/5 text-brand'
+                        : 'border-slate-200 text-slate-500 hover:border-brand/30 hover:bg-slate-50'
+                      }`}
+                  >
+                    <IndianRupee className="h-5 w-5" />
+                    Cash
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => syncDraft({ paymentMethod: 'ONLINE' })}
+                    className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 font-bold transition-all ${(draft.paymentMethod || booking.paymentMethod) === 'ONLINE'
+                        ? 'border-brand bg-brand/5 text-brand'
+                        : 'border-slate-200 text-slate-500 hover:border-brand/30 hover:bg-slate-50'
+                      }`}
+                  >
+                    <Zap className="h-5 w-5" />
+                    Online
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -807,16 +985,30 @@ export function IndividualBookingFlowPage() {
           </motion.div>
         ) : (
           <div className="sticky bottom-2 z-10 space-y-2 pt-2">
-            {activeBooking?.status === 'COMPLETED' ? (
+            {activeBooking?.paymentStatus !== 'PAID' ? (
+              (draft.paymentMethod || activeBooking?.paymentMethod) === 'ONLINE' ? (
+                <BookingPrimaryButton type="button" onClick={handlePayNow} disabled={isPaying}>
+                  <IndianRupee className="h-4 w-4" aria-hidden />
+                  {isPaying ? 'Processing...' : 'Proceed to pay'}
+                </BookingPrimaryButton>
+              ) : activeBooking?.status === 'COMPLETED' ? (
+                <BookingPrimaryButton type="button" onClick={() => setReviewOpen(true)}>
+                  <Star className="h-4 w-4" aria-hidden />
+                  Rate your experience
+                </BookingPrimaryButton>
+              ) : null
+            ) : activeBooking?.status === 'COMPLETED' ? (
               <BookingPrimaryButton type="button" onClick={() => setReviewOpen(true)}>
                 <Star className="h-4 w-4" aria-hidden />
                 Rate your experience
               </BookingPrimaryButton>
             ) : null}
-            <BookingPrimaryButton type="button" onClick={() => goStep('payment')}>
-              <IndianRupee className="h-4 w-4" aria-hidden />
-              Proceed to payment
-            </BookingPrimaryButton>
+            {activeBooking?.status !== 'COMPLETED' && step !== 'billing' ? (
+              <BookingPrimaryButton type="button" onClick={() => goStep('payment')}>
+                <Wallet className="h-4 w-4" aria-hidden />
+                Change payment method
+              </BookingPrimaryButton>
+            ) : null}
           </div>
         )}
 
@@ -828,9 +1020,87 @@ export function IndividualBookingFlowPage() {
           onSubmitted={() => {
             setReviewOpen(false)
             clearBookingDraft()
-            navigate('/app/my-bookings', { replace: true })
+            navigate('/app', { replace: true })
           }}
         />
+
+        {paymentSuccess && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl text-center"
+            >
+              <div className="relative mx-auto mb-8 mt-4 flex h-24 w-24 items-center justify-center">
+                <motion.div
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", bounce: 0.5, duration: 0.6 }}
+                  className="relative z-10 flex h-full w-full items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-xl shadow-blue-500/40"
+                >
+                  <CheckCircle2 className="h-12 w-12 text-white" strokeWidth={2.5} />
+                </motion.div>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Payment Successful!</h3>
+              <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                Thank you for your payment. Your transaction has been successfully processed.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentSuccess(false)
+                  setReviewOpen(true)
+                }}
+                className="w-full rounded-xl bg-brand py-3 text-sm font-bold text-white transition hover:bg-brand/90 active:scale-95"
+              >
+                Continue to Review
+              </button>
+            </motion.div>
+          </div>
+        )}
+
+
+
+        {activeBooking?.status === 'COMPLETED' && (draft.paymentMethod || activeBooking?.paymentMethod) === 'CASH' && activeBooking?.paymentStatus !== 'PAID' && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl text-center"
+            >
+              <div className="relative mx-auto mb-8 mt-4 flex h-24 w-24 items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-blue-400 opacity-75 animate-ping" style={{ animationDuration: '2s' }} />
+                <div className="absolute inset-0 rounded-full bg-indigo-400 opacity-50 animate-ping" style={{ animationDuration: '2s', animationDelay: '1s' }} />
+                <div className="relative z-10 flex h-full w-full items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-xl shadow-blue-500/40">
+                  <Wallet className="h-10 w-10 text-white" strokeWidth={2} />
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Cash Payment</h3>
+              <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                Please hand over <span className="font-bold text-slate-900">₹{activeBooking?.totalAmount?.toLocaleString('en-IN') || 0}</span> in cash to the worker. Click the button below once paid.
+              </p>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await bookingsApi.confirmCashPayment(activeBookingId)
+                    setActiveBooking(prev => prev ? { ...prev, paymentStatus: 'PAID' } : null)
+                    if (activeBooking?.type === 'SCHEDULED') {
+                      setPaymentSuccess(true)
+                    } else {
+                      setReviewOpen(true)
+                    }
+                  } catch (e) {
+                    alert('Failed to confirm cash payment')
+                  }
+                }}
+                className="w-full rounded-xl bg-brand py-3 text-sm font-bold text-white transition hover:bg-brand/90 active:scale-95"
+              >
+                Paid
+              </button>
+            </motion.div>
+          </div>
+        )}
       </div>
     )
   }
@@ -987,68 +1257,8 @@ export function IndividualBookingFlowPage() {
             </motion.div>
 
 
-            {draft.bookingType !== 'instant' ? (
-              <motion.div>
-                <FieldLabel>Working duration</FieldLabel>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: 'few_hours', label: 'Few hours' },
-                    { id: 'full_day', label: 'Full day' },
-                    { id: 'multi_day', label: 'Multi day' },
-                  ].map((d) => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      onClick={() =>
-                        syncDraft({
-                          durationKind: d.id,
-                          durationDays: durationKindToDays(d.id, draft.durationDays),
-                        })
-                      }
-                      className="lc-booking-chip"
-                      data-active={draft.durationKind === d.id ? 'true' : 'false'}
-                    >
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-                {draft.durationKind === 'multi_day' ? (
-                  <div className="mt-2 space-y-1.5">
-                    <label htmlFor="duration-days" className="text-[11px] font-bold uppercase text-slate-500">
-                      Number of days
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="duration-days"
-                        name="durationDays"
-                        aria-label="Number of days"
-                        type="number"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        min={2}
-                        max={30}
-                        value={draft.durationDays === undefined ? 2 : draft.durationDays}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          syncDraft({ durationDays: val === '' ? '' : Number(val) })
-                        }}
-                        onBlur={(e) => {
-                          const val = Number(e.target.value)
-                          if (!val || val < 2) syncDraft({ durationDays: 2 })
-                          else if (val > 30) syncDraft({ durationDays: 30 })
-                        }}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-2.5 pr-12 text-sm font-bold text-black outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-                      />
-                      <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                        days
-                      </span>
-                    </div>
-                  </div>
-                ) : null}
-              </motion.div>
-            ) : null}
 
-            {draft.bookingType === 'instant' || draft.durationKind === 'few_hours' ? (
+
               <motion.div>
                 <FieldLabel>Required Duration</FieldLabel>
                 <div className="relative">
@@ -1066,7 +1276,6 @@ export function IndividualBookingFlowPage() {
                   />
                 </div>
               </motion.div>
-            ) : null}
 
             {draft.bookingType === 'instant' ? (
               <div className="space-y-4">
@@ -1093,7 +1302,7 @@ export function IndividualBookingFlowPage() {
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black"
                   />
                 </motion.div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-4">
                   <motion.div>
                     <FieldLabel htmlFor="scheduled-time">Start Time</FieldLabel>
                     <input
@@ -1102,17 +1311,6 @@ export function IndividualBookingFlowPage() {
                       type="time"
                       value={draft.timeSlot || ''}
                       onChange={(e) => syncDraft({ timeSlot: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black outline-none focus:border-brand focus:ring-1"
-                    />
-                  </motion.div>
-                  <motion.div>
-                    <FieldLabel htmlFor="scheduled-end-time">End Time</FieldLabel>
-                    <input
-                      id="scheduled-end-time"
-                      name="endTime"
-                      type="time"
-                      value={draft.endTime || ''}
-                      onChange={(e) => syncDraft({ endTime: e.target.value })}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black outline-none focus:border-brand focus:ring-1"
                     />
                   </motion.div>
@@ -1170,7 +1368,7 @@ export function IndividualBookingFlowPage() {
                   <span className="lc-booking-flow-muted">Duration</span>
                   <span className="font-bold text-black">
                     {draft.bookingType === 'instant'
-                      ? `${draft.hours || 1} Hour${(draft.hours || 1) > 1 ? 's' : ''}`
+                      ? `${draft.hours || draft.minHours || 1} Hour${(draft.hours || draft.minHours || 1) > 1 ? 's' : ''}`
                       : durationKindLabel(draft.durationKind)}
                   </span>
                 </div>
@@ -1191,7 +1389,17 @@ export function IndividualBookingFlowPage() {
                   <div className="flex justify-between font-semibold text-black">
                     <span className="flex flex-col">
                       <span>Service fee</span>
-                      <span className="text-[11px] text-slate-500 font-medium">Hourly rate ({formatInr((calculatedBill.subTotal || calculatedBill.basePrice) / (draft.hours || (draft.durationKind === 'full_day' ? 8 : (draft.durationKind === 'multi_day' && draft.durationDays ? draft.durationDays * 8 : 4))))}/hr) × {draft.hours || (draft.durationKind === 'full_day' ? 8 : (draft.durationKind === 'multi_day' && draft.durationDays ? draft.durationDays * 8 : 4))} hrs</span>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        {(() => {
+                          const h = draft.durationKind === 'few_hours' ? (draft.hours || draft.minHours || 1) : 
+                                   draft.durationKind === 'half_day' ? 4 : 
+                                   draft.durationKind === 'full_day' ? 8 : 
+                                   draft.durationKind === 'multi_day' ? ((draft.durationDays || 1) * 8) : 
+                                   (draft.hours || draft.minHours || 1);
+                          const q = draft.quantity || 1;
+                          return `Hourly rate (${formatInr((calculatedBill.subTotal || calculatedBill.basePrice) / (h * q))}/hr) × ${h} hrs${q > 1 ? ` × ${q} workers` : ''}`;
+                        })()}
+                      </span>
                     </span>
                     <span>{formatInr(calculatedBill.subTotal || calculatedBill.basePrice)}</span>
                   </div>

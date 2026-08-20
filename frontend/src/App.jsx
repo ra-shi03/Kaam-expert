@@ -17,7 +17,7 @@ import { AdminUsersPage } from './pages/admin/AdminUsersPage.jsx'
 import { AdminLabourPage } from './pages/admin/AdminLabourPage.jsx'
 
 import { AdminBookingsPage } from './pages/admin/AdminBookingsPage.jsx'
-import { AdminAttendancePage } from './pages/admin/AdminAttendancePage.jsx'
+
 import { AdminBillingPage } from './pages/admin/AdminBillingPage.jsx'
 import { AdminSettingsPage } from './pages/admin/AdminSettingsPage.jsx'
 import { AdminReportsPage } from './pages/admin/AdminReportsPage.jsx'
@@ -91,7 +91,7 @@ function App() {
             <Route path="labour" element={<AdminLabourPage />} />
 
             <Route path="bookings" element={<AdminBookingsPage />} />
-            <Route path="attendance" element={<AdminAttendancePage />} />
+
             <Route path="billing" element={<AdminBillingPage />} />
             <Route path="banners" element={<AdminBannersPage />} />
             <Route path="complaints" element={<AdminComplaintsPage />} />

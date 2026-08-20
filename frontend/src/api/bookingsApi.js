@@ -36,4 +36,8 @@ export const bookingsApi = {
       body: { paymentMethod },
     })
   },
+
+  confirmCashPayment: (id) => {
+    return apiRequest(`/bookings/${id}/confirm-cash`, { method: 'POST' })
+  },
 }

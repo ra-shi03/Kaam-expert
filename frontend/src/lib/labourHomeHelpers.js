@@ -1,4 +1,4 @@
-import { dayKey, pairedMinutesForDay } from './labourAttendanceStorage.js'
+
 import { buildLabourEarningsSummary } from './labourEarningsFlow.js'
 import { readWalletState } from './labourWalletStorage.js'
 
@@ -107,39 +107,6 @@ export function buildUpcomingSchedule(demoState, limit = 4) {
   return rows.slice(0, limit)
 }
 
-export function buildAttendanceHistoryRows(entries, dayCount = 7) {
-  const rows = []
-  for (let i = 0; i < dayCount; i += 1) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const dk = dayKey(d)
-    const mins = pairedMinutesForDay(entries, dk)
-    const dayEntries = entries.filter((e) => e.day === dk)
-    let status = 'Absent'
-    let tone = 'rose'
-    if (mins >= 420) {
-      status = 'Present'
-      tone = 'emerald'
-    } else if (mins >= 180) {
-      status = 'Half day'
-      tone = 'amber'
-    } else if (mins > 0) {
-      status = 'Short shift'
-      tone = 'sky'
-    } else if (dayEntries.some((e) => e.type === 'in')) {
-      status = 'Open shift'
-      tone = 'brand'
-    }
-    rows.push({
-      dk,
-      label: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
-      status,
-      tone,
-      mins,
-    })
-  }
-  return rows
-}
 
 export function buildEarningsGlance(entries, ratePaisePerMin, _withdrawnPaise = 0) {
   const wallet = readWalletState()
@@ -147,7 +114,7 @@ export function buildEarningsGlance(entries, ratePaisePerMin, _withdrawnPaise = 
     ratePaisePerMin && ratePaisePerMin !== wallet.ratePaisePerMin
       ? { ...wallet, ratePaisePerMin }
       : wallet
-  const s = buildLabourEarningsSummary(entries, w)
+  const s = buildLabourEarningsSummary([], w)
   return {
     todayPaise: s.todayPaise,
     weekPaise: s.weekPaise,

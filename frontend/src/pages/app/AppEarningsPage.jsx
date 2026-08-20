@@ -6,9 +6,21 @@ import { bookingsApi } from '../../api/bookingsApi.js'
 import { uploadDocument, assetUrlFromUpload } from '../../api/uploadApi.js'
 import { withdrawalsApi } from '../../api/withdrawalsApi.js'
 import { walletsApi } from '../../api/walletsApi.js'
+import { paymentsApi } from '../../api/paymentsApi.js'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { formatInrFromPaise } from '../../lib/labourEarningsFlow.js'
+
+function loadRazorpay() {
+  return new Promise((resolve) => {
+    if (window.Razorpay) { resolve(true); return }
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.onload = () => resolve(true)
+    script.onerror = () => resolve(false)
+    document.body.appendChild(script)
+  })
+}
 
 export function AppEarningsPage() {
   const [totalEarnings, setTotalEarnings] = useState(0)
@@ -24,6 +36,7 @@ export function AppEarningsPage() {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState('')
   const [ifscCode, setIfscCode] = useState('')
   const [bankName, setBankName] = useState('')
   const [qrFile, setQrFile] = useState(null)
@@ -89,15 +102,58 @@ export function AppEarningsPage() {
 
   const handlePayAdmin = async () => {
     if (adminDues <= 0) return
-    const confirmed = window.confirm(`Pay ₹${adminDues} to Admin to clear your dues?`)
-    if (!confirmed) return
     
     setLoading(true)
     try {
-      await walletsApi.clearAdminDues({ amount: adminDues })
-      await fetchEarnings()
+      const razorpayLoaded = await loadRazorpay()
+      if (!razorpayLoaded) {
+        alert('Payment gateway failed to load')
+        setLoading(false)
+        return
+      }
+
+      const payRes = await paymentsApi.initPayment({
+        amount: adminDues,
+        purpose: 'WALLET_CLEARANCE',
+      })
+
+      const order = payRes.data?.order
+      if (!order) throw new Error('Payment initialization failed')
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_8sYbzHWidwe5Zw',
+        amount: order.amount,
+        currency: order.currency || 'INR',
+        order_id: order.id,
+        name: 'KaamExpert',
+        description: 'Clear wallet dues',
+        handler: async function (response) {
+          try {
+            await paymentsApi.verifyPayment({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            })
+            // Refetch wallet
+            await fetchEarnings()
+          } catch {
+            alert('Payment verification failed. Contact support.')
+          } finally {
+            setLoading(false)
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setLoading(false)
+          },
+        },
+        theme: { color: '#002b5c' },
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.open()
     } catch (err) {
-      alert('Failed to clear dues: ' + (err.message || 'Unknown error'))
+      alert('Payment failed: ' + (err.message || 'Unknown error'))
       setLoading(false)
     }
   }
@@ -120,8 +176,11 @@ export function AppEarningsPage() {
     setSubmitting(true)
 
     try {
-      if (!accountName || !accountNumber || !ifscCode || !bankName) {
+      if (!accountName || !accountNumber || !confirmAccountNumber || !ifscCode || !bankName) {
         throw new Error('Please fill in all bank details.')
+      }
+      if (accountNumber !== confirmAccountNumber) {
+        throw new Error('The entered account numbers do not match. Please verify and try again.')
       }
 
       const numAmount = Number(withdrawAmount)
@@ -379,6 +438,21 @@ export function AppEarningsPage() {
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value)}
                 placeholder="Enter account number"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 flex items-center gap-2 text-sm font-bold text-slate-700">
+                <FileText className="h-4 w-4 text-brand" /> Confirm Account Number
+              </label>
+              <input
+                required
+                type="text"
+                inputMode="numeric"
+                value={confirmAccountNumber}
+                onChange={(e) => setConfirmAccountNumber(e.target.value)}
+                placeholder="Re-enter account number"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 text-sm font-medium outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10"
               />
             </div>

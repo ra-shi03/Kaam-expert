@@ -82,6 +82,11 @@ const bookingSchema = new mongoose.Schema(
       enum: ['PENDING', 'PAID', 'REFUNDED'],
       default: 'PENDING',
     },
+    adminSettlementStatus: {
+      type: String,
+      enum: ['PENDING', 'SETTLED'],
+      default: 'PENDING',
+    },
     status: {
       type: String,
       enum: [
@@ -108,6 +113,7 @@ const bookingSchema = new mongoose.Schema(
     acceptedLabourIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     // Keep single acceptedLabourId for simple customer queries
     acceptedLabourId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    startedAt: { type: Date },
     startOtp: { type: String },
     completionOtp: { type: String },
     startWorkImage: { type: String },

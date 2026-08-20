@@ -87,6 +87,12 @@ export const verifyPayment = asyncHandler(async (req, res) => {
             referenceId: booking._id,
             description: 'Online Payment Payout for Booking'
          })
+         
+         // Notify both labour and client
+         import('../socket.js').then(({ emitToUser }) => {
+           emitToUser(booking.laborId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
+           emitToUser(booking.clientId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
+         }).catch(err => console.error('Failed to emit payment status socket', err))
       }
     }
   } else if (pTx.purpose === 'WALLET_CLEARANCE') {
@@ -104,6 +110,13 @@ export const verifyPayment = asyncHandler(async (req, res) => {
         referenceId: pTx._id,
         description: 'Online Payment Clearance'
       })
+
+      // Mark all pending cash bookings for this labourer as settled for the admin dues
+      const Booking = (await import('../models/Booking.js')).Booking
+      await Booking.updateMany(
+        { laborId: req.user._id, paymentMethod: 'CASH', adminSettlementStatus: 'PENDING' },
+        { $set: { adminSettlementStatus: 'SETTLED' } }
+      )
     }
   } else if (pTx.purpose === 'INVOICE' && pTx.invoiceId) {
     const Invoice = (await import('../models/Invoice.js')).Invoice

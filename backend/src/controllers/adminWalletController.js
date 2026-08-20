@@ -63,7 +63,7 @@ export const getVendorWalletStats = asyncHandler(async (req, res) => {
   const { Invoice } = await import('../models/Invoice.js')
   
   // 1. Get all vendor invoices
-  const invoices = await Invoice.find({ vendorId: { $exists: true }, type: 'attendance' }).lean()
+  const invoices = await Invoice.find({ vendorId: { $exists: true }, type: 'fixed' }).lean()
   
   // 2. Get all vendor withdrawals
   const withdrawals = await WithdrawalRequest.find({ vendorId: { $exists: true } }).lean()
@@ -211,4 +211,13 @@ export const processWithdrawalRequest = asyncHandler(async (req, res) => {
   } finally {
     session.endSession()
   }
+})
+
+export const deleteWithdrawalRequest = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const request = await WithdrawalRequest.findByIdAndDelete(id)
+  if (!request) {
+    return sendError(res, { message: 'Withdrawal request not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+  return sendSuccess(res, { message: 'Withdrawal request deleted successfully' })
 })

@@ -59,6 +59,8 @@ export function AppSubCategoryServicePage() {
         bookingType,
         matchMode: 'smart',
         selectedWorkers: [],
+        minHours: bookingService.minHours || 1,
+        maxHours: bookingService.maxHours || 24,
       })
       setBookingTypeOpen(false)
       setBookingService(null)
@@ -86,18 +88,21 @@ export function AppSubCategoryServicePage() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 -mx-4 -mt-[max(0.5rem,env(safe-area-inset-top,0px))]">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white shadow-sm">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="p-1 -ml-1 text-slate-500 hover:text-slate-700"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <h1 className="text-lg font-bold text-slate-900 truncate">{cat.name}</h1>
+      <div className="sticky top-[max(0.5rem,env(safe-area-inset-top,0.5rem))] z-30 px-4 pt-2 pb-1 bg-slate-50/80 backdrop-blur-md">
+        <div className="rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <button 
+              onClick={() => navigate(-1)}
+              className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] border border-slate-200 text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="flex flex-col justify-center min-w-0">
+              <h1 className="text-[20px] font-bold tracking-tight text-slate-900 leading-none truncate">{cat.name}</h1>
+            </div>
+          </div>
         </div>
-      </header>
+      </div>
 
       {/* Content */}
       <div className="flex-1 p-4 space-y-6">

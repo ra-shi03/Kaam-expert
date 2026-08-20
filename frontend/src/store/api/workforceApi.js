@@ -25,16 +25,7 @@ export const workforceApi = baseApi.injectEndpoints({
       query: (params) => ({ url: '/contractor/analytics', params }),
       transformResponse: unwrap,
     }),
-    getContractorVendorAttendance: build.query({
-      query: (params) => ({ url: '/contractor/attendance', params }),
-      transformResponse: unwrap,
-      providesTags: ['Attendance', 'ContractorVendorAttendance'],
-    }),
-    toggleContractorAttendance: build.mutation({
-      query: (body) => ({ url: '/contractor/attendance/toggle', method: 'POST', body }),
-      transformResponse: unwrap,
-      invalidatesTags: ['Attendance', 'ContractorVendorAttendance', 'ContractorDashboard'],
-    }),
+
     getContractorTransactions: build.query({
       query: () => '/contractor/transactions',
       transformResponse: unwrap,
@@ -176,20 +167,11 @@ export const workforceApi = baseApi.injectEndpoints({
       transformResponse: unwrap,
       providesTags: ['VendorJobs'],
     }),
-    getVendorAttendance: build.query({
-      query: (params) => ({ url: '/vendor/attendance', params }),
-      transformResponse: unwrap,
-      providesTags: ['VendorAttendance', 'Attendance'],
-    }),
-    toggleVendorAttendance: build.mutation({
-      query: (body) => ({ url: '/vendor/attendance/toggle', method: 'POST', body }),
-      transformResponse: unwrap,
-      invalidatesTags: ['VendorAttendance', 'Attendance', 'VendorJobs', 'VendorDashboard'],
-    }),
+
     acceptVendorJob: build.mutation({
       query: (requestId) => ({ url: `/vendor/jobs/${requestId}/accept`, method: 'POST' }),
       transformResponse: unwrap,
-      invalidatesTags: ['VendorJobs', 'VendorDashboard', 'Crew', 'VendorAttendance', 'Attendance'],
+      invalidatesTags: ['VendorJobs', 'VendorDashboard', 'Crew'],
     }),
     getVendorDirectRequests: build.query({
       query: () => '/vendor/direct-requests',
@@ -234,21 +216,7 @@ export const workforceApi = baseApi.injectEndpoints({
       transformResponse: unwrap,
       invalidatesTags: ['Assignments'],
     }),
-    checkIn: build.mutation({
-      query: (body) => ({ url: '/workforce/attendance/check-in', method: 'POST', body }),
-      transformResponse: unwrap,
-      invalidatesTags: ['Attendance', 'Assignments'],
-    }),
-    checkOut: build.mutation({
-      query: (body) => ({ url: '/workforce/attendance/check-out', method: 'POST', body }),
-      transformResponse: unwrap,
-      invalidatesTags: ['Attendance', 'Assignments'],
-    }),
-    getAttendance: build.query({
-      query: (params) => ({ url: '/workforce/attendance', params }),
-      transformResponse: unwrap,
-      providesTags: ['Attendance'],
-    }),
+
     getAdminRequests: build.query({
       query: (params) => ({ url: '/admin/workforce/requests', params }),
       transformResponse: unwrap,
@@ -336,15 +304,7 @@ export const workforceApi = baseApi.injectEndpoints({
       transformResponse: unwrap,
       invalidatesTags: ['AdminPricing'],
     }),
-    verifyAttendance: build.mutation({
-      query: ({ id, ...body }) => ({
-        url: `/admin/workforce/attendance/${id}/verify`,
-        method: 'PATCH',
-        body,
-      }),
-      transformResponse: unwrap,
-      invalidatesTags: ['Attendance'],
-    }),
+
   }),
 })
 
@@ -352,8 +312,7 @@ export const {
   useGetContractorDashboardQuery,
   useGetContractorBannersQuery,
   useGetContractorAnalyticsQuery,
-  useGetContractorVendorAttendanceQuery,
-  useToggleContractorAttendanceMutation,
+
   useGetContractorTransactionsQuery,
   useCreateContractorComplaintMutation,
   useGetContractorComplaintsQuery,
@@ -382,8 +341,7 @@ export const {
   useGetVendorCrewQuery,
   useLinkVendorCrewMutation,
   useGetVendorJobsQuery,
-  useGetVendorAttendanceQuery,
-  useToggleVendorAttendanceMutation,
+
   useAcceptVendorJobMutation,
   useGetVendorSettlementsQuery,
   usePatchVendorMeMutation,
@@ -396,9 +354,7 @@ export const {
   useLazyGetVendorVerificationDetailQuery,
   useGetLabourAssignmentsQuery,
   useRespondAssignmentMutation,
-  useCheckInMutation,
-  useCheckOutMutation,
-  useGetAttendanceQuery,
+
   useGetAdminRequestsQuery,
   useGetAdminRequestByIdQuery,
   usePatchRequestStatusMutation,
@@ -409,5 +365,5 @@ export const {
   useGenerateInvoiceMutation,
   useGetAdminPricingQuery,
   useUpsertPricingMutation,
-  useVerifyAttendanceMutation,
+
 } = workforceApi

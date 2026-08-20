@@ -1,48 +1,13 @@
 /**
  * One-click sample balance for testing withdraw + fee deduction (device demo).
  */
-import { dayKey, replaceAttendanceEntries } from './labourAttendanceStorage.js'
+
 import { buildLabourEarningsSummary } from './labourEarningsFlow.js'
 import { maxNetFromAvailableGross } from './labourWithdrawalFees.js'
 import { readWalletState } from './labourWalletStorage.js'
 
 const DEMO_FLAG = 'lc-earnings-demo-seeded-v1'
 
-function makePunchPair(dayOffset, startHour, durationMinutes, projectLabel, workLabel) {
-  const base = new Date()
-  base.setDate(base.getDate() - dayOffset)
-  base.setHours(startHour, 0, 0, 0)
-  const inAt = new Date(base)
-  const outAt = new Date(inAt.getTime() + durationMinutes * 60 * 1000)
-  const dk = dayKey(inAt)
-  const tag = `${dayOffset}-${startHour}`
-  return [
-    {
-      id: `demo-in-${tag}`,
-      type: 'in',
-      at: inAt.toISOString(),
-      day: dk,
-      projectLabel,
-      workLabel,
-    },
-    {
-      id: `demo-out-${tag}`,
-      type: 'out',
-      at: outAt.toISOString(),
-      day: dk,
-      projectLabel,
-      workLabel,
-    },
-  ]
-}
-
-function sampleAttendanceEntries() {
-  return [
-    ...makePunchPair(2, 8, 360, 'Green Villa Phase 2', 'Masonry'),
-    ...makePunchPair(1, 9, 480, 'Skyline Contractor Tower', 'Helper'),
-    ...makePunchPair(0, 7, 240, 'Green Villa Phase 2', 'Masonry'),
-  ]
-}
 
 function sampleWalletCredits(nowIso) {
   const yesterday = new Date()
@@ -107,14 +72,10 @@ export function seedSampleEarningsDemo(opts = {}) {
     (wallet.withdrawals || []).length > 0
 
   if (existing && hasBalance && !force) {
-    const entries = sampleAttendanceEntries()
-    replaceAttendanceEntries(entries)
-    return summarizeAfterSeed(entries, wallet)
+    return summarizeAfterSeed(wallet)
   }
 
   const nowIso = new Date().toISOString()
-  const attendance = sampleAttendanceEntries()
-  replaceAttendanceEntries(attendance)
 
   const STORAGE_KEY = 'lc-labour-wallet-v1'
   const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {
@@ -144,14 +105,13 @@ export function seedSampleEarningsDemo(opts = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   localStorage.setItem(DEMO_FLAG, nowIso)
   window.dispatchEvent(new CustomEvent('lc-labour-wallet'))
-  window.dispatchEvent(new CustomEvent('lc-labour-attendance'))
 
   const freshWallet = readWalletState()
-  return summarizeAfterSeed(attendance, freshWallet)
+  return summarizeAfterSeed(freshWallet)
 }
 
-function summarizeAfterSeed(attendanceEntries, wallet) {
-  const summary = buildLabourEarningsSummary(attendanceEntries, wallet)
+function summarizeAfterSeed(wallet) {
+  const summary = buildLabourEarningsSummary([], wallet)
   return {
     ok: true,
     attendanceMinutes: summary.totalMinutes,

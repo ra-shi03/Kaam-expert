@@ -4,7 +4,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 
 export const getAllBookings = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, status, search } = req.query
+  const { page = 1, limit = 10, status, search, paymentMethod, paymentStatus, adminSettlementStatus, startDate, endDate } = req.query
   const skip = (page - 1) * limit
   
   const query = {}
@@ -14,6 +14,41 @@ export const getAllBookings = asyncHandler(async (req, res) => {
       query.status = { $in: ['CREATED', 'BROADCASTING', 'ACCEPTED', 'EN_ROUTE'] }
     } else {
       query.status = status
+    }
+  }
+
+  if (paymentMethod && paymentMethod !== 'ALL') {
+    query.paymentMethod = paymentMethod
+  }
+  if (paymentStatus && paymentStatus !== 'ALL') {
+    query.paymentStatus = paymentStatus
+  }
+  if (adminSettlementStatus && adminSettlementStatus !== 'ALL') {
+    query.adminSettlementStatus = adminSettlementStatus
+  }
+
+  if (startDate || endDate) {
+    query.createdAt = {}
+    if (startDate) query.createdAt.$gte = new Date(startDate)
+    if (endDate) {
+      const end = new Date(endDate)
+      end.setHours(23, 59, 59, 999)
+      query.createdAt.$lte = end
+    }
+  }
+
+  if (search) {
+    const searchRegex = new RegExp(search, 'i')
+    const users = await User.find({ fullName: searchRegex }).select('_id')
+    const userIds = users.map(u => u._id)
+    
+    query.$or = [
+      { laborId: { $in: userIds } },
+      { userId: { $in: userIds } }
+    ]
+    
+    if (search.length >= 4) {
+      query.$or.push({ $expr: { $regexMatch: { input: { $toString: '$_id' }, regex: search, options: 'i' } } })
     }
   }
 
@@ -195,6 +230,26 @@ export const deleteBookingAdmin = asyncHandler(async (req, res) => {
   if (!booking) {
     console.log(`[deleteBookingAdmin] Booking NOT FOUND for ID: ${id}`);
     return sendError(res, { message: 'Booking not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+
+  // If the booking was COMPLETED and ONLINE, we need to deduct its amounts from AdminWallet
+  if (booking.status === 'COMPLETED' && booking.paymentMethod === 'ONLINE') {
+    import('../models/AdminWallet.js').then(async ({ AdminWallet }) => {
+      const adminWallet = await AdminWallet.findOne()
+      if (adminWallet) {
+        if (booking.commissionAmount) {
+          adminWallet.totalCommissionsCollected = Math.max(0, adminWallet.totalCommissionsCollected - booking.commissionAmount)
+        }
+        if (booking.platformFee) {
+          adminWallet.totalPlatformFeesCollected = Math.max(0, adminWallet.totalPlatformFeesCollected - booking.platformFee)
+        }
+        if (booking.basePrice) {
+          adminWallet.totalServiceAmountCollected = Math.max(0, adminWallet.totalServiceAmountCollected - booking.basePrice)
+        }
+        await adminWallet.save()
+        console.log(`[deleteBookingAdmin] Decremented AdminWallet totals for deleted booking ${id}`)
+      }
+    }).catch(err => console.error('AdminWallet error on delete:', err))
   }
 
   console.log(`[deleteBookingAdmin] Successfully deleted booking: ${booking._id}, Status was: ${booking.status}`);

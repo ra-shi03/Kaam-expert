@@ -93,6 +93,33 @@ const labourProfileSchema = new mongoose.Schema(
   { _id: false },
 )
 
+const contractorProfileSchema = new mongoose.Schema(
+  {
+    kycStatus: {
+      type: String,
+      enum: Object.values(KYC_STATUS),
+      default: KYC_STATUS.PENDING,
+    },
+    aadhaarMasked: String,
+    panMasked: String,
+    kycSubmittedAt: Date,
+    kycVideoUrl: { type: String, maxlength: 2048 },
+    kycVideoMeta: {
+      publicId: { type: String, maxlength: 512 },
+      resourceType: { type: String, maxlength: 32 },
+      format: { type: String, maxlength: 32 },
+      bytes: Number,
+      duration: Number,
+      uploadedAt: Date,
+    },
+    kycFrontImageUrl: { type: String, maxlength: 2048 },
+    kycBackImageUrl: { type: String, maxlength: 2048 },
+    kycFrontImageDataUrl: { type: String },
+    kycBackImageDataUrl: { type: String },
+    kycReviewNote: { type: String, trim: true, maxlength: 500 },
+  },
+  { _id: false },
+)
 
 const userSchema = new mongoose.Schema(
   {
@@ -135,6 +162,7 @@ const userSchema = new mongoose.Schema(
     state: { type: String, trim: true },
     country: { type: String, trim: true },
     labourProfile: labourProfileSchema,
+    contractorProfile: contractorProfileSchema,
   },
   { timestamps: true },
 )
@@ -154,6 +182,14 @@ userSchema.methods.toSafeObject = function toSafeObject(options = {}) {
     delete lp.kycFrontImageUrl
     delete lp.kycBackImageUrl
     o.labourProfile = lp
+  }
+  if (!options.includeLabourKycImages && o.contractorProfile) {
+    const cp = { ...o.contractorProfile }
+    delete cp.kycFrontImageDataUrl
+    delete cp.kycBackImageDataUrl
+    delete cp.kycFrontImageUrl
+    delete cp.kycBackImageUrl
+    o.contractorProfile = cp
   }
   return o
 }

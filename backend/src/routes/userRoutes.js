@@ -73,7 +73,7 @@ router.patch(
 
 router.post(
   '/me/labour/kyc/submit',
-  restrictTo(USER_ROLES.LABOUR),
+  restrictTo(USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR),
   [
     body('aadhaar').optional({ values: 'falsy' }).isString().trim(),
     body('pan').optional({ values: 'falsy' }).isString().trim(),

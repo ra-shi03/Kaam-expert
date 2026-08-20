@@ -173,16 +173,6 @@ export function AuthEntryPage() {
         const res = await requestLoginOtp({ phone: p })
         setChallengeId(res.data?.challengeId ?? null)
       } else {
-        if (role === USER_ROLES.CONTRACTOR && !companyName.trim()) {
-          setBanner({ variant: 'error', message: 'Company name is required.' })
-          setBusy(false)
-          return
-        }
-        if (role === USER_ROLES.CONTRACTOR && !businessName.trim()) {
-          setBanner({ variant: 'error', message: 'Business name is required.' })
-          setBusy(false)
-          return
-        }
         const res = await requestRegisterOtp({
           phone: p,
           role,
@@ -243,13 +233,6 @@ export function AuthEntryPage() {
           challengeId,
           fullName: fullName.trim(),
         }
-        if (role === USER_ROLES.CONTRACTOR) {
-          body.companyName = companyName.trim()
-          if (gstNumber.trim()) body.gstNumber = gstNumber.trim().toUpperCase()
-        }
-        if (role === USER_ROLES.CONTRACTOR) {
-          body.businessName = businessName.trim()
-        }
         const res = await verifyRegister(body)
         const { token, user } = res.data
         applySession(token, user)
@@ -257,7 +240,7 @@ export function AuthEntryPage() {
       }
 
         let returnPath = location.state?.from || getRoleHomePath(signedInUser.role)
-        if (mode === 'register' && signedInUser.role === USER_ROLES.CUSTOMER) {
+        if (mode === 'register' && (signedInUser.role === USER_ROLES.CUSTOMER || signedInUser.role === USER_ROLES.CONTRACTOR)) {
           returnPath = '/app/profile'
         }
         if (mode === 'register' && signedInUser.role === USER_ROLES.LABOUR) {
@@ -444,37 +427,6 @@ export function AuthEntryPage() {
                         autoComplete="name"
                       />
                     </AuthField>
-                    {role === USER_ROLES.CONTRACTOR ? (
-                      <>
-                        <AuthField label="Company name">
-                          <input
-                            type="text"
-                            className={inputClass}
-                            value={companyName}
-                            onChange={(e) => setCompanyName(e.target.value)}
-                          />
-                        </AuthField>
-                        <AuthField label="GST (optional)">
-                          <input
-                            type="text"
-                            maxLength={15}
-                            className={inputClass}
-                            value={gstNumber}
-                            onChange={(e) => setGstNumber(e.target.value)}
-                          />
-                        </AuthField>
-                      </>
-                    ) : null}
-                    {role === USER_ROLES.CONTRACTOR ? (
-                      <AuthField label="Business name">
-                        <input
-                          type="text"
-                          className={inputClass}
-                          value={businessName}
-                          onChange={(e) => setBusinessName(e.target.value)}
-                        />
-                      </AuthField>
-                    ) : null}
                   </>
                 ) : null}
               </div>

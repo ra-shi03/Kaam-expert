@@ -39,7 +39,7 @@ import {
   saveJobDemoState,
   subscribeJobDemo,
 } from '../../../lib/labourJobDemoStorage.js'
-import { readAttendanceEntries, subscribeAttendance } from '../../../lib/labourAttendanceStorage.js'
+
 import { readWalletState, subscribeWallet } from '../../../lib/labourWalletStorage.js'
 import { buildEarningsGlance } from '../../../lib/labourHomeHelpers.js'
 
@@ -75,7 +75,6 @@ export function LabourNotificationsPage() {
   const { user } = useAuth()
   const [tab, setTab] = useState('all')
   const [jobs, setJobs] = useState(loadJobDemoState)
-  const [entries, setEntries] = useState(readAttendanceEntries)
   const [wallet, setWallet] = useState(readWalletState)
   const [tick, setTick] = useState(0)
   const [confirmOfferId, setConfirmOfferId] = useState(null)
@@ -84,14 +83,13 @@ export function LabourNotificationsPage() {
   const kycOk = user?.labourProfile?.kycStatus === KYC_STATUS.VERIFIED
 
   useEffect(() => subscribeJobDemo(setJobs), [])
-  useEffect(() => subscribeAttendance(setEntries), [])
   useEffect(() => subscribeWallet(setWallet), [])
   useEffect(() => subscribeLabourNotifications(() => setTick((t) => t + 1)), [])
 
   const earnings = useMemo(() => {
     const withdrawn = wallet.withdrawals.reduce((a, w) => a + w.amountPaise, 0)
-    return buildEarningsGlance(entries, wallet.ratePaisePerMin, withdrawn)
-  }, [entries, wallet])
+    return buildEarningsGlance([], wallet.ratePaisePerMin, withdrawn)
+  }, [wallet])
 
   const feed = useMemo(
     () => buildLabourNotifications(user, jobs, earnings),

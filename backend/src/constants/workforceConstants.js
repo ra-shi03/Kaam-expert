@@ -10,7 +10,6 @@ export const REQUEST_STATUS = {
   ALLOCATING: 'allocating',
   ASSIGNED: 'assigned',
   IN_PROGRESS: 'in_progress',
-  ATTENDANCE: 'attendance_tracking',
   BILLING: 'billing',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
@@ -27,16 +26,7 @@ export const ASSIGNMENT_STATUS = {
   REPLACED: 'replaced',
 }
 
-export const ATTENDANCE_STATUS = {
-  SCHEDULED: 'scheduled',
-  DISPATCHED: 'dispatched',
-  PRESENT: 'present',
-  WORK_COMPLETED: 'work_completed',
-  COMPLETED: 'completed',
-  ABSENT: 'absent',
-  HALF_DAY: 'half_day',
-  LATE: 'late',
-}
+
 
 export const PROJECT_STATUS = {
   DRAFT: 'draft',

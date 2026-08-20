@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
@@ -55,6 +55,9 @@ export function ActiveJob() {
   const navigate = useNavigate()
   const socket = useSocket()
   const reduce = useReducedMotion()
+  const [showPaymentWaiting, setShowPaymentWaiting] = useState(false)
+  const mapRef = useRef(null)
+  const markerInstance = useRef(null)
 
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -76,7 +79,11 @@ export function ActiveJob() {
     bookingsApi.getBookingStatus(bookingId)
       .then((res) => {
         if (cancelled) return
-        setBooking(res.data?.booking || null)
+        const b = res.data?.booking || null
+        setBooking(b)
+        if (b && b.status === 'COMPLETED') {
+          setShowPaymentWaiting(true)
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof ApiError ? err.message : 'Failed to load job')
@@ -93,7 +100,10 @@ export function ActiveJob() {
 
     const handleStatusUpdate = (data) => {
       if (data.bookingId === bookingId) {
-        setBooking((prev) => prev ? { ...prev, status: data.status } : prev)
+        setBooking((prev) => prev ? { ...prev, status: data.status, paymentStatus: data.paymentStatus || prev.paymentStatus } : prev)
+        if (data.status === 'COMPLETED') {
+          setShowPaymentWaiting(true)
+        }
       }
     }
 
@@ -111,11 +121,7 @@ export function ActiveJob() {
       return
     }
 
-    if (nextStatus === 'COMPLETED' && booking?.paymentMethod === 'CASH' && !bypassCashCheck) {
-      setShowCashConfirm(true)
-      setPendingCashSubmit({ nextStatus, requireOtp })
-      return
-    }
+
 
     setUpdating(true)
     setUpdateError('')
@@ -132,7 +138,7 @@ export function ActiveJob() {
       setJobImage(null)
       setBooking((prev) => prev ? { ...prev, status: nextStatus } : prev)
       if (nextStatus === 'COMPLETED') {
-        setTimeout(() => navigate('/app/my-bookings', { replace: true }), 1500)
+        setShowPaymentWaiting(true)
       }
     } catch (err) {
       setUpdateError(err instanceof ApiError ? err.message : 'Failed to update status')
@@ -481,43 +487,77 @@ export function ActiveJob() {
         </div>
       )}
 
-      {/* Cash Payment Confirmation Popup */}
-      {showCashConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"
+      {/* Payment Waiting Modal */}
+      {showPaymentWaiting && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl text-center"
           >
-            <div className="mb-4 flex items-center justify-center gap-3 text-brand">
-              <Wallet className="h-10 w-10" />
-            </div>
-            <h3 className="text-center text-xl font-extrabold text-slate-900">Take Cash Payment?</h3>
-            <p className="mt-2 text-center text-sm font-medium text-slate-600">
-              The customer has selected cash. Are you sure you want to continue to take payment in cash?
-            </p>
-            <div className="mt-8 flex gap-3">
-              <button
-                onClick={() => {
-                  setShowCashConfirm(false)
-                  setPendingCashSubmit(null)
-                }}
-                className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-200"
-              >
-                No
-              </button>
-              <button
-                onClick={() => {
-                  setShowCashConfirm(false)
-                  if (pendingCashSubmit) {
-                    handleStatusUpdate(pendingCashSubmit.nextStatus, pendingCashSubmit.requireOtp, true)
-                  }
-                }}
-                className="flex-1 rounded-xl bg-brand py-3 text-sm font-bold text-white transition hover:bg-brand/90"
-              >
-                Yes, Continue
-              </button>
-            </div>
+            {booking?.paymentStatus === 'PAID' ? (
+              <>
+                <div className="relative mx-auto mb-8 mt-4 flex h-24 w-24 items-center justify-center">
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", bounce: 0.5, duration: 0.6 }}
+                    className="relative z-10 flex h-full w-full items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-xl shadow-blue-500/40"
+                  >
+                    <CheckCircle2 className="h-12 w-12 text-white" strokeWidth={2.5} />
+                  </motion.div>
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  Payment Successfully Received
+                </h3>
+                <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                  The transaction has been completed successfully and the amount has been credited to your earnings.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPaymentWaiting(false)
+                    navigate('/app/earnings', { replace: true })
+                  }}
+                  className="w-full rounded-xl bg-brand py-3 text-sm font-bold text-white transition hover:bg-brand/90 active:scale-95"
+                >
+                  Collect Money
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="relative mx-auto mb-8 mt-4 flex h-24 w-24 items-center justify-center">
+                  {/* CSS Ripples */}
+                  <div className="absolute inset-0 rounded-full bg-blue-400 opacity-75 animate-ping" style={{ animationDuration: '2s' }} />
+                  <div className="absolute inset-0 rounded-full bg-indigo-400 opacity-50 animate-ping" style={{ animationDuration: '2s', animationDelay: '1s' }} />
+                  
+                  {/* Center Glowing Icon */}
+                  <motion.div 
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                    className="relative z-10 flex h-full w-full items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 shadow-xl shadow-blue-500/40"
+                  >
+                    <Wallet className="h-10 w-10 text-white" strokeWidth={2} />
+                  </motion.div>
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">
+                  Waiting for Customer Payment
+                </h3>
+                <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                  Please hold on while the customer completes the transaction...
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPaymentWaiting(false)
+                    navigate('/app/my-bookings', { replace: true })
+                  }}
+                  className="w-full rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-200 active:scale-95"
+                >
+                  Return to Bookings
+                </button>
+              </>
+            )}
           </motion.div>
         </div>
       )}

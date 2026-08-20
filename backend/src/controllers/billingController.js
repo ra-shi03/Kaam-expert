@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 import { USER_ROLES } from '../constants/roles.js'
 import { INVOICE_STATUS, REQUEST_STATUS } from '../constants/workforceConstants.js'
-import { AttendanceRecord } from '../models/AttendanceRecord.js'
+
 import { WorkforceRequest } from '../models/WorkforceRequest.js'
 import { PricingRate } from '../models/PricingRate.js'
 import { Invoice, generateInvoiceNumber } from '../models/Invoice.js'
@@ -75,21 +75,14 @@ export const generateInvoiceAdmin = asyncHandler(async (req, res) => {
   const request = await WorkforceRequest.findById(requestId).lean()
   if (!request) return sendError(res, { message: 'Request not found', statusCode: HTTP_STATUS.NOT_FOUND })
 
-  const records = await AttendanceRecord.find({
-    requestId,
-    billableUnits: { $gt: 0 },
-  }).lean()
+  const duration = request.projectDurationDays || 1
 
   const lines = []
   let subtotal = 0
   let gstTotal = 0
 
   for (const line of request.lines || []) {
-    const catId = String(line.categoryId)
-    const units = records
-      .filter((r) => String(r.categoryId || '') === catId || !r.categoryId)
-      .reduce((sum, r) => sum + (r.billableUnits || 0), 0)
-    const totalUnits = units || records.reduce((s, r) => s + r.billableUnits, 0)
+    const totalUnits = (line.quantity || 1) * duration
     const rate = await resolveRate(line.categoryId, request.sourceType, request.clientId)
     const ratePer = rate?.ratePerShift ?? 500
     const gstPct = rate?.gstPercent ?? 18
@@ -107,26 +100,14 @@ export const generateInvoiceAdmin = asyncHandler(async (req, res) => {
     gstTotal += gstAmount
   }
 
-  if (!lines.length && records.length) {
-    const amount = records.reduce((s, r) => s + r.billableUnits * 500, 0)
-    const gstAmount = amount * 0.18
-    lines.push({
-      description: 'Attendance-based labour',
-      billableUnits: records.reduce((s, r) => s + r.billableUnits, 0),
-      ratePerUnit: 500,
-      amount,
-      gstAmount,
-    })
-    subtotal = amount
-    gstTotal = gstAmount
-  }
+
 
   const invoice = await Invoice.create({
     invoiceNumber: generateInvoiceNumber(),
     contractorId: request.sourceType === 'contractor' ? request.clientId : undefined,
     requestId: request._id,
     projectId: request.projectId,
-    type: 'attendance',
+    type: 'fixed',
     billingMode: request.billingMode,
     status: INVOICE_STATUS.ISSUED,
     lines,

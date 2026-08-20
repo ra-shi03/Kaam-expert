@@ -251,7 +251,7 @@ export function rebookDraftFromRecord(source) {
 export function durationKindToDays(kind, fallback = 1) {
   if (kind === 'full_day') return 1
   if (kind === 'multi_day') return Math.max(2, Number(fallback) || 2)
-  return 1
+  return 0
 }
 
 export function durationKindLabel(kind) {

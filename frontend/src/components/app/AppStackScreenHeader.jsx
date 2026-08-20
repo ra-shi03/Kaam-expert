@@ -10,34 +10,38 @@ function openAppDrawer() {
  */
 export function AppStackScreenHeader({ title, backTo = '/app', onBack, className = '' }) {
   return (
-    <header className={`mt-[max(0.75rem,env(safe-area-inset-top))] mb-4 flex items-center justify-between gap-3 rounded-[2.5rem] border border-slate-200 bg-white p-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] backdrop-blur-md sticky top-[max(0.75rem,env(safe-area-inset-top))] z-40 ${className}`}>
-      {onBack ? (
+    <div className={`mb-4 mt-[max(0.75rem,env(safe-area-inset-top))] rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm sticky top-[max(0.75rem,env(safe-area-inset-top))] z-40 ${className}`}>
+      <div className="flex items-center gap-3.5">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] border border-slate-200 text-slate-700 shadow-sm transition-colors hover:bg-slate-50 active:scale-95"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="h-5 w-5" strokeWidth={2} aria-hidden />
+          </button>
+        ) : (
+          <Link
+            to={backTo}
+            className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] border border-slate-200 text-slate-700 shadow-sm transition-colors hover:bg-slate-50 active:scale-95"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="h-5 w-5" strokeWidth={2} aria-hidden />
+          </Link>
+        )}
+        <div className="flex flex-col justify-center min-w-0 flex-1">
+          <h1 className="text-[20px] font-bold tracking-tight text-slate-900 leading-none truncate">{title}</h1>
+        </div>
         <button
           type="button"
-          onClick={onBack}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-800 transition active:scale-95 active:bg-slate-50"
-          aria-label="Go back"
+          onClick={openAppDrawer}
+          className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] border border-slate-200 bg-white text-slate-800 shadow-sm transition-colors hover:bg-slate-50 active:scale-95"
+          aria-label="Open menu"
         >
-          <ArrowLeft className="h-5 w-5" strokeWidth={2} aria-hidden />
+          <Menu className="h-5 w-5" strokeWidth={2} aria-hidden />
         </button>
-      ) : (
-        <Link
-          to={backTo}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-800 transition active:scale-95 active:bg-slate-50"
-          aria-label="Go back"
-        >
-          <ArrowLeft className="h-5 w-5" strokeWidth={2} aria-hidden />
-        </Link>
-      )}
-      <h1 className="min-w-0 flex-1 text-center text-[17px] font-bold text-slate-900 tracking-tight">{title}</h1>
-      <button
-        type="button"
-        onClick={openAppDrawer}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-800 transition active:scale-95 active:bg-slate-50"
-        aria-label="Open menu"
-      >
-        <Menu className="h-5 w-5" strokeWidth={2} aria-hidden />
-      </button>
-    </header>
+      </div>
+    </div>
   )
 }

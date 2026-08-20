@@ -17,14 +17,14 @@ export const KYC_WORKFLOW_RESUBMIT = [
   { id: 'verified', label: 'Verified on platform', short: 'Done' },
 ]
 
-export function hasKycDetailsOnFile(labourProfile) {
-  return Boolean(labourProfile?.aadhaarMasked?.trim()) && Boolean(labourProfile?.panMasked?.trim())
+export function hasKycDetailsOnFile(profile) {
+  return Boolean(profile?.aadhaarMasked?.trim()) && Boolean(profile?.panMasked?.trim())
 }
 
-export function getKycUiState(labourProfile) {
-  const kyc = labourProfile?.kycStatus || KYC_STATUS.PENDING
-  const submittedAt = labourProfile?.kycSubmittedAt
-  const reviewNote = labourProfile?.kycReviewNote
+export function getKycUiState(profile) {
+  const kyc = profile?.kycStatus || KYC_STATUS.PENDING
+  const submittedAt = profile?.kycSubmittedAt
+  const reviewNote = profile?.kycReviewNote
 
   if (kyc === KYC_STATUS.VERIFIED) {
     return {

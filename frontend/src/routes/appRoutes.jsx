@@ -6,7 +6,7 @@ import { AppJobsPage } from '../pages/app/AppJobsPage.jsx'
 import { AppSupportPage } from '../pages/app/AppSupportPage.jsx'
 import { AppProfilePage } from '../pages/app/AppProfilePage.jsx'
 import { AppEarningsPage } from '../pages/app/AppEarningsPage.jsx'
-import { AppAttendancePage } from '../pages/app/AppAttendancePage.jsx'
+
 import { AppKycPage } from '../pages/app/AppKycPage.jsx'
 import { LabourNotificationsPage } from '../pages/app/labour/LabourNotificationsPage.jsx'
 import { IndividualBookingFlowPage } from '../pages/app/booking/IndividualBookingFlowPage.jsx'
@@ -48,7 +48,7 @@ export const appShellChildRoutes = (
     <Route
       path="search"
       element={
-        <RoleRoute allow={[USER_ROLES.CUSTOMER]} allowGuest>
+        <RoleRoute allow={[USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]} allowGuest>
           <AppIndividualSearchPage />
         </RoleRoute>
       }
@@ -57,7 +57,7 @@ export const appShellChildRoutes = (
     <Route
       path="services"
       element={
-        <RoleRoute allow={[USER_ROLES.CUSTOMER]} allowGuest>
+        <RoleRoute allow={[USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]} allowGuest>
           <ServiceCatalog />
         </RoleRoute>
       }
@@ -66,7 +66,7 @@ export const appShellChildRoutes = (
     <Route
       path="sub-category/:id"
       element={
-        <RoleRoute allow={[USER_ROLES.CUSTOMER]} allowGuest>
+        <RoleRoute allow={[USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]} allowGuest>
           <AppSubCategoryServicePage />
         </RoleRoute>
       }
@@ -75,7 +75,7 @@ export const appShellChildRoutes = (
     <Route
       path="checkout"
       element={
-        <RoleRoute allow={[USER_ROLES.CUSTOMER]} allowGuest>
+        <RoleRoute allow={[USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]} allowGuest>
           <Checkout />
         </RoleRoute>
       }
@@ -84,7 +84,7 @@ export const appShellChildRoutes = (
     <Route
       path="tracking/:bookingId"
       element={
-        <RoleRoute allow={[USER_ROLES.CUSTOMER]}>
+        <RoleRoute allow={[USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]}>
           <JobTracking />
         </RoleRoute>
       }
@@ -153,17 +153,9 @@ export const appShellChildRoutes = (
       }
     />
     <Route
-      path="attendance"
-      element={
-        <RoleRoute allow={[USER_ROLES.LABOUR]}>
-          <AppAttendancePage />
-        </RoleRoute>
-      }
-    />
-    <Route
       path="kyc"
       element={
-        <RoleRoute allow={[USER_ROLES.LABOUR]}>
+        <RoleRoute allow={[USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR]}>
           <AppKycPage />
         </RoleRoute>
       }

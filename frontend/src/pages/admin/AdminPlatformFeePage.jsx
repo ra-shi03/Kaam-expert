@@ -50,8 +50,8 @@ export function AdminPlatformFeePage() {
   const filteredBookings = useMemo(() => {
     const now = new Date()
     return bookings.filter(b => {
-      if (b.paymentMethod !== 'ONLINE' || b.status !== 'COMPLETED') return false
-      if (!b.platformFee) return false
+      if (b.status !== 'COMPLETED') return false
+      if (!b.platformFee || b.platformFee <= 0) return false
 
       // Date Filter
       const bDate = new Date(b.createdAt)
@@ -68,9 +68,9 @@ export function AdminPlatformFeePage() {
       if (searchTerm) {
         const lowerSearch = searchTerm.toLowerCase()
         const idMatch = b._id?.toLowerCase().includes(lowerSearch)
-        const userMatch = b.user?.name?.toLowerCase().includes(lowerSearch) || b.customer?.name?.toLowerCase().includes(lowerSearch)
-        const laborMatch = b.labor?.name?.toLowerCase().includes(lowerSearch) || b.provider?.name?.toLowerCase().includes(lowerSearch)
-        const serviceMatch = b.service?.name?.toLowerCase().includes(lowerSearch) || b.category?.name?.toLowerCase().includes(lowerSearch)
+        const userMatch = b.userId?.fullName?.toLowerCase().includes(lowerSearch)
+        const laborMatch = b.laborId?.fullName?.toLowerCase().includes(lowerSearch)
+        const serviceMatch = b.serviceId?.name?.toLowerCase().includes(lowerSearch)
         if (!idMatch && !userMatch && !laborMatch && !serviceMatch) return false
       }
 
@@ -98,7 +98,7 @@ export function AdminPlatformFeePage() {
     const now = new Date()
     
     bookings.forEach(b => {
-      if (b.paymentMethod === 'ONLINE' && b.status === 'COMPLETED') {
+      if (b.status === 'COMPLETED' && b.platformFee > 0) {
         const fee = b.platformFee || 0
         allTime += fee
         
@@ -261,6 +261,7 @@ export function AdminPlatformFeePage() {
                   <th className="px-6 py-3 font-semibold">Customer</th>
                   <th className="px-6 py-3 font-semibold">Labour</th>
                   <th className="px-6 py-3 font-semibold">Service</th>
+                  <th className="px-6 py-3 font-semibold text-right">Booking Total</th>
                   <th className="px-6 py-3 font-semibold text-right">Platform Fee</th>
                 </tr>
               </thead>
@@ -277,15 +278,18 @@ export function AdminPlatformFeePage() {
                         <p className="text-xs text-slate-400">{new Date(b.createdAt).toLocaleString()}</p>
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-700">
-                        {b.user?.name || b.customer?.name || 'N/A'}
+                        {b.userId?.fullName || 'N/A'}
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-700">
-                        {b.labor?.name || b.provider?.name || 'N/A'}
+                        {b.laborId?.fullName || 'N/A'}
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                          {b.service?.name || b.category?.name || b.workCategory || 'Service'}
+                          {b.serviceId?.name || 'Service'}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <p className="font-bold text-slate-900">₹{(b.totalAmount || 0).toLocaleString('en-IN')}</p>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <p className="font-bold text-blue-600">+ ₹{(b.platformFee || 0).toLocaleString('en-IN')}</p>
@@ -358,15 +362,15 @@ export function AdminPlatformFeePage() {
                   <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                     <UserCircle className="h-3.5 w-3.5" /> Customer
                   </p>
-                  <p className="font-semibold text-slate-900">{selectedBooking.user?.name || selectedBooking.customer?.name || 'N/A'}</p>
-                  <p className="text-xs text-slate-500">{selectedBooking.user?.phone || 'No phone'}</p>
+                  <p className="font-semibold text-slate-900">{selectedBooking.userId?.fullName || 'N/A'}</p>
+                  <p className="text-xs text-slate-500">{selectedBooking.userId?.phone || 'No phone'}</p>
                 </div>
                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                   <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                     <Wrench className="h-3.5 w-3.5" /> Labour
                   </p>
-                  <p className="font-semibold text-slate-900">{selectedBooking.labor?.name || selectedBooking.provider?.name || 'N/A'}</p>
-                  <p className="text-xs text-slate-500">{selectedBooking.labor?.phone || 'No phone'}</p>
+                  <p className="font-semibold text-slate-900">{selectedBooking.laborId?.fullName || 'N/A'}</p>
+                  <p className="text-xs text-slate-500">{selectedBooking.laborId?.phone || 'No phone'}</p>
                 </div>
               </div>
 

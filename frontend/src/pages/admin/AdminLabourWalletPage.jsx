@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Wallet, Clock, CheckCircle2, XCircle, Download, Search, Filter, Eye, X, UserCircle, Landmark, QrCode } from 'lucide-react'
+import { Wallet, Clock, CheckCircle2, XCircle, Download, Search, Filter, Eye, X, UserCircle, Landmark, QrCode, Trash2 } from 'lucide-react'
 import { adminBookingsApi } from '../../api/adminBookingsApi.js'
 import { adminWalletsApi } from '../../api/adminWalletsApi.js'
 
@@ -18,6 +18,7 @@ export function AdminLabourWalletPage() {
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [rejecting, setRejecting] = useState(false)
   const [rejectNote, setRejectNote] = useState('')
+  const [recordToDelete, setRecordToDelete] = useState(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,6 +56,24 @@ export function AdminLabourWalletPage() {
       // Revert optimistic update if API fails
       setWithdrawals(prev => prev.map(w => w._id === id ? { ...w, status: 'PENDING' } : w))
       alert('Failed to update status')
+    }
+  }
+
+  const handleDeleteHistory = (id) => {
+    setRecordToDelete(id)
+  }
+
+  const confirmDeleteHistory = async () => {
+    if (!recordToDelete) return
+    const id = recordToDelete
+    setRecordToDelete(null)
+    
+    try {
+      await adminWalletsApi.deleteWithdrawalRequest(id)
+      setWithdrawals(prev => prev.filter(w => w._id !== id))
+    } catch (err) {
+      console.error('Failed to delete history record:', err)
+      alert('Failed to delete record')
     }
   }
 
@@ -316,6 +335,7 @@ export function AdminLabourWalletPage() {
                 <th className="px-6 py-3 font-semibold">Labourer</th>
                 <th className="px-6 py-3 font-semibold">Amount</th>
                 <th className="px-6 py-3 font-semibold">Status</th>
+                <th className="px-6 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -339,11 +359,20 @@ export function AdminLabourWalletPage() {
                         {w.status}
                       </span>
                     </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => handleDeleteHistory(w._id)}
+                        className="p-1 text-slate-400 hover:text-rose-600 transition"
+                        title="Delete record"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
                     No history found matching filters.
                   </td>
                 </tr>
@@ -480,6 +509,37 @@ export function AdminLabourWalletPage() {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {recordToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center p-6 text-center">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100">
+                <Trash2 className="h-6 w-6 text-rose-600" />
+              </div>
+              <h3 className="mb-2 text-lg font-bold text-slate-900">Delete Record</h3>
+              <p className="mb-6 text-sm text-slate-500">
+                Are you sure you want to delete this withdrawal record? This action cannot be undone.
+              </p>
+              <div className="flex w-full gap-3">
+                <button
+                  onClick={() => setRecordToDelete(null)}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteHistory}
+                  className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-bold text-white transition hover:bg-rose-700 shadow-md shadow-rose-600/20"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

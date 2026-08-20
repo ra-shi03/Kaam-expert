@@ -65,12 +65,7 @@ export async function startBroadcastCycle(bookingId) {
     'labourProfile.currentLongitude': { $gte: bookingLng - bufferLngDiff, $lte: bookingLng + bufferLngDiff }
   }
 
-  if (booking.serviceId && booking.subcategoryId) {
-    query.$or = [
-      { 'labourProfile.serviceIds': booking.serviceId },
-      { 'labourProfile.subcategoryIds': booking.subcategoryId }
-    ]
-  } else if (booking.serviceId) {
+  if (booking.serviceId) {
     query['labourProfile.serviceIds'] = booking.serviceId
   } else if (booking.subcategoryId) {
     query['labourProfile.subcategoryIds'] = booking.subcategoryId

@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { ClipboardList, Trash2, Edit2, CheckCircle, XCircle, Eye, Calendar } from 'lucide-react'
 
 import { AdminLabourDetailsModal } from './components/AdminLabourDetailsModal.jsx'
-import { SharedAttendanceDrawer } from '../../components/shared/SharedAttendanceDrawer.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { PipelineTimeline } from '../../components/shared/PipelineTimeline.jsx'
@@ -74,7 +73,6 @@ function ContractorRequestsTab() {
   const [expandedRows, setExpandedRows] = useState({})
   const [selectedLabour, setSelectedLabour] = useState(null)
   const [selectedViewRequest, setSelectedViewRequest] = useState(null)
-  const [selectedAttendanceReqId, setSelectedAttendanceReqId] = useState(null)
 
   const handleStatus = async (id, status) => {
     try {
@@ -221,15 +219,6 @@ function ContractorRequestsTab() {
                               title="View Details"
                             >
                               <Eye className="h-4 w-4" />
-                            </button>
-                            
-                            <button
-                              type="button"
-                              onClick={() => setSelectedAttendanceReqId(r._id)}
-                              className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-600 hover:border-brand/40 hover:bg-brand/5 hover:text-brand transition shadow-sm"
-                              title="View Attendance"
-                            >
-                              <Calendar className="h-4 w-4" />
                             </button>
                             
                             <button
@@ -404,15 +393,6 @@ function ContractorRequestsTab() {
                         
                         <button
                           type="button"
-                          onClick={() => setSelectedAttendanceReqId(r._id)}
-                          className="flex flex-1 lg:flex-none items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-slate-600 hover:border-brand/40 hover:bg-brand/5 hover:text-brand transition shadow-sm"
-                          title="View Attendance"
-                        >
-                          <Calendar className="h-4 w-4" />
-                        </button>
-                        
-                        <button
-                          type="button"
                           onClick={() => handleDeleteRequest(r._id)}
                           className="flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-600 hover:border-rose-300 hover:bg-rose-100 transition shadow-sm"
                           title="Delete permanently"
@@ -494,11 +474,6 @@ function ContractorRequestsTab() {
       <AdminLabourDetailsModal 
         data={selectedLabour} 
         onClose={() => setSelectedLabour(null)} 
-      />
-      
-      <SharedAttendanceDrawer
-        requestId={selectedAttendanceReqId} 
-        onClose={() => setSelectedAttendanceReqId(null)} 
       />
     </div>
   )
@@ -710,26 +685,26 @@ function IndividualBookingsTab() {
         {bookings.map((b) => {
           return (
           <li key={b._id}>
-            <GlassPanel className="space-y-4 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-black text-slate-900">{b.serviceId?.name || 'Service'} ({b.type})</p>
-                  <p className="text-xs text-slate-500">
+            <GlassPanel className="p-5">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="flex-1 min-w-0 space-y-1">
+                  <p className="text-sm font-black text-slate-900 truncate">{b.serviceId?.name || 'Service'} ({b.type})</p>
+                  <p className="text-xs text-slate-500 truncate">
                     User: {b.userId?.fullName || 'Unknown'} · {b.userId?.phone}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 truncate">
                     Location: {b.address?.locationText || 'No location'}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="text-xs text-slate-500">
                     Date: {new Date(b.createdAt).toLocaleDateString()}
                   </p>
-                  <div className="mt-2">
+                  <div className="pt-2">
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getStatusBadgeStyle(b.status)}`}>
                       {b.status?.replace('_', ' ')}
                     </span>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex items-center gap-2 sm:shrink-0 mt-2 sm:mt-0">
                   <button
                     type="button"
                     onClick={() => setDeleteConfirmId(b._id)}
@@ -791,7 +766,7 @@ function IndividualBookingsTab() {
 }
 
 export function AdminBookingsPage() {
-  const [activeTab, setActiveTab] = useState('contractor')
+  const [activeTab, setActiveTab] = useState('customer')
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 md:px-6">
@@ -805,16 +780,6 @@ export function AdminBookingsPage() {
       <div className="flex items-center space-x-4 border-b border-slate-200">
         <button
           className={`pb-2 text-sm font-bold border-b-2 transition ${
-            activeTab === 'contractor'
-              ? 'border-brand text-brand'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-          onClick={() => setActiveTab('contractor')}
-        >
-          Contractor Bookings
-        </button>
-        <button
-          className={`pb-2 text-sm font-bold border-b-2 transition ${
             activeTab === 'customer'
               ? 'border-brand text-brand'
               : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -822,6 +787,16 @@ export function AdminBookingsPage() {
           onClick={() => setActiveTab('customer')}
         >
           Individual Bookings
+        </button>
+        <button
+          className={`pb-2 text-sm font-bold border-b-2 transition ${
+            activeTab === 'contractor'
+              ? 'border-brand text-brand'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+          onClick={() => setActiveTab('contractor')}
+        >
+          Contractor Bookings
         </button>
       </div>
 

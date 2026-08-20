@@ -26,5 +26,12 @@ export const adminWalletsApi = {
       method: 'PATCH',
       body: { status, adminRemarks },
     })
+  },
+
+  /**
+   * Delete a withdrawal request
+   */
+  deleteWithdrawalRequest: (id) => {
+    return apiRequest(`/admin/wallets/withdrawals/${id}`, { method: 'DELETE' })
   }
 }

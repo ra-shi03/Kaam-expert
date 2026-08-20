@@ -59,7 +59,6 @@ export function AdminSettingsPage() {
   const [rawSettings, setRawSettings] = useState(null)
 
   // Platform Fee
-  const [feeBookingType, setFeeBookingType] = useState('B2C')
   const [feeType, setFeeType] = useState('percentage')
   const [feeValue, setFeeValue] = useState('')
   const [feeActive, setFeeActive] = useState(true)
@@ -72,7 +71,7 @@ export function AdminSettingsPage() {
   // Sync Fee UI when booking type changes
   useEffect(() => {
     if (!rawSettings) return
-    const s = feeBookingType === 'B2B' ? rawSettings.b2bPlatformFee : rawSettings.platformFee
+    const s = rawSettings.platformFee
     if (s) {
       setFeeType(s.type || 'percentage')
       setFeeValue(String(s.value ?? ''))
@@ -82,7 +81,7 @@ export function AdminSettingsPage() {
       setFeeValue('')
       setFeeActive(true)
     }
-  }, [feeBookingType, rawSettings])
+  }, [rawSettings])
 
   // Sync Commission UI when booking type changes
   useEffect(() => {
@@ -234,17 +233,7 @@ export function AdminSettingsPage() {
           title="Platform Fee"
           description="Fee charged to customers on each booking"
         >
-          <div>
-            <label className={labelClass}>Booking Type</label>
-            <select
-              className={inputClass + ' mt-1.5'}
-              value={feeBookingType}
-              onChange={(e) => setFeeBookingType(e.target.value)}
-            >
-              <option value="B2C">Individual -{'>'} Labour</option>
-              <option value="B2B">Contractor -{'>'} Vendor</option>
-            </select>
-          </div>
+
           <div>
             <label className={labelClass}>Fee Type</label>
             <select
@@ -268,20 +257,21 @@ export function AdminSettingsPage() {
             />
           </div>
           <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="fee-active"
-              checked={feeActive}
-              onChange={(e) => setFeeActive(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand"
-            />
-            <label htmlFor="fee-active" className="text-sm font-medium text-slate-700">Active</label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={feeActive}
+              onClick={() => setFeeActive(!feeActive)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${feeActive ? 'bg-brand' : 'bg-slate-200'}`}
+            >
+              <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${feeActive ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+            <label className="text-sm font-medium text-slate-700 cursor-pointer" onClick={() => setFeeActive(!feeActive)}>Active</label>
           </div>
           <AppPrimaryButton
             type="button"
             loading={saving === 'Platform Fee'}
             onClick={() => handleSave('Platform Fee', adminSettingsApi.updatePlatformFees, {
-              bookingType: feeBookingType,
               type: feeType,
               value: Number(feeValue),
               isActive: feeActive,
@@ -311,14 +301,16 @@ export function AdminSettingsPage() {
             />
           </div>
           <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="commission-active"
-              checked={commissionActive}
-              onChange={(e) => setCommissionActive(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand"
-            />
-            <label htmlFor="commission-active" className="text-sm font-medium text-slate-700">Active</label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={commissionActive}
+              onClick={() => setCommissionActive(!commissionActive)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${commissionActive ? 'bg-brand' : 'bg-slate-200'}`}
+            >
+              <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${commissionActive ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+            <label className="text-sm font-medium text-slate-700 cursor-pointer" onClick={() => setCommissionActive(!commissionActive)}>Active</label>
           </div>
           <AppPrimaryButton
             type="button"
@@ -405,15 +397,17 @@ export function AdminSettingsPage() {
             />
           </div>
           <div className="flex items-center gap-3 mt-1.5">
-            <input
-              type="checkbox"
-              id="gst-active"
-              checked={isGstActive}
-              onChange={(e) => setIsGstActive(e.target.checked)}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isGstActive}
               disabled={!selectedGstCategory}
-              className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand"
-            />
-            <label htmlFor="gst-active" className="text-sm font-medium text-slate-700">Active</label>
+              onClick={() => setIsGstActive(!isGstActive)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${isGstActive ? 'bg-brand' : 'bg-slate-200'} ${!selectedGstCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isGstActive ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+            <label className={`text-sm font-medium text-slate-700 ${!selectedGstCategory ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`} onClick={() => { if(selectedGstCategory) setIsGstActive(!isGstActive) }}>Active</label>
           </div>
           <AppPrimaryButton
             type="button"
@@ -510,14 +504,16 @@ export function AdminSettingsPage() {
           description="Configure the daily ₹19 model and active window"
         >
           <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="sub-active"
-              checked={isUserSubscriptionEnabled}
-              onChange={(e) => setIsUserSubscriptionEnabled(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand"
-            />
-            <label htmlFor="sub-active" className="text-sm font-medium text-slate-700">Enable Daily Subscriptions</label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isUserSubscriptionEnabled}
+              onClick={() => setIsUserSubscriptionEnabled(!isUserSubscriptionEnabled)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${isUserSubscriptionEnabled ? 'bg-brand' : 'bg-slate-200'}`}
+            >
+              <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isUserSubscriptionEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+            <label className="text-sm font-medium text-slate-700 cursor-pointer" onClick={() => setIsUserSubscriptionEnabled(!isUserSubscriptionEnabled)}>Enable Daily Subscriptions</label>
           </div>
           <div>
             <label className={labelClass}>Daily Price (₹)</label>

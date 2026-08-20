@@ -12,10 +12,11 @@ import {
   RefreshCw,
   ShieldCheck,
   Wrench,
+  Home,
 } from 'lucide-react'
 import { submitLabourKycDocuments } from '../../api/userKycApi.js'
 import { ApiError } from '../../api/http.js'
-import { KYC_STATUS } from '../../constants/userRoles.js'
+import { KYC_STATUS, USER_ROLES } from '../../constants/userRoles.js'
 import { useAuth } from '../../hooks/useAuth.js'
 import { setUser } from '../../store/slices/authSlice.js'
 import { assetUrlFromUpload, uploadMedia } from '../../api/uploadApi.js'
@@ -71,7 +72,8 @@ export function AppKycPage() {
   const [busy, setBusy] = useState(false)
   const [banner, setBanner] = useState(null)
 
-  const profile = user?.labourProfile
+  const isContractor = user?.role === USER_ROLES.CONTRACTOR
+  const profile = isContractor ? user?.contractorProfile : user?.labourProfile
   const kyc = profile?.kycStatus || KYC_STATUS.PENDING
   const submittedAt = profile?.kycSubmittedAt
   const reviewNote = profile?.kycReviewNote
@@ -233,12 +235,21 @@ export function AppKycPage() {
       {ui.phase === 'verified' ? (
         <GlassPanel className="border-blue-200/80 bg-blue-50/50 p-5 text-center">
           <CheckCircle2 className="mx-auto h-14 w-14 text-blue-600" aria-hidden />
-          <p className="mt-3 text-sm text-slate-600">You are cleared to accept jobs and check in on site.</p>
+          <p className="mt-3 text-sm text-slate-600">
+            {isContractor ? 'You are cleared to hire verified workforce.' : 'You are cleared to accept jobs and check in on site.'}
+          </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <AppPrimaryButton as={Link} to="/app/jobs" className="py-2.5 text-xs">
-              <Briefcase className="h-3.5 w-3.5" aria-hidden />
-              My jobs
-            </AppPrimaryButton>
+            {isContractor ? (
+              <AppPrimaryButton as={Link} to="/app" className="py-2.5 text-xs">
+                <Home className="h-3.5 w-3.5" aria-hidden />
+                Home
+              </AppPrimaryButton>
+            ) : (
+              <AppPrimaryButton as={Link} to="/app/jobs" className="py-2.5 text-xs">
+                <Briefcase className="h-3.5 w-3.5" aria-hidden />
+                My jobs
+              </AppPrimaryButton>
+            )}
             <Link
               to="/app/profile"
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800"
@@ -404,14 +415,16 @@ export function AppKycPage() {
         </GlassPanel>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2">
-        <Link
-          to="/app/work-categories"
-          className="flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-100 transition hover:border-brand/30"
-        >
-          <Wrench className="h-5 w-5 text-brand" aria-hidden />
-          <span className="text-xs font-bold text-slate-900">Update skills</span>
-        </Link>
+      <div className={isContractor ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
+        {!isContractor && (
+          <Link
+            to="/app/work-categories"
+            className="flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-100 transition hover:border-brand/30"
+          >
+            <Wrench className="h-5 w-5 text-brand" aria-hidden />
+            <span className="text-xs font-bold text-slate-900">Update skills</span>
+          </Link>
+        )}
         <Link
           to="/app/profile"
           className="flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-100 transition hover:border-brand/30"

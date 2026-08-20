@@ -24,4 +24,13 @@ router.patch(
   adminWallet.processWithdrawalRequest,
 )
 
+router.delete(
+  '/withdrawals/:id',
+  [
+    param('id').isMongoId().withMessage('Invalid id'),
+  ],
+  validateRequest,
+  adminWallet.deleteWithdrawalRequest,
+)
+
 export default router

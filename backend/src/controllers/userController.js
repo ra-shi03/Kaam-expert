@@ -234,17 +234,20 @@ export const getProfile = asyncHandler(async (req, res) => {
   return sendSuccess(res, { data: { user: req.user.toSafeObject() } })
 })
 
-/** POST /users/me/labour/kyc/submit — labour: Aadhaar/PAN numbers + recorded video → pending admin review */
+/** POST /users/me/labour/kyc/submit — labour/contractor: Aadhaar/PAN numbers + recorded video → pending admin review */
 export const submitLabourKycDocuments = asyncHandler(async (req, res) => {
-  if (req.user.role !== USER_ROLES.LABOUR) {
+  if (req.user.role !== USER_ROLES.LABOUR && req.user.role !== USER_ROLES.CONTRACTOR) {
     return sendError(res, {
-      message: 'Only worker accounts can submit KYC here',
+      message: 'Only worker or contractor accounts can submit KYC here',
       statusCode: HTTP_STATUS.FORBIDDEN,
       code: 'FORBIDDEN',
     })
   }
 
-  if (req.user.labourProfile?.kycStatus === KYC_STATUS.VERIFIED) {
+  const profileKey = req.user.role === USER_ROLES.CONTRACTOR ? 'contractorProfile' : 'labourProfile'
+  const profile = req.user[profileKey] || {}
+
+  if (profile?.kycStatus === KYC_STATUS.VERIFIED) {
     return sendError(res, {
       message: 'KYC is already approved',
       statusCode: HTTP_STATUS.BAD_REQUEST,
@@ -252,9 +255,8 @@ export const submitLabourKycDocuments = asyncHandler(async (req, res) => {
     })
   }
 
-  const lp = req.user.labourProfile || {}
   const isVideoOnlyResubmit =
-    lp.kycStatus === KYC_STATUS.FAILED && Boolean(lp.aadhaarMasked?.trim()) && Boolean(lp.panMasked?.trim())
+    profile.kycStatus === KYC_STATUS.FAILED && Boolean(profile.aadhaarMasked?.trim()) && Boolean(profile.panMasked?.trim())
 
   const normalizedAadhaar = normalizeAadhaar(req.body.aadhaar)
   const normalizedPan = normalizePan(req.body.pan)
@@ -303,20 +305,22 @@ export const submitLabourKycDocuments = asyncHandler(async (req, res) => {
   }
 
   const updateData = {
-    'labourProfile.kycStatus': KYC_STATUS.PENDING,
-    'labourProfile.kycVideoUrl': videoUrl,
-    'labourProfile.kycVideoMeta': sanitizeKycVideoMeta(req.body.videoMeta),
-    'labourProfile.kycSubmittedAt': new Date(),
+    [`${profileKey}.kycStatus`]: KYC_STATUS.PENDING,
+    [`${profileKey}.kycVideoUrl`]: videoUrl,
+    [`${profileKey}.kycVideoMeta`]: sanitizeKycVideoMeta(req.body.videoMeta),
+    [`${profileKey}.kycSubmittedAt`]: new Date(),
   }
-  if (hasAadhaarInput) updateData['labourProfile.aadhaarMasked'] = maskAadhaarLast4(normalizedAadhaar)
-  if (hasPanInput) updateData['labourProfile.panMasked'] = maskPan(normalizedPan)
+  if (hasAadhaarInput) updateData[`${profileKey}.aadhaarMasked`] = maskAadhaarLast4(normalizedAadhaar)
+  if (hasPanInput) updateData[`${profileKey}.panMasked`] = maskPan(normalizedPan)
 
   req.user = await User.findByIdAndUpdate(
     req.user._id,
-    { $set: updateData, $unset: { 'labourProfile.kycReviewNote': 1 } },
+    { $set: updateData, $unset: { [`${profileKey}.kycReviewNote`]: 1 } },
     { new: true, runValidators: false }
   )
-  await populateLabourCategories(req.user)
+  if (req.user.role === USER_ROLES.LABOUR) {
+    await populateLabourCategories(req.user)
+  }
 
   return sendSuccess(res, {
     message: 'KYC video submitted — an admin will review your Aadhaar and PAN shortly.',
@@ -324,53 +328,59 @@ export const submitLabourKycDocuments = asyncHandler(async (req, res) => {
   })
 })
 
-/** PATCH /users/:id/labour-kyc-review — admin approve / reject labour KYC */
+/** PATCH /users/:id/labour-kyc-review — admin approve / reject labour/contractor KYC */
 export const reviewLabourKyc = asyncHandler(async (req, res) => {
   const { decision, note } = req.body
   const user = await User.findById(req.params.id)
   if (!user) {
     return sendError(res, { message: 'User not found', statusCode: HTTP_STATUS.NOT_FOUND, code: 'NOT_FOUND' })
   }
-  if (user.role !== USER_ROLES.LABOUR) {
+  if (user.role !== USER_ROLES.LABOUR && user.role !== USER_ROLES.CONTRACTOR) {
     return sendError(res, {
-      message: 'KYC review applies to labour accounts only',
+      message: 'KYC review applies to labour and contractor accounts only',
       statusCode: HTTP_STATUS.BAD_REQUEST,
       code: 'INVALID_ROLE',
     })
   }
 
-  user.labourProfile = user.labourProfile || {}
+  const profileKey = user.role === USER_ROLES.CONTRACTOR ? 'contractorProfile' : 'labourProfile'
+  user[profileKey] = user[profileKey] || {}
+  const profile = user[profileKey]
 
   if (decision === 'approved') {
-    if (!user.labourProfile.kycSubmittedAt || !labourHasKycVideo(user.labourProfile)) {
+    if (!profile.kycSubmittedAt || !labourHasKycVideo(profile)) {
       return sendError(res, {
-        message: 'This worker has not submitted a KYC video yet',
+        message: 'This user has not submitted a KYC video yet',
         statusCode: HTTP_STATUS.BAD_REQUEST,
         code: 'NO_KYC_SUBMISSION',
       })
     }
-    user.labourProfile.kycStatus = KYC_STATUS.VERIFIED
-    user.labourProfile.kycReviewNote = undefined
+    profile.kycStatus = KYC_STATUS.VERIFIED
+    profile.kycReviewNote = undefined
 
-    // Set Trial logic
-    const settings = await SystemSetting.findOne({ configKey: 'master_config' })
-    const trialDays = settings?.freeTrialDays || 3
-    const now = new Date()
-    const trialEnds = new Date(now)
-    trialEnds.setDate(now.getDate() + trialDays)
-    
-    user.labourProfile.trialStartedAt = now
-    user.labourProfile.trialEndsAt = trialEnds
+    // Set Trial logic (only for labour for now, or both?)
+    if (user.role === USER_ROLES.LABOUR) {
+      const settings = await SystemSetting.findOne({ configKey: 'master_config' })
+      const trialDays = settings?.freeTrialDays || 3
+      const now = new Date()
+      const trialEnds = new Date(now)
+      trialEnds.setDate(now.getDate() + trialDays)
+      
+      profile.trialStartedAt = now
+      profile.trialEndsAt = trialEnds
+    }
   } else {
-    user.labourProfile.kycStatus = KYC_STATUS.FAILED
-    user.labourProfile.kycReviewNote = typeof note === 'string' ? note.trim().slice(0, 500) : ''
+    profile.kycStatus = KYC_STATUS.FAILED
+    profile.kycReviewNote = typeof note === 'string' ? note.trim().slice(0, 500) : ''
   }
 
   await user.save()
-  await populateLabourCategories(user)
+  if (user.role === USER_ROLES.LABOUR) {
+    await populateLabourCategories(user)
+  }
 
   return sendSuccess(res, {
-    message: decision === 'approved' ? 'KYC approved for this worker' : 'KYC marked as rejected',
+    message: decision === 'approved' ? 'KYC approved' : 'KYC marked as rejected',
     data: { user: user.toSafeObject({ includeLabourKycImages: true }) },
   })
 })
@@ -452,20 +462,59 @@ export const listUsers = asyncHandler(async (req, res) => {
   }
 
   if (kycKey !== 'all') {
-    if (role && role !== USER_ROLES.LABOUR) {
+    if (role && role !== USER_ROLES.LABOUR && role !== USER_ROLES.CONTRACTOR) {
       return sendError(res, {
-        message: 'KYC filter applies to labour accounts only — use role=labour or omit role.',
+        message: 'KYC filter applies to labour/contractor accounts only.',
         statusCode: HTTP_STATUS.BAD_REQUEST,
         code: 'KYC_REQUIRES_LABOUR',
       })
     }
-    q.role = USER_ROLES.LABOUR
-    if (kycKey === KYC_STATUS.PENDING) {
-      andParts.push({ $or: KYC_PENDING_CONDITIONS })
-    } else if (kycKey === KYC_STATUS.VERIFIED) {
-      andParts.push({ 'labourProfile.kycStatus': KYC_STATUS.VERIFIED })
-    } else if (kycKey === KYC_STATUS.FAILED) {
-      andParts.push({ 'labourProfile.kycStatus': KYC_STATUS.FAILED })
+    if (!role) {
+      q.role = { $in: [USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR] }
+    } else {
+      q.role = role
+    }
+    
+    // In MongoDB we can dynamically build this. Since we support both now, we can use an $or based on the current role.
+    const addKycConditions = (profileField) => {
+      if (kycKey === KYC_STATUS.PENDING) {
+        andParts.push({
+          $or: [
+            { [profileField]: { $exists: false } },
+            { [`${profileField}.kycStatus`]: { $exists: false } },
+            { [`${profileField}.kycStatus`]: null },
+            { [`${profileField}.kycStatus`]: KYC_STATUS.PENDING },
+          ]
+        })
+      } else if (kycKey === KYC_STATUS.VERIFIED) {
+        andParts.push({ [`${profileField}.kycStatus`]: KYC_STATUS.VERIFIED })
+      } else if (kycKey === KYC_STATUS.FAILED) {
+        andParts.push({ [`${profileField}.kycStatus`]: KYC_STATUS.FAILED })
+      }
+    }
+    
+    // If specific role requested, use that profile field
+    if (q.role === USER_ROLES.CONTRACTOR) {
+      addKycConditions('contractorProfile')
+    } else if (q.role === USER_ROLES.LABOUR) {
+      addKycConditions('labourProfile')
+    } else {
+      // If no specific role requested but we are querying both:
+      if (kycKey === KYC_STATUS.VERIFIED || kycKey === KYC_STATUS.FAILED) {
+        andParts.push({
+          $or: [
+            { role: USER_ROLES.LABOUR, 'labourProfile.kycStatus': kycKey },
+            { role: USER_ROLES.CONTRACTOR, 'contractorProfile.kycStatus': kycKey }
+          ]
+        })
+      } else if (kycKey === KYC_STATUS.PENDING) {
+        andParts.push({
+          $or: [
+            { role: USER_ROLES.LABOUR, $or: [ { 'labourProfile': { $exists: false } }, { 'labourProfile.kycStatus': { $exists: false } }, { 'labourProfile.kycStatus': null }, { 'labourProfile.kycStatus': KYC_STATUS.PENDING } ] },
+            { role: USER_ROLES.CONTRACTOR, $or: [ { 'contractorProfile': { $exists: false } }, { 'contractorProfile.kycStatus': { $exists: false } }, { 'contractorProfile.kycStatus': null }, { 'contractorProfile.kycStatus': KYC_STATUS.PENDING } ] }
+          ]
+        })
+      }
     }
   } else if (role) {
     q.role = role

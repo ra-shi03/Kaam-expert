@@ -1,4 +1,3 @@
-import { dayKey, pairedMinutesForDay } from './labourAttendanceStorage.js'
 import { formatSecondsAsClock } from './formatDurationClock.js'
 
 /** Match attendance punches to this assignment (by project title / site). */
@@ -24,12 +23,10 @@ function formatDayLabel(isoDay) {
   return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-function dayStatusFromMinutes(mins, hasOpenPunch) {
-  if (hasOpenPunch) return { label: 'On site now', tone: 'brand' }
-  if (mins >= 420) return { label: 'Present', tone: 'emerald' }
-  if (mins >= 180) return { label: 'Half day', tone: 'amber' }
-  if (mins > 0) return { label: 'Short shift', tone: 'sky' }
-  return { label: 'Absent', tone: 'slate' }
+
+function dayKey(d) {
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+  return local.toISOString().split('T')[0]
 }
 
 function enumerateProjectDays(startIso, durationDays) {
@@ -53,57 +50,16 @@ export function buildAssignmentDetailSnapshot(entries, job, rawJob = null) {
   if (!job) return null
 
   const durationDays = Math.max(1, Number(job.projectDurationDays) || 1)
-  const startIso = job.projectStartDate || dayKey()
+  const startIso = job.projectStartDate || new Date().toISOString().split('T')[0]
   const projectDays = enumerateProjectDays(startIso, durationDays)
   const endIso = projectDays[projectDays.length - 1] || startIso
-  const todayIso = dayKey()
-
-  const matching = entries.filter((e) => projectLabelMatches(e.projectLabel, job))
-  const punchesByDay = new Map()
-  for (const e of matching) {
-    if (!punchesByDay.has(e.day)) punchesByDay.set(e.day, [])
-    punchesByDay.get(e.day).push(e)
+  const todayIso = dayKey(new Date())
+  
+  let dayIndex = projectDays.indexOf(todayIso) + 1
+  if (dayIndex === 0) {
+    dayIndex = todayIso > endIso ? durationDays : 0
   }
-  for (const list of punchesByDay.values()) {
-    list.sort((a, b) => new Date(a.at) - new Date(b.at))
-  }
-
-  const attendanceLog = projectDays.map((dk) => {
-    const dayEntries = punchesByDay.get(dk) || []
-    const mins = dayEntries.length ? pairedMinutesForDay(dayEntries, dk) : pairedMinutesForDay(
-      entries.filter((e) => e.day === dk && projectLabelMatches(e.projectLabel, job)),
-      dk,
-    )
-    const last = dayEntries[dayEntries.length - 1]
-    const hasOpen = last?.type === 'in'
-    const status = dayStatusFromMinutes(mins, hasOpen)
-    const isToday = dk === todayIso
-    const isFuture = dk > todayIso
-
-    return {
-      day: dk,
-      dayLabel: formatDayLabel(dk),
-      minutes: mins,
-      workTime: mins > 0 ? formatSecondsAsClock(mins * 60) : '—',
-      status,
-      isToday,
-      isFuture,
-      punches: dayEntries.map((p) => ({
-        type: p.type,
-        at: p.at,
-        time: new Date(p.at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
-      })),
-    }
-  })
-
-  const workedDays = attendanceLog.filter((r) => r.minutes > 0 && !r.isFuture).length
-  const totalMinutes = attendanceLog.reduce((a, r) => a + r.minutes, 0)
-  const elapsedCalendarDays =
-    projectDays.filter((dk) => dk <= todayIso && dk >= startIso).length || 1
-  const dayIndex = Math.min(
-    durationDays,
-    Math.max(1, projectDays.indexOf(todayIso) + 1 || elapsedCalendarDays),
-  )
+  const workedDays = 0
 
   const timeline = []
   if (rawJob?.acceptedAt) {
@@ -118,14 +74,6 @@ export function buildAssignmentDetailSnapshot(entries, job, rawJob = null) {
     title: 'Project start date',
     body: `${durationDays}-day deployment · ${job.contractor || 'Contractor'}`,
   })
-  if (matching.length > 0) {
-    const first = [...matching].sort((a, b) => new Date(a.at) - new Date(b.at))[0]
-    timeline.push({
-      at: first.at,
-      title: 'First check-in on site',
-      body: `${new Date(first.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`,
-    })
-  }
   timeline.sort((a, b) => new Date(b.at) - new Date(a.at))
 
   return {
@@ -138,9 +86,8 @@ export function buildAssignmentDetailSnapshot(entries, job, rawJob = null) {
     dayIndex,
     daysRemaining: Math.max(0, durationDays - dayIndex),
     workedDays,
-    totalWorkTime: formatSecondsAsClock(totalMinutes * 60),
+    totalWorkTime: formatSecondsAsClock(0),
     progressPct: Math.min(100, Math.round((workedDays / durationDays) * 100)),
-    attendanceLog,
     timeline,
     isMultiDay: durationDays > 1,
     rawNotes: job.notes,

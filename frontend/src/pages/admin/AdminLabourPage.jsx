@@ -98,6 +98,7 @@ export function AdminLabourPage() {
   const [locationFilter, setLocationFilter] = useState(() => searchParams.get('location') || '')
   const [debouncedLocation, setDebouncedLocation] = useState(() => searchParams.get('location') || '')
   const [page, setPage] = useState(() => Math.max(1, Number(searchParams.get('page')) || 1))
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') === 'contractor' ? 'contractor' : 'labour')
   const limit = 12
 
   const [items, setItems] = useState([])
@@ -125,7 +126,7 @@ export function AdminLabourPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, debouncedLocation, kycFilter, status])
+  }, [debouncedSearch, debouncedLocation, kycFilter, status, activeTab])
 
   useEffect(() => {
     const next = new URLSearchParams()
@@ -133,9 +134,10 @@ export function AdminLabourPage() {
     if (kycFilter !== 'all') next.set('kyc', kycFilter)
     if (status !== 'all') next.set('status', status)
     if (debouncedLocation) next.set('location', debouncedLocation)
+    if (activeTab === 'contractor') next.set('tab', 'contractor')
     if (page > 1) next.set('page', String(page))
     setSearchParams(next, { replace: true })
-  }, [debouncedSearch, debouncedLocation, kycFilter, status, page, setSearchParams])
+  }, [debouncedSearch, debouncedLocation, kycFilter, status, activeTab, page, setSearchParams])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -143,7 +145,7 @@ export function AdminLabourPage() {
     try {
       const data = await fetchAdminUsers({
         search: debouncedSearch,
-        role: USER_ROLES.LABOUR,
+        role: activeTab === 'contractor' ? USER_ROLES.CONTRACTOR : USER_ROLES.LABOUR,
         status,
         kycStatus: kycFilter,
         location: debouncedLocation,
@@ -157,11 +159,12 @@ export function AdminLabourPage() {
     } catch (e) {
       setItems([])
       setKycStats(null)
-      setError(e instanceof ApiError ? e.message : 'Could not load labour roster')
+      setKycStats(null)
+      setError(e instanceof ApiError ? e.message : 'Could not load roster')
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, kycFilter, status, debouncedLocation, page, limit])
+  }, [debouncedSearch, kycFilter, status, debouncedLocation, page, limit, activeTab])
 
   useEffect(() => {
     load()
@@ -245,7 +248,7 @@ export function AdminLabourPage() {
     },
     {
       key: 'total',
-      label: 'Labour accounts',
+      label: activeTab === 'contractor' ? 'Contractor accounts' : 'Labour accounts',
       value: kycStats?.total ?? '—',
       hint: 'Search + account status',
       icon: Users,
@@ -262,7 +265,7 @@ export function AdminLabourPage() {
         className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"
       >
         <div>
-          <h2 className="text-lg font-extrabold text-slate-900 md:text-xl">Labour & KYC</h2>
+          <h2 className="text-lg font-extrabold text-slate-900 md:text-xl">KYC Verification</h2>
           <p className="mt-1 text-sm text-slate-600">
             Search by name, email, or mobile. Filter by KYC and account status. Summary tiles use search and
             active/inactive only — not the KYC dropdown.
@@ -292,7 +295,30 @@ export function AdminLabourPage() {
         </div>
       </motion.div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="flex border-b border-slate-200/90 mb-4">
+        <button
+          onClick={() => setActiveTab('labour')}
+          className={`pb-2.5 px-4 text-sm font-bold uppercase tracking-wide transition-colors ${
+            activeTab === 'labour'
+              ? 'border-b-2 border-brand text-brand'
+              : 'border-b-2 border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Labour
+        </button>
+        <button
+          onClick={() => setActiveTab('contractor')}
+          className={`pb-2.5 px-4 text-sm font-bold uppercase tracking-wide transition-colors ${
+            activeTab === 'contractor'
+              ? 'border-b-2 border-brand text-brand'
+              : 'border-b-2 border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Contractor
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((c, i) => {
           const inner = (
             <GlassPanel
@@ -426,7 +452,7 @@ export function AdminLabourPage() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Phone</th>
                 <th className="px-4 py-3">KYC</th>
-                <th className="px-4 py-3">Skill</th>
+                {activeTab !== 'contractor' && <th className="px-4 py-3">Skill</th>}
                 <th className="px-4 py-3">Location</th>
                 <th className="px-4 py-3">Review</th>
                 <th className="px-4 py-3">Status</th>
@@ -437,7 +463,7 @@ export function AdminLabourPage() {
               {loading
                 ? Array.from({ length: 6 }).map((_, i) => (
                     <tr key={i} className="border-b border-slate-100">
-                      {Array.from({ length: 8 }).map((__, j) => (
+                      {Array.from({ length: activeTab === 'contractor' ? 7 : 8 }).map((__, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 animate-pulse rounded bg-slate-200/80" />
                         </td>
@@ -454,18 +480,20 @@ export function AdminLabourPage() {
                         {u.phone ? `+91 ${u.phone}` : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <KycPill status={u.labourProfile?.kycStatus} submittedAt={u.labourProfile?.kycSubmittedAt} />
+                        <KycPill status={(u.contractorProfile || u.labourProfile)?.kycStatus} submittedAt={(u.contractorProfile || u.labourProfile)?.kycSubmittedAt} />
                       </td>
-                      <td className="max-w-[280px] px-4 py-3 text-xs text-slate-600">
-                        <div className="font-medium text-slate-800">{formatSkillLine(u)}</div>
-                        <div className="mt-0.5 text-slate-500">{formatServiceLine(u)}</div>
-                      </td>
+                      {activeTab !== 'contractor' && (
+                        <td className="max-w-[280px] px-4 py-3 text-xs text-slate-600">
+                          <div className="font-medium text-slate-800">{formatSkillLine(u)}</div>
+                          <div className="mt-0.5 text-slate-500">{formatServiceLine(u)}</div>
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-xs text-slate-700">
                         {u.city || u.currentLocation || '—'}
                       </td>
                       <td className="px-4 py-3">
-                        {u.labourProfile?.kycStatus === KYC_STATUS.PENDING ? (
-                          u.labourProfile?.kycSubmittedAt ? (
+                        {(u.contractorProfile || u.labourProfile)?.kycStatus === KYC_STATUS.PENDING ? (
+                          (u.contractorProfile || u.labourProfile)?.kycSubmittedAt ? (
                             <button
                               type="button"
                               onClick={() => setReviewUserId(u._id)}
@@ -517,10 +545,10 @@ export function AdminLabourPage() {
                   <StatusPill active={u.isActive !== false} />
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <KycPill status={u.labourProfile?.kycStatus} submittedAt={u.labourProfile?.kycSubmittedAt} />
+                  <KycPill status={(u.contractorProfile || u.labourProfile)?.kycStatus} submittedAt={(u.contractorProfile || u.labourProfile)?.kycSubmittedAt} />
                   <span className="text-[11px] text-slate-500">Last: {formatLastLoginDisplay(u.lastLoginAt) || '—'}</span>
                 </div>
-                {u.labourProfile?.kycStatus === KYC_STATUS.PENDING && u.labourProfile?.kycSubmittedAt ? (
+                {(u.contractorProfile || u.labourProfile)?.kycStatus === KYC_STATUS.PENDING && (u.contractorProfile || u.labourProfile)?.kycSubmittedAt ? (
                   <button
                     type="button"
                     onClick={() => setReviewUserId(u._id)}
@@ -529,10 +557,12 @@ export function AdminLabourPage() {
                     Review video KYC
                   </button>
                 ) : null}
-                <div className="mt-3 rounded bg-slate-50 p-2">
-                  <p className="text-xs font-medium text-slate-800">{formatSkillLine(u)}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">{formatServiceLine(u)}</p>
-                </div>
+                {activeTab !== 'contractor' && (
+                  <div className="mt-3 rounded bg-slate-50 p-2">
+                    <p className="text-xs font-medium text-slate-800">{formatSkillLine(u)}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">{formatServiceLine(u)}</p>
+                  </div>
+                )}
                 <p className="mt-2 text-[11px] text-slate-500">
                   Location: <span className="font-medium text-slate-700">{u.city || u.currentLocation || '—'}</span>
                 </p>
@@ -614,16 +644,16 @@ export function AdminLabourPage() {
                     <p className="text-xs font-bold uppercase text-slate-400">Worker</p>
                     <p className="text-base font-extrabold text-slate-900">{detailUser.fullName || '—'}</p>
                     <p className="font-mono text-xs text-slate-600">+91 {detailUser.phone}</p>
-                    {detailUser.labourProfile?.aadhaarMasked ? (
-                      <p className="mt-1 font-mono text-sm text-slate-800">Aadhaar: {detailUser.labourProfile.aadhaarMasked}</p>
+                    {(detailUser.contractorProfile || detailUser.labourProfile)?.aadhaarMasked ? (
+                      <p className="mt-1 font-mono text-sm text-slate-800">Aadhaar: {(detailUser.contractorProfile || detailUser.labourProfile).aadhaarMasked}</p>
                     ) : null}
-                    {detailUser.labourProfile?.panMasked ? (
-                      <p className="mt-1 font-mono text-sm text-slate-800">PAN: {detailUser.labourProfile.panMasked}</p>
+                    {(detailUser.contractorProfile || detailUser.labourProfile)?.panMasked ? (
+                      <p className="mt-1 font-mono text-sm text-slate-800">PAN: {(detailUser.contractorProfile || detailUser.labourProfile).panMasked}</p>
                     ) : null}
-                    {detailUser.labourProfile?.kycSubmittedAt ? (
+                    {(detailUser.contractorProfile || detailUser.labourProfile)?.kycSubmittedAt ? (
                       <p className="mt-1 text-xs text-slate-500">
                         Submitted{' '}
-                        {new Date(detailUser.labourProfile.kycSubmittedAt).toLocaleString(undefined, {
+                        {new Date((detailUser.contractorProfile || detailUser.labourProfile).kycSubmittedAt).toLocaleString(undefined, {
                           dateStyle: 'medium',
                           timeStyle: 'short',
                         })}
@@ -632,9 +662,9 @@ export function AdminLabourPage() {
                   </div>
                   <div>
                     <p className="mb-1 text-[11px] font-bold uppercase text-slate-500">Recorded KYC video</p>
-                    {detailUser.labourProfile?.kycVideoUrl ? (
+                    {(detailUser.contractorProfile || detailUser.labourProfile)?.kycVideoUrl ? (
                       <video
-                        src={detailUser.labourProfile.kycVideoUrl}
+                        src={(detailUser.contractorProfile || detailUser.labourProfile).kycVideoUrl}
                         controls
                         playsInline
                         className="aspect-video w-full rounded-xl border border-slate-200/90 bg-slate-950 object-contain"

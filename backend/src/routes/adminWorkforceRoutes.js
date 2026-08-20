@@ -11,7 +11,7 @@ import {
   createAllocationAdmin,
   replaceAssignmentAdmin,
 } from '../controllers/allocationController.js'
-import { verifyAttendanceAdmin } from '../controllers/attendanceController.js'
+
 import {
   listPricingRatesAdmin,
   upsertPricingRateAdmin,
@@ -32,7 +32,6 @@ router.delete('/requests/:id', deleteAdminRequest)
 router.post('/allocations', createAllocationAdmin)
 router.post('/assignments/:id/replace', replaceAssignmentAdmin)
 
-router.patch('/attendance/:id/verify', verifyAttendanceAdmin)
 
 router.get('/pricing', listPricingRatesAdmin)
 router.post('/pricing', upsertPricingRateAdmin)

@@ -1,7 +1,7 @@
 /**
  * Labour earnings pipeline — attendance → payroll → service fee → withdraw (demo).
  */
-import { getCompletedShiftSegments } from './labourWalletFromAttendance.js'
+
 import {
   computeWithdrawalBreakdown,
   maxNetFromAvailableGross,
@@ -62,9 +62,9 @@ function withdrawalGrossPaise(w) {
 export function buildLabourEarningsSummary(attendanceEntries, wallet = readWalletState()) {
   const fees = getServiceFeeConfig(wallet)
   const rate = Math.max(1, Math.round(wallet.ratePaisePerMin || 200))
-  const segments = getCompletedShiftSegments(attendanceEntries)
-  const attendancePaise = segments.reduce((acc, s) => acc + s.minutes * rate, 0)
-  const totalMinutes = segments.reduce((acc, s) => acc + s.minutes, 0)
+  const segments = []
+  const attendancePaise = 0
+  const totalMinutes = 0
 
   const credits = Array.isArray(wallet.credits) ? wallet.credits : []
   const pendingCreditsPaise = credits

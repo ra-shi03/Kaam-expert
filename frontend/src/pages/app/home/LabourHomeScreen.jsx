@@ -48,14 +48,7 @@ import {
 import { AppUserLocationModal } from '../../../components/app/AppUserLocationModal.jsx'
 import { LabourAssignmentDetailModal } from '../../../components/labour/LabourAssignmentDetailModal.jsx'
 import { useLabourPresence } from '../../../hooks/useLabourPresence.js'
-import {
-  appendAttendancePunch,
-  dayKey,
-  lastTodayType,
-  liveWorkedSecondsForDay,
-  readAttendanceEntries,
-  subscribeAttendance,
-} from '../../../lib/labourAttendanceStorage.js'
+
 import { useLabourSocket } from '../../../hooks/useLabourSocket.js'
 import { bookingsApi } from '../../../api/bookingsApi.js'
 import { broadcastsApi } from '../../../api/broadcastsApi.js'
@@ -63,7 +56,6 @@ import { withdrawalsApi } from '../../../api/withdrawalsApi.js'
 import { getPublicSettings } from '../../../api/adminSettingsApi.js'
 import { readWalletState, subscribeWallet } from '../../../lib/labourWalletStorage.js'
 import {
-  buildAttendanceHistoryRows,
   buildEarningsGlance,
   buildUpcomingSchedule,
   formatInrFromPaise,
@@ -132,7 +124,6 @@ export function LabourHomeScreen({ user }) {
   const reduce = useReducedMotion()
   const navigate = useNavigate()
   const now = useNow(1000)
-  const [entries, setEntries] = useState(readAttendanceEntries)
   const [wallet, setWallet] = useState(readWalletState)
   const [jobs, setJobs] = useState({ offers: [], active: [], history: [] }) // legacy fallback if needed
   const { liveOffers, removeOfferLocal } = useLabourSocket()
@@ -227,7 +218,7 @@ export function LabourHomeScreen({ user }) {
     return new Date(user.labourProfile.trialEndsAt).getTime() > Date.now()
   }, [user])
 
-  useEffect(() => subscribeAttendance(setEntries), [])
+
   useEffect(() => subscribeWallet(setWallet), [])
   // Removed dummy subscribeJobDemo
   useEffect(() => subscribeLabourNotifications(() => setNotifTick((t) => t + 1)), [])
@@ -246,19 +237,7 @@ export function LabourHomeScreen({ user }) {
     return () => window.clearInterval(id)
   }, [reduce])
 
-  const todayKey = dayKey()
-  const lastType = lastTodayType(entries)
-  const onSite = lastType === 'in'
-  const workedSecondsToday = useMemo(
-    () => liveWorkedSecondsForDay(entries, todayKey, now),
-    [entries, todayKey, now],
-  )
 
-  const todayPunches = useMemo(
-    () => entries.filter((e) => e.day === todayKey).sort((a, b) => new Date(a.at) - new Date(b.at)),
-    [entries, todayKey],
-  )
-  const lastIn = useMemo(() => [...todayPunches].reverse().find((e) => e.type === 'in'), [todayPunches])
 
   const todayBooking = useMemo(() => {
     return activeBookings.find(b => ['ACCEPTED', 'EN_ROUTE', 'STARTED'].includes(b.status))
@@ -300,7 +279,7 @@ export function LabourHomeScreen({ user }) {
     }))
   }, [activeBookings, todayBooking])
 
-  const historyRows = useMemo(() => buildAttendanceHistoryRows(entries), [entries])
+
 
   const earnings = useMemo(() => {
     let earnedPaise = 0
@@ -353,7 +332,7 @@ export function LabourHomeScreen({ user }) {
 
   const hasWorkLocation = useMemo(() => hasAppUserLocation(appLocation), [appLocation])
   const locationLabel = formatAppUserLocationLabel(appLocation) || 'Set your work area'
-  const siteLabel = hasWorkLocation ? locationLabel : (todayJob?.siteName || todayJob?.title || (lastIn?.projectLabel && lastIn.projectLabel !== 'Unassigned' ? lastIn.projectLabel : 'No site assigned'))
+  const siteLabel = hasWorkLocation ? locationLabel : (todayJob?.siteName || todayJob?.title || 'No site assigned')
 
   const showToast = useCallback((msg) => {
     setToast(msg)

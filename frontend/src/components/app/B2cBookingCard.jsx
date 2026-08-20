@@ -7,6 +7,7 @@ const STATUS_STYLES = {
   ACCEPTED: 'bg-blue-100 text-blue-800 border-blue-200',
   EN_ROUTE: 'bg-purple-100 text-purple-800 border-purple-200',
   STARTED: 'bg-blue-100 text-blue-800 border-blue-200',
+  PAYMENT_PENDING: 'bg-amber-100 text-amber-800 border-amber-200',
   COMPLETED: 'bg-slate-100 text-slate-800 border-slate-200',
   CANCELLED: 'bg-rose-100 text-rose-800 border-rose-200',
 }
@@ -14,15 +15,28 @@ const STATUS_STYLES = {
 export function B2cBookingCard({ booking, isLabour }) {
   const navigate = useNavigate()
   const status = (booking.status || 'CREATED').toUpperCase()
+  const isPaid = (booking.paymentStatus || '').toUpperCase() === 'PAID'
+  
+  let displayStatus = status
+  if (status === 'COMPLETED' && !isPaid) {
+    displayStatus = 'PAYMENT_PENDING'
+  }
+  
   const subcategory = typeof booking.subcategoryId === 'object' ? booking.subcategoryId : null
-  const isActive = status !== 'COMPLETED' && status !== 'CANCELLED'
+  const isActive = (status !== 'COMPLETED' || !isPaid) && status !== 'CANCELLED'
 
   return (
     <GlassPanel
       className="cursor-pointer overflow-hidden p-0 transition-all hover:shadow-lg border-slate-200/60"
       onClick={() => {
         if (isActive) {
-          navigate(`/app/tracking/${booking._id}`)
+          if (isLabour) {
+            navigate(`/app/active-job/${booking._id}`)
+          } else if (!isPaid) {
+             navigate(`/app/booking/flow?bookingId=${booking._id}&step=billing`)
+          } else {
+             navigate(`/app/tracking/${booking._id}`)
+          }
         }
       }}
     >
@@ -31,8 +45,8 @@ export function B2cBookingCard({ booking, isLabour }) {
         <div className="flex items-start justify-between p-4 pb-3 border-b border-slate-100/80 bg-white/50">
           <div className="min-w-0 flex-1 pr-3">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm ${STATUS_STYLES[status] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                {status}
+              <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm ${STATUS_STYLES[displayStatus] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                {displayStatus.replace('_', ' ')}
               </span>
               {booking.type && (
                 <>

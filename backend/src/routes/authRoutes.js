@@ -9,8 +9,6 @@ import {
   validateOtpChallengeId,
   validateFullNameOptional,
   validateFullNameRequired,
-  validateContractorFields,
-  validateContractorBusiness,
   validateAdminLogin,
 } from '../validators/authValidators.js'
 
@@ -31,8 +29,6 @@ router.post(
     validateOtpChallengeId,
     validateOtpCode,
     validateFullNameRequired,
-    ...validateContractorFields,
-    validateContractorBusiness,
   ],
   validateRequest,
   auth.registerVerify,

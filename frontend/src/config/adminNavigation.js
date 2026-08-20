@@ -36,7 +36,6 @@ export const ADMIN_LABOUR_HUB_PATHS = new Set([
   '/admin/services',
   '/admin/users',
   '/admin/bookings',
-  '/admin/attendance',
 ])
 
 /**
@@ -64,7 +63,7 @@ export const ADMIN_NAV_SECTIONS = [
   {
     title: 'Workforce',
     items: [
-      { to: '/admin/labour', label: 'Labour & KYC', icon: IdCard },
+      { to: '/admin/labour', label: 'KYC', icon: IdCard },
     ],
   },
   {
@@ -79,7 +78,6 @@ export const ADMIN_NAV_SECTIONS = [
     title: 'Operations',
     items: [
       { to: '/admin/bookings', label: 'Bookings & requests', icon: ClipboardList },
-      { to: '/admin/attendance', label: 'Attendance', icon: Clock },
       { to: '/admin/complaints', label: 'Complaints', icon: MessageSquare },
       { to: '/admin/zone-management', label: 'Zone Management', icon: Map },
       { to: '/admin/zones', label: 'Manage Radius', icon: Map },
@@ -131,12 +129,11 @@ const ROUTE_TITLES = [
   { prefix: '/admin/labour-subscriptions', title: 'Labour Subscriptions' },
   { prefix: '/admin/free-trials', title: 'Free Trials' },
   { prefix: '/admin/reviews', title: 'Reviews & Ratings' },
-  { prefix: '/admin/attendance', title: 'Attendance' },
   { prefix: '/admin/bookings', title: 'Bookings & requests' },
   { prefix: '/admin/services', title: 'Services' },
   { prefix: '/admin/sub-categories', title: 'Sub-Categories' },
   { prefix: '/admin/categories', title: 'Categories' },
-  { prefix: '/admin/labour', title: 'Labour & KYC' },
+  { prefix: '/admin/labour', title: 'KYC' },
   { prefix: '/admin/users', title: 'Users' },
   { prefix: '/admin/zone-management', title: 'Zone Management' },
   { prefix: '/admin/zones', title: 'Manage Radius' },

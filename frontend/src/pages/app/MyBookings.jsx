@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Calendar, CheckCircle2, Clock, Loader2, MapPin, Sparkles, User, CreditCard } from 'lucide-react'
+import { Calendar, CheckCircle2, Clock, Loader2, MapPin, Sparkles, User, CreditCard, Menu } from 'lucide-react'
 import { B2cBookingCard } from '../../components/app/B2cBookingCard.jsx'
 import { bookingsApi } from '../../api/bookingsApi.js'
 import { ApiError } from '../../api/http.js'
@@ -15,6 +15,7 @@ const STATUS_STYLES = {
   ACCEPTED: 'bg-amber-50 text-amber-700 border-amber-200',
   EN_ROUTE: 'bg-purple-50 text-purple-700 border-purple-200',
   STARTED: 'bg-orange-50 text-orange-700 border-orange-200',
+  PAYMENT_PENDING: 'bg-amber-100 text-amber-800 border-amber-200',
   COMPLETED: 'bg-blue-50 text-blue-700 border-blue-200',
   CANCELLED: 'bg-rose-50 text-rose-700 border-rose-200',
 }
@@ -50,7 +51,8 @@ export function MyBookings() {
     const past = []
     for (const b of bookings) {
       const s = (b.status || '').toUpperCase()
-      if (s === 'COMPLETED' || s === 'CANCELLED') {
+      const isPaid = (b.paymentStatus || '').toUpperCase() === 'PAID'
+      if ((s === 'COMPLETED' && isPaid) || s === 'CANCELLED') {
         past.push(b)
       } else {
         active.push(b)
@@ -63,7 +65,20 @@ export function MyBookings() {
 
   return (
     <div className="space-y-4 pb-8">
-      <AppStackScreenHeader title="My Bookings" backTo="/app" />
+      <div className="mb-4 rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-3.5">
+          <button 
+            onClick={() => navigate('/app')}
+            className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] border border-slate-200 text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex flex-col justify-center">
+            <h1 className="text-[20px] font-bold tracking-tight text-slate-900 leading-none mb-1.5">My bookings</h1>
+            <p className="text-[13px] font-medium text-slate-500 leading-none">Hire labour for your home or small site</p>
+          </div>
+        </div>
+      </div>
 
       {/* Tab Bar */}
       <GlassPanel className="p-1.5">

@@ -106,8 +106,8 @@ export const createBooking = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'Latitude and Longitude are required for accurate matching', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
-  if (type === 'SCHEDULED' && (!scheduledAt || !timeSlot || !endTime)) {
-    return sendError(res, { message: 'scheduledAt date, timeSlot (startTime), and endTime are required for SCHEDULED bookings', statusCode: HTTP_STATUS.BAD_REQUEST })
+  if (type === 'SCHEDULED' && (!scheduledAt || !timeSlot)) {
+    return sendError(res, { message: 'scheduledAt date and timeSlot (startTime) are required for SCHEDULED bookings', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
   const service = await LabourService.findById(serviceId)
@@ -204,7 +204,7 @@ export const createBooking = asyncHandler(async (req, res) => {
 
   // Phase 3: Trigger the Broadcast Engine asynchronously
   // Only trigger immediately for INSTANT bookings.
-  // SCHEDULED bookings will be handled by the broadcastCron job 30 mins before the time.
+  // SCHEDULED bookings will be handled by the broadcastCron job 1 hour before the time.
   if (type === 'INSTANT') {
     import('../services/broadcastService.js').then(({ startBroadcastCycle }) => {
       startBroadcastCycle(booking._id).catch(err => console.error('Broadcast Error:', err))
@@ -330,6 +330,8 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
     if (otp !== booking.startOtp) return sendError(res, { message: 'Invalid Start OTP', statusCode: HTTP_STATUS.BAD_REQUEST })
     const finalStartImg = startWorkImage || beforeImage
     if (finalStartImg) booking.startWorkImage = finalStartImg
+    
+    booking.startedAt = new Date()
   }
 
   if (status === 'COMPLETED') {
@@ -348,36 +350,8 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
     if (!wallet) wallet = new Wallet({ userId: booking.laborId })
 
     if (booking.paymentMethod === 'CASH') {
-      // Increment labor's admin wallet liability
-      const adminDues = (booking.platformFee || 0) + (booking.taxes || 0) + (booking.commissionAmount || 0)
-      wallet.adminBalance += adminDues
-      await wallet.save()
-
-      import('../models/WalletTransaction.js').then(({ WalletTransaction }) => {
-        WalletTransaction.create({
-          walletId: wallet._id,
-          amount: adminDues,
-          type: 'CREDIT',
-          targetWallet: 'ADMIN',
-          context: 'BOOKING',
-          referenceId: booking._id,
-          description: 'Platform fees, taxes & commission for Cash Booking'
-        }).catch(err => console.error('WalletTx error:', err))
-      })
-
-      // Log splits to AdminWallet for Platform Fee and Commission
-      if (booking.platformFee > 0 || booking.commissionAmount > 0 || booking.basePrice > 0 || booking.taxes > 0) {
-        import('../models/AdminWallet.js').then(async ({ AdminWallet }) => {
-          let adminWallet = await AdminWallet.findOne()
-          if (!adminWallet) adminWallet = new AdminWallet()
-          
-          adminWallet.totalPlatformFeesCollected += (booking.platformFee || 0)
-          adminWallet.totalCommissionsCollected += (booking.commissionAmount || 0)
-          adminWallet.totalTaxesCollected += (booking.taxes || 0)
-          adminWallet.totalServiceAmountCollected += (booking.basePrice || 0)
-          await adminWallet.save()
-        }).catch(err => console.error('AdminWallet error:', err))
-      }
+      // NOTE: Admin dues for CASH bookings are now collected only when the customer explicitly clicks "Paid",
+      // and are processed inside confirmCashPayment to prevent charging the labourer before they collect the cash.
     } else if (booking.paymentMethod === 'ONLINE') {
       // ONLY payout if the customer has actually completed the online payment.
       // If they haven't paid yet, the paymentController will handle this payout later once they pay.
@@ -419,4 +393,76 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
   }).catch(err => console.error(err))
 
   return sendSuccess(res, { message: `Booking marked as ${status}`, data: { booking } })
+})
+
+export const confirmCashPayment = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  
+  const booking = await Booking.findById(id)
+  if (!booking) {
+    return sendError(res, { message: 'Booking not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+  
+  if (booking.userId.toString() !== req.user._id.toString()) {
+    return sendError(res, { message: 'Unauthorized', statusCode: HTTP_STATUS.FORBIDDEN })
+  }
+
+  if (booking.status !== 'COMPLETED') {
+    return sendError(res, { message: 'Booking must be completed before payment', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+  
+  if (booking.paymentMethod !== 'CASH') {
+    return sendError(res, { message: 'Not a cash booking', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  if (booking.paymentStatus === 'PAID') {
+    return sendSuccess(res, { message: 'Already paid', data: { booking } })
+  }
+
+  booking.paymentStatus = 'PAID'
+  await booking.save()
+
+  // Charge Admin Dues to the Labourer's Wallet NOW that the cash has been collected!
+  import('../models/Wallet.js').then(async ({ Wallet }) => {
+    let wallet = await Wallet.findOne({ userId: booking.laborId })
+    if (!wallet) wallet = new Wallet({ userId: booking.laborId })
+    
+    const adminDues = (booking.platformFee || 0) + (booking.taxes || 0) + (booking.commissionAmount || 0)
+    wallet.adminBalance += adminDues
+    await wallet.save()
+
+    import('../models/WalletTransaction.js').then(({ WalletTransaction }) => {
+      WalletTransaction.create({
+        walletId: wallet._id,
+        amount: adminDues,
+        type: 'CREDIT',
+        targetWallet: 'ADMIN',
+        context: 'BOOKING',
+        referenceId: booking._id,
+        description: 'Platform fees, taxes & commission for Cash Booking'
+      }).catch(err => console.error('WalletTx error:', err))
+    })
+
+    // Log splits to AdminWallet for Platform Fee and Commission
+    if (booking.platformFee > 0 || booking.commissionAmount > 0 || booking.basePrice > 0 || booking.taxes > 0) {
+      import('../models/AdminWallet.js').then(async ({ AdminWallet }) => {
+        let adminWallet = await AdminWallet.findOne()
+        if (!adminWallet) adminWallet = new AdminWallet()
+        
+        adminWallet.totalPlatformFeesCollected += (booking.platformFee || 0)
+        adminWallet.totalCommissionsCollected += (booking.commissionAmount || 0)
+        adminWallet.totalTaxesCollected += (booking.taxes || 0)
+        adminWallet.totalServiceAmountCollected += (booking.basePrice || 0)
+        await adminWallet.save()
+      }).catch(err => console.error('AdminWallet error:', err))
+    }
+  }).catch(err => console.error(err))
+
+  // Notify both
+  import('../socket.js').then(({ emitToUser }) => {
+    emitToUser(booking.laborId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
+    emitToUser(booking.userId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
+  }).catch(err => console.error(err))
+
+  return sendSuccess(res, { message: 'Cash payment confirmed', data: { booking } })
 })

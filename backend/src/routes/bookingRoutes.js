@@ -34,6 +34,11 @@ router.post(
 router.get('/me', booking.getMyBookings)
 router.get('/:id', booking.getBookingStatus)
 
+router.post(
+  '/:id/confirm-cash',
+  restrictTo(USER_ROLES.CUSTOMER),
+  booking.confirmCashPayment
+)
 router.patch(
   '/:id/status',
   [

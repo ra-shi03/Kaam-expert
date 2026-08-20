@@ -475,7 +475,20 @@ export function AppProfilePage() {
       initial={reduce ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
     >
-      <AppStackScreenHeader title="Profile" backTo="/app" />
+      <div className="mb-4 rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-3.5">
+          <button 
+            onClick={() => navigate('/app')}
+            className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] border border-slate-200 text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex flex-col justify-center">
+            <h1 className="text-[20px] font-bold tracking-tight text-slate-900 leading-none mb-1.5">Profile</h1>
+            <p className="text-[13px] font-medium text-slate-500 leading-none">Manage your account and settings</p>
+          </div>
+        </div>
+      </div>
 
       <motion.section
         initial={reduce ? false : { opacity: 0, y: 10 }}
@@ -593,6 +606,24 @@ export function AppProfilePage() {
                     : user?.labourProfile?.kycSubmittedAt
                       ? 'Under admin review'
                       : 'Submit documents to get jobs'}
+              </span>
+            </span>
+          </span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
+        </Link>
+      ) : null}
+
+      {user?.role === USER_ROLES.CONTRACTOR ? (
+        <Link
+          to="/app/kyc"
+          className="flex items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 shadow-sm transition active:scale-[0.99] border-amber-200/80 bg-amber-50/70"
+        >
+          <span className="flex items-center gap-2.5">
+            <IdCard className="h-5 w-5 shrink-0 text-brand" aria-hidden />
+            <span className="text-left">
+              <span className="block text-sm font-bold text-slate-900">ID - Proof verification</span>
+              <span className="block text-[11px] font-medium text-slate-600">
+                Submit documents to verify your business
               </span>
             </span>
           </span>

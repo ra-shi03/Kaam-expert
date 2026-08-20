@@ -32,7 +32,7 @@ export function AppShell() {
 
   const { headerTagline, bottomNav, drawerNav } = useMemo(() => getAppNavigation(user?.role), [user?.role])
 
-  const isIndividualAppHome = user?.role === USER_ROLES.CUSTOMER && pathname === '/app'
+  const isIndividualAppHome = (user?.role === USER_ROLES.CUSTOMER || user?.role === USER_ROLES.CONTRACTOR) && pathname === '/app'
   const isLabourAppHome = user?.role === USER_ROLES.LABOUR && pathname === '/app'
   const isLabourNotifications = user?.role === USER_ROLES.LABOUR && pathname === '/app/notifications'
   const isLabourJobs = user?.role === USER_ROLES.LABOUR && pathname === '/app/jobs'

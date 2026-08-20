@@ -12,13 +12,6 @@ import {
   listLabourAssignments,
   respondToAssignment,
 } from '../controllers/allocationController.js'
-import {
-  checkIn,
-  checkOut,
-  listAttendance,
-  markAttendanceVendor,
-} from '../controllers/attendanceController.js'
-
 const router = Router()
 
 router.use(protect)
@@ -31,9 +24,5 @@ router.post('/requests/:id/mock-pay', restrictTo(USER_ROLES.CONTRACTOR, USER_ROL
 router.get('/assignments', restrictTo(USER_ROLES.LABOUR), listLabourAssignments)
 router.patch('/assignments/:id/respond', restrictTo(USER_ROLES.LABOUR), requireLabourSubscription, respondToAssignment)
 
-router.post('/attendance/check-in', restrictTo(USER_ROLES.LABOUR), checkIn)
-router.post('/attendance/check-out', restrictTo(USER_ROLES.LABOUR), checkOut)
-router.get('/attendance', restrictTo(...APP_ROLES, USER_ROLES.ADMIN), listAttendance)
-router.post('/attendance/vendor-mark', restrictTo(USER_ROLES.CONTRACTOR), markAttendanceVendor)
 
 export default router

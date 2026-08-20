@@ -19,17 +19,17 @@ export function initBroadcastCron() {
         { $set: { status: 'FAILED' } }
       )
 
-      // 30 mins from now
-      const thirtyMinsFromNow = new Date(now.getTime() + 30 * 60 * 1000)
+      // 60 mins (1 hour) from now
+      const sixtyMinsFromNow = new Date(now.getTime() + 60 * 60 * 1000)
       
       // Find all scheduled bookings that are in CREATED status
-      // where the scheduledAt is <= exactly 30 mins from now, but > now
-      // This means the job is supposed to start in 30 mins or less.
+      // where the scheduledAt is <= exactly 60 mins from now, but > now
+      // This means the job is supposed to start in 60 mins (1 hour) or less.
       const bookingsToBroadcast = await Booking.find({
         type: 'SCHEDULED',
         status: 'CREATED',
         scheduledAt: { 
-          $lte: thirtyMinsFromNow,
+          $lte: sixtyMinsFromNow,
           $gt: now // Ensure we don't pick up severely outdated ones if they exist
         }
       })

@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { bookingsApi } from '../../api/bookingsApi.js'
 import { AppPrimaryButton } from '../app/AppPrimaryButton.jsx'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -19,14 +20,15 @@ import {
   X,
   Camera,
   Loader2,
+  Wallet,
 } from 'lucide-react'
 import { AppBadge } from '../app-ui/data-display/AppBadge.jsx'
 import { AppSecondaryButton } from '../app/AppSecondaryButton.jsx'
 import { GlassPanel } from '../ui/GlassPanel.jsx'
 import { buildAssignmentDetailSnapshot } from '../../lib/labourAssignmentDetail.js'
-import { readAttendanceEntries } from '../../lib/labourAttendanceStorage.js'
 import { uploadMedia, assetUrlFromUpload } from '../../api/uploadApi.js'
 import { UPLOAD_FOLDERS } from '../../constants/uploadFolders.js'
+import { useSocket } from '../../context/SocketContext.jsx'
 
 const STATUS_DOT = {
   brand: 'bg-brand',
@@ -36,22 +38,122 @@ const STATUS_DOT = {
   slate: 'bg-slate-300',
 }
 
+function JobCountdownTimer({ startedAt, hours }) {
+  const [timeLeft, setTimeLeft] = useState('')
+  const [isOvertime, setIsOvertime] = useState(false)
+
+  useEffect(() => {
+    if (!startedAt) return
+
+    const totalMs = (hours || 1) * 60 * 60 * 1000
+    const start = new Date(startedAt).getTime()
+    
+    const updateTimer = () => {
+      const now = Date.now()
+      const elapsed = now - start
+      let remaining = totalMs - elapsed
+
+      if (remaining < 0) {
+        setIsOvertime(true)
+        remaining = Math.abs(remaining)
+      } else {
+        setIsOvertime(false)
+      }
+
+      const h = Math.floor(remaining / (1000 * 60 * 60))
+      const m = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60))
+      const s = Math.floor((remaining % (1000 * 60)) / 1000)
+
+      setTimeLeft(
+        `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+      )
+    }
+
+    updateTimer()
+    const interval = setInterval(updateTimer, 1000)
+    return () => clearInterval(interval)
+  }, [startedAt, hours])
+
+  if (!startedAt) return null
+
+  return (
+    <div className={`mb-4 flex items-center justify-between rounded-xl border p-4 ${isOvertime ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-brand/20 bg-brand/5 text-brand'}`}>
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wider">{isOvertime ? 'Overtime' : 'Time Remaining'}</p>
+        <p className="text-2xl font-black tabular-nums tracking-tight">{timeLeft}</p>
+      </div>
+      <div className={`flex h-12 w-12 items-center justify-center rounded-full ${isOvertime ? 'bg-rose-100' : 'bg-brand/10'}`}>
+        <Clock className={`h-6 w-6 ${isOvertime ? 'text-rose-600' : 'text-brand'}`} />
+      </div>
+    </div>
+  )
+}
+
 /**
  * Full assignment brief — project timeline, site, supervisor, per-day attendance.
  */
 export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assignmentKind = 'active', onRefresh }) {
   const reduce = useReducedMotion()
+  const navigate = useNavigate()
 
-  const detail = useMemo(() => {
+  const computedDetail = useMemo(() => {
     if (!open || !job) return null
-    return buildAssignmentDetailSnapshot(readAttendanceEntries(), job, rawJob)
+    return buildAssignmentDetailSnapshot([], job, rawJob)
   }, [open, job, rawJob])
+
+  const [cachedDetail, setCachedDetail] = useState(null)
+  useEffect(() => {
+    if (computedDetail) {
+      setCachedDetail(computedDetail)
+    }
+  }, [computedDetail])
+
+  const detail = computedDetail || cachedDetail
+
+  const [cachedRawJob, setCachedRawJob] = useState(null)
+  const [cachedAssignmentKind, setCachedAssignmentKind] = useState('active')
+
+  useEffect(() => {
+    if (rawJob) setCachedRawJob(rawJob)
+  }, [rawJob])
+
+  useEffect(() => {
+    if (assignmentKind) setCachedAssignmentKind(assignmentKind)
+  }, [assignmentKind])
+
+  const activeRawJob = rawJob || cachedRawJob
+  const displayKind = assignmentKind || cachedAssignmentKind
 
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [jobImage, setJobImage] = useState(null)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [showPaymentWaiting, setShowPaymentWaiting] = useState(false)
+  const [livePaymentStatus, setLivePaymentStatus] = useState(rawJob?.paymentStatus || 'PENDING')
+  
+  const socket = useSocket()
+  
+  useEffect(() => {
+    if (!socket || !activeRawJob?._id) return
+    const handleStatusUpdate = (data) => {
+      if (data.bookingId === activeRawJob._id) {
+        if (data.paymentStatus) setLivePaymentStatus(data.paymentStatus)
+        if (data.status === 'COMPLETED') setShowPaymentWaiting(true)
+      }
+    }
+    socket.on('BOOKING_STATUS_UPDATE', handleStatusUpdate)
+    return () => { socket.off('BOOKING_STATUS_UPDATE', handleStatusUpdate) }
+  }, [socket, activeRawJob?._id])
+
+  useEffect(() => {
+    if (!open) {
+      setShowPaymentWaiting(false)
+      setLivePaymentStatus('PENDING')
+    } else if (activeRawJob) {
+      setLivePaymentStatus(prev => prev === 'PAID' ? 'PAID' : (activeRawJob.paymentStatus || 'PENDING'))
+    }
+  }, [open, activeRawJob])
 
   const handleStatusUpdate = async (nextStatus, requireOtp) => {
     if (requireOtp && !otp) {
@@ -72,12 +174,17 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
         if (nextStatus === 'COMPLETED') payload.afterImage = jobImage
       }
 
-      await bookingsApi.updateBookingStatus(rawJob._id, payload)
+      const res = await bookingsApi.updateBookingStatus(activeRawJob._id, payload)
+      const updatedBooking = res?.data?.booking
+
       setOtp('')
       setJobImage(null)
+      
+      setCachedRawJob(prev => prev ? { ...prev, status: nextStatus, startedAt: updatedBooking?.startedAt || prev.startedAt } : (rawJob ? { ...rawJob, status: nextStatus, startedAt: updatedBooking?.startedAt || rawJob.startedAt } : null))
+      
       if (onRefresh) onRefresh()
       if (nextStatus === 'COMPLETED') {
-        onClose()
+        setShowPaymentWaiting(true)
       }
     } catch (err) {
       setErrorMsg(err.message || 'Failed to update status.')
@@ -150,7 +257,7 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm">
-                  {assignmentKind === 'active' ? 'Active project' : 'Scheduled'}
+                  {displayKind === 'active' ? 'Active project' : 'Scheduled'}
                 </span>
                 {detail.job.projectCode ? (
                   <span className="rounded-full bg-brand/30 px-2.5 py-1 text-[10px] font-bold ring-1 ring-brand/40">
@@ -249,7 +356,7 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
               </GlassPanel>
             </section>
 
-            {rawJob && assignmentKind === 'active' && !['COMPLETED', 'CANCELLED'].includes(rawJob.status) ? (
+            {activeRawJob && displayKind === 'active' && !['COMPLETED', 'CANCELLED'].includes(activeRawJob.status) ? (
               <section>
                 <h2 className="mb-2 px-0.5 text-xs font-bold uppercase tracking-wider text-brand">
                   Live Job Actions
@@ -257,14 +364,14 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                 <GlassPanel className="space-y-3 border-brand/20 bg-brand/5 p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-slate-800">Current Status:</span>
-                    <AppBadge variant="brand">{rawJob.status}</AppBadge>
+                    <AppBadge variant="brand">{activeRawJob.status}</AppBadge>
                   </div>
                   
                   {errorMsg && (
                     <p className="text-xs font-bold text-rose-600">{errorMsg}</p>
                   )}
 
-                  {rawJob.status === 'ACCEPTED' && (
+                  {activeRawJob.status === 'ACCEPTED' && (
                     <AppPrimaryButton 
                       type="button" 
                       onClick={() => handleStatusUpdate('EN_ROUTE', false)}
@@ -275,7 +382,7 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                     </AppPrimaryButton>
                   )}
 
-                  {rawJob.status === 'EN_ROUTE' && (
+                  {activeRawJob.status === 'EN_ROUTE' && (
                     <div className="space-y-4">
                       <div>
                         <p className="text-sm font-bold text-slate-800 mb-2">1. Upload Before Work Image</p>
@@ -334,8 +441,9 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                     </div>
                   )}
 
-                  {rawJob.status === 'STARTED' && (
+                  {activeRawJob.status === 'STARTED' && (
                     <div className="space-y-4">
+                      <JobCountdownTimer startedAt={activeRawJob.startedAt} hours={activeRawJob.hours || 1} />
                       <div>
                         <p className="text-sm font-bold text-slate-800 mb-2">1. Upload After Work Image</p>
                         {jobImage ? (
@@ -427,64 +535,6 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
               </section>
             ) : null}
 
-            <section>
-              <div className="mb-2 flex items-center justify-between px-0.5">
-                <h2 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-                  <CalendarRange className="h-3.5 w-3.5" aria-hidden />
-                  {detail.isMultiDay ? 'Project attendance' : 'Shift attendance'}
-                </h2>
-                <span className="text-[10px] font-semibold text-slate-500">
-                  Linked to check-in / check-out
-                </span>
-              </div>
-              <ul className="space-y-2">
-                {detail.attendanceLog.map((row) => (
-                  <li key={row.day}>
-                    <GlassPanel
-                      className={`border-slate-200/90 p-3 ${
-                        row.isToday ? 'ring-2 ring-brand/25' : row.isFuture ? 'opacity-60' : ''
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[row.status.tone] || STATUS_DOT.slate}`}
-                              aria-hidden
-                            />
-                            <p className="text-sm font-bold text-slate-900">{row.dayLabel}</p>
-                            {row.isToday ? <AppBadge variant="brand">Today</AppBadge> : null}
-                          </div>
-                          <p className="mt-0.5 text-xs text-slate-600">
-                            {row.workTime} · {row.status.label}
-                          </p>
-                        </div>
-                      </div>
-                      {row.punches.length > 0 ? (
-                        <ul className="mt-2 flex flex-wrap gap-1.5">
-                          {row.punches.map((p, i) => (
-                            <li
-                              key={`${p.at}-${i}`}
-                              className={`rounded-lg px-2 py-1 text-[10px] font-bold ${
-                                p.type === 'in'
-                                  ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-200/80'
-                                  : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200/80'
-                              }`}
-                            >
-                              {p.type === 'in' ? 'In' : 'Out'} {p.time}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : row.isFuture ? (
-                        <p className="mt-2 text-[11px] italic text-slate-400">Scheduled — not started</p>
-                      ) : (
-                        <p className="mt-2 text-[11px] text-slate-400">No punches recorded</p>
-                      )}
-                    </GlassPanel>
-                  </li>
-                ))}
-              </ul>
-            </section>
 
             <section>
               <h2 className="mb-2 flex items-center gap-1.5 px-0.5 text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -502,9 +552,97 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                     <p className="mt-0.5 text-xs text-slate-600">{ev.body}</p>
                   </li>
                 ))}
-              </ol>
+                      </ol>
             </section>
           </motion.div>
+          
+          {showPaymentWaiting && (
+            <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -20 }}
+                className="w-full max-w-sm rounded-[2rem] bg-white p-8 shadow-2xl text-center border border-white/20"
+              >
+                {livePaymentStatus === 'PAID' ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <div className="relative mx-auto mb-8 mt-2 flex h-28 w-28 items-center justify-center">
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", bounce: 0.5, duration: 0.8 }}
+                        className="relative z-10 flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-brand-bright to-brand shadow-xl shadow-brand/40"
+                      >
+                        <CheckCircle2 className="h-14 w-14 text-white" strokeWidth={2.5} />
+                      </motion.div>
+                      <motion.div
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        className="absolute inset-0 rounded-full bg-brand"
+                      />
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 mb-3 tracking-tight">
+                      Collect Money
+                    </h3>
+                    <p className="text-sm font-medium text-slate-500 mb-8 leading-relaxed px-4">
+                      The customer has paid successfully. Collect your earnings from the wallet.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPaymentWaiting(false)
+                        onClose()
+                        navigate('/app/earnings')
+                      }}
+                      className="w-full rounded-2xl bg-brand py-4 text-[15px] font-bold text-white shadow-lg shadow-brand/20 transition-all hover:bg-brand/90 hover:shadow-xl active:scale-[0.98]"
+                    >
+                      Collect Money
+                    </button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.1 }}
+                  >
+                    <div className="relative mx-auto mb-8 mt-2 flex h-28 w-28 items-center justify-center">
+                      <div className="absolute inset-0 rounded-full bg-brand/20 animate-ping" style={{ animationDuration: '3s' }} />
+                      <div className="absolute inset-4 rounded-full bg-brand/30 animate-ping" style={{ animationDuration: '3s', animationDelay: '1.5s' }} />
+                      
+                      <motion.div 
+                        animate={{ scale: [1, 1.05, 1] }}
+                        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                        className="relative z-10 flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-brand-bright to-brand shadow-xl shadow-brand/40"
+                      >
+                        <Wallet className="h-12 w-12 text-white" strokeWidth={2} />
+                      </motion.div>
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 mb-3 tracking-tight">
+                      Payment Request Sent
+                    </h3>
+                    <p className="text-sm font-medium text-slate-500 mb-8 leading-relaxed px-2">
+                      Please wait while the customer completes the payment on their device...
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPaymentWaiting(false)
+                        onClose()
+                      }}
+                      className="w-full rounded-2xl bg-slate-100 py-4 text-[15px] font-bold text-slate-600 transition-all hover:bg-slate-200 active:scale-[0.98]"
+                    >
+                      Close
+                    </button>
+                  </motion.div>
+                )}
+              </motion.div>
+            </div>
+          )}
         </motion.div>
       ) : null}
     </AnimatePresence>

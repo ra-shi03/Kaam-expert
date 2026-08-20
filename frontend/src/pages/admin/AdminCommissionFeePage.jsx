@@ -38,10 +38,8 @@ export function AdminCommissionFeePage() {
         }
 
         const amountsRes = await adminSettingsApi.getCommissionFeeAmounts()
-        const fetchedAmounts = amountsRes?.data || amountsRes
-        if (fetchedAmounts) {
-          setActualAmounts(fetchedAmounts)
-        }
+        const fetchedAmounts = amountsRes?.data || amountsRes || {}
+        setActualAmounts(fetchedAmounts)
       } catch (err) {
         console.error('Failed to fetch bookings:', err)
       } finally {
@@ -73,9 +71,9 @@ export function AdminCommissionFeePage() {
       if (searchTerm) {
         const lowerSearch = searchTerm.toLowerCase()
         const idMatch = b._id?.toLowerCase().includes(lowerSearch)
-        const userMatch = b.user?.name?.toLowerCase().includes(lowerSearch) || b.customer?.name?.toLowerCase().includes(lowerSearch)
-        const laborMatch = b.labor?.name?.toLowerCase().includes(lowerSearch) || b.provider?.name?.toLowerCase().includes(lowerSearch)
-        const serviceMatch = b.service?.name?.toLowerCase().includes(lowerSearch) || b.category?.name?.toLowerCase().includes(lowerSearch)
+        const userMatch = b.userId?.fullName?.toLowerCase().includes(lowerSearch)
+        const laborMatch = b.laborId?.fullName?.toLowerCase().includes(lowerSearch)
+        const serviceMatch = b.serviceId?.name?.toLowerCase().includes(lowerSearch)
         if (!idMatch && !userMatch && !laborMatch && !serviceMatch) return false
       }
 
@@ -99,6 +97,8 @@ export function AdminCommissionFeePage() {
   const { metrics, topLabourers, topServices } = useMemo(() => {
     let allTime = 0
     let currentMonth = 0
+    let totalPlatformFees = 0
+    let totalServiceAmount = 0
     let validCount = 0
     
     const now = new Date()
@@ -109,6 +109,8 @@ export function AdminCommissionFeePage() {
       if (b.paymentMethod === 'ONLINE' && b.status === 'COMPLETED' && b.commissionAmount) {
         const fee = b.commissionAmount
         allTime += fee
+        totalPlatformFees += (b.platformFee || 0)
+        totalServiceAmount += (b.basePrice || 0)
         validCount++
         
         const bDate = new Date(b.createdAt)
@@ -117,11 +119,11 @@ export function AdminCommissionFeePage() {
         }
 
         // Group by Labourer
-        const labourName = b.labor?.name || b.provider?.name || 'Unknown Labourer'
+        const labourName = b.laborId?.fullName || 'Unknown Labourer'
         labourMap.set(labourName, (labourMap.get(labourName) || 0) + fee)
 
         // Group by Service
-        const serviceName = b.service?.name || b.category?.name || b.workCategory || 'Unknown Service'
+        const serviceName = b.serviceId?.name || 'Unknown Service'
         serviceMap.set(serviceName, (serviceMap.get(serviceName) || 0) + fee)
       }
     })
@@ -140,7 +142,7 @@ export function AdminCommissionFeePage() {
       .slice(0, 5)
 
     return { 
-      metrics: { allTime, currentMonth, filteredTotal, average },
+      metrics: { allTime, currentMonth, filteredTotal, average, totalPlatformFees, totalServiceAmount },
       topLabourers: topLabourersArray,
       topServices: topServicesArray
     }
@@ -154,9 +156,9 @@ export function AdminCommissionFeePage() {
     const rows = filteredBookings.map(b => [
       b._id,
       new Date(b.createdAt).toLocaleDateString(),
-      b.user?.name || b.customer?.name || 'N/A',
-      b.labor?.name || b.provider?.name || 'N/A',
-      b.service?.name || b.category?.name || b.workCategory || 'N/A',
+      b.userId?.fullName || 'N/A',
+      b.laborId?.fullName || 'N/A',
+      b.serviceId?.name || 'N/A',
       b.totalAmount || 0,
       b.platformFee || 0,
       b.commissionAmount || 0,
@@ -229,21 +231,21 @@ export function AdminCommissionFeePage() {
         <div className="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/50 p-5 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-blue-800/70">Total Commission</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-blue-700">₹{loading ? '...' : (actualAmounts.commissionAmount || 0).toLocaleString('en-IN')}</span>
+            <span className="text-3xl font-black text-blue-700">₹{loading ? '...' : metrics.allTime.toLocaleString('en-IN')}</span>
           </div>
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-indigo-800/70">Platform Fees</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-indigo-700">₹{loading ? '...' : (actualAmounts.platformFeesAmount || 0).toLocaleString('en-IN')}</span>
+            <span className="text-3xl font-black text-indigo-700">₹{loading ? '...' : metrics.totalPlatformFees.toLocaleString('en-IN')}</span>
           </div>
         </div>
         
         <div className="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/50 p-5 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-blue-800/70">Service Amount</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-blue-700">₹{loading ? '...' : (actualAmounts.serviceAmount || 0).toLocaleString('en-IN')}</span>
+            <span className="text-3xl font-black text-blue-700">₹{loading ? '...' : metrics.totalServiceAmount.toLocaleString('en-IN')}</span>
           </div>
         </div>
 
@@ -371,14 +373,14 @@ export function AdminCommissionFeePage() {
                         <p className="text-xs text-slate-400">{new Date(b.createdAt).toLocaleString()}</p>
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-700">
-                        {b.user?.name || b.customer?.name || 'N/A'}
+                        {b.userId?.fullName || 'N/A'}
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-700">
-                        {b.labor?.name || b.provider?.name || 'N/A'}
+                        {b.laborId?.fullName || 'N/A'}
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                          {b.service?.name || b.category?.name || b.workCategory || 'Service'}
+                          {b.serviceId?.name || 'Service'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -452,15 +454,15 @@ export function AdminCommissionFeePage() {
                   <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                     <UserCircle className="h-3.5 w-3.5" /> Customer
                   </p>
-                  <p className="font-semibold text-slate-900">{selectedBooking.user?.name || selectedBooking.customer?.name || 'N/A'}</p>
-                  <p className="text-xs text-slate-500">{selectedBooking.user?.phone || 'No phone'}</p>
+                  <p className="font-semibold text-slate-900">{selectedBooking.userId?.fullName || 'N/A'}</p>
+                  <p className="text-xs text-slate-500">{selectedBooking.userId?.phone || 'No phone'}</p>
                 </div>
                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                   <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                     <Wrench className="h-3.5 w-3.5" /> Labour
                   </p>
-                  <p className="font-semibold text-slate-900">{selectedBooking.labor?.name || selectedBooking.provider?.name || 'N/A'}</p>
-                  <p className="text-xs text-slate-500">{selectedBooking.labor?.phone || 'No phone'}</p>
+                  <p className="font-semibold text-slate-900">{selectedBooking.laborId?.fullName || 'N/A'}</p>
+                  <p className="text-xs text-slate-500">{selectedBooking.laborId?.phone || 'No phone'}</p>
                 </div>
               </div>
 

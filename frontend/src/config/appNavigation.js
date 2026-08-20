@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   UserRound,
   Wrench,
+  FileText,
 } from 'lucide-react'
 import { USER_ROLES } from '../constants/userRoles.js'
 
@@ -31,6 +32,24 @@ const byRole = {
       { id: 'search', to: '/app/search', label: 'Search skills', icon: Search },
       { id: 'subscription', to: '/app/subscriptions', label: 'My Subscription', icon: ShieldCheck },
       { id: 'book', to: '/app/my-bookings', label: 'My bookings', icon: ClipboardList },
+      { id: 'support', to: '/app/support', label: 'Support & issues', icon: LifeBuoy },
+      { id: 'profile', to: '/app/profile', label: 'Profile & settings', icon: UserRound },
+    ],
+  },
+  [USER_ROLES.CONTRACTOR]: {
+    headerTagline: 'Hire bulk labour for your projects',
+    bottomNav: [
+      { id: 'home', to: '/app', label: 'Home', icon: Home, end: true },
+      { id: 'book', to: '/app/my-bookings', label: 'Bookings', icon: CalendarClock },
+      { id: 'billing', to: '/app/billing', label: 'Billing', icon: FileText },
+      { id: 'profile', to: '/app/profile', label: 'Profile', icon: UserRound },
+    ],
+    drawerNav: [
+      { id: 'home', to: '/app', label: 'Home', icon: Home, end: true },
+      { id: 'search', to: '/app/search', label: 'Search skills', icon: Search },
+      { id: 'book', to: '/app/my-bookings', label: 'Bookings & requests', icon: ClipboardList },
+      { id: 'billing', to: '/app/billing', label: 'Billing & contracts', icon: FileText },
+      { id: 'workforce', to: '/app/workforce', label: 'Workforce', icon: ClipboardList },
       { id: 'support', to: '/app/support', label: 'Support & issues', icon: LifeBuoy },
       { id: 'profile', to: '/app/profile', label: 'Profile & settings', icon: UserRound },
     ],
