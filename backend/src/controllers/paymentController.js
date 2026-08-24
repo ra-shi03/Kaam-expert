@@ -92,6 +92,12 @@ export const verifyPayment = asyncHandler(async (req, res) => {
          import('../socket.js').then(({ emitToUser }) => {
            emitToUser(booking.laborId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
            emitToUser(booking.clientId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
+           if (booking.assignments && booking.assignments.length > 0) {
+             booking.assignments.forEach(a => {
+               const lid = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
+               if (lid) emitToUser(lid, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' });
+             });
+           }
          }).catch(err => console.error('Failed to emit payment status socket', err))
       }
     }

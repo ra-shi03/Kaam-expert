@@ -1,6 +1,8 @@
 import { apiRequest } from './http'
 
 export const userSubscriptionApi = {
+  getPlans: () => apiRequest('/user-subscriptions/plans'),
+
   /** Check if labour has access to the marketplace (trial/subscription gate) */
   checkAccess: () => apiRequest('/user-subscriptions/check-access'),
 

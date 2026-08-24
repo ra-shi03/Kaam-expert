@@ -5,7 +5,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 
 export const submitReview = asyncHandler(async (req, res) => {
-  const { bookingId, rating, comment } = req.body
+  const { bookingId, rating, comment, revieweeId: providedRevieweeId } = req.body
 
   const booking = await Booking.findById(bookingId)
   if (!booking) {
@@ -18,14 +18,14 @@ export const submitReview = asyncHandler(async (req, res) => {
 
   let revieweeId
   if (String(booking.userId) === String(req.user._id)) {
-    revieweeId = booking.laborId // Customer reviewing Labor
-  } else if (String(booking.laborId) === String(req.user._id)) {
+    revieweeId = providedRevieweeId || booking.laborId // Customer reviewing Labor
+  } else if (String(booking.laborId) === String(req.user._id) || (booking.assignments && booking.assignments.some(a => String(a.labourId) === String(req.user._id)))) {
     revieweeId = booking.userId // Labor reviewing Customer
   } else {
     return sendError(res, { message: 'Unauthorized to review this booking', statusCode: HTTP_STATUS.FORBIDDEN })
   }
 
-  const existingReview = await Review.findOne({ bookingId, reviewerId: req.user._id })
+  const existingReview = await Review.findOne({ bookingId, reviewerId: req.user._id, revieweeId })
   if (existingReview) {
     return sendError(res, { message: 'You have already reviewed this booking', statusCode: HTTP_STATUS.CONFLICT })
   }

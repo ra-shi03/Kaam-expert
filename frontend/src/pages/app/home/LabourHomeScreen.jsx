@@ -675,6 +675,7 @@ export function LabourHomeScreen({ user }) {
                         const { updateLabourSchedule } = await import('../../../api/userLabourApi.js')
                         await updateLabourSchedule(schedule)
                         showToast('Time schedule saved successfully')
+                        setTimeManagementOpen(false)
                       } catch (err) {
                         showToast(err?.message || 'Failed to save schedule')
                       }

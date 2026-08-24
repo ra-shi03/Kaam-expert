@@ -40,17 +40,6 @@ export const updateCommission = asyncHandler(async (req, res) => {
   return sendSuccess(res, { message: 'Commission updated', data: { settings } })
 })
 
-export const updateWalletLimit = asyncHandler(async (req, res) => {
-  const { walletLimit } = req.body
-  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
-  if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
-  
-  if (walletLimit !== undefined) settings.walletLimit = Number(walletLimit)
-  
-  await settings.save()
-  return sendSuccess(res, { message: 'Wallet limit updated', data: { settings } })
-})
-
 export const updateLabourCashLimit = asyncHandler(async (req, res) => {
   const { labourCashLimit } = req.body
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })

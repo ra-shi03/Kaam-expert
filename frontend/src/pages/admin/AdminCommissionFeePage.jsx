@@ -119,8 +119,16 @@ export function AdminCommissionFeePage() {
         }
 
         // Group by Labourer
-        const labourName = b.laborId?.fullName || 'Unknown Labourer'
-        labourMap.set(labourName, (labourMap.get(labourName) || 0) + fee)
+        if (b.assignments && b.assignments.length > 0) {
+          const splitFee = fee / b.assignments.length
+          b.assignments.forEach(a => {
+            const labourName = a.labourId?.fullName || a.labourId?.name || 'Unknown Labourer'
+            labourMap.set(labourName, (labourMap.get(labourName) || 0) + splitFee)
+          })
+        } else {
+          const labourName = b.laborId?.fullName || 'Unknown Labourer'
+          labourMap.set(labourName, (labourMap.get(labourName) || 0) + fee)
+        }
 
         // Group by Service
         const serviceName = b.serviceId?.name || 'Unknown Service'
@@ -134,7 +142,7 @@ export function AdminCommissionFeePage() {
     const topLabourersArray = Array.from(labourMap.entries())
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 5)
+      .slice(0, 1) // Only show the SINGLE top earner as requested
 
     const topServicesArray = Array.from(serviceMap.entries())
       .map(([name, total]) => ({ name, total }))
@@ -262,7 +270,7 @@ export function AdminCommissionFeePage() {
         <div className="rounded-2xl border border-amber-200 bg-amber-50/30 p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Trophy className="h-5 w-5 text-amber-500" />
-            <h3 className="font-bold text-slate-900">Top Earners (Labourers)</h3>
+            <h3 className="font-bold text-slate-900">Top Earner (Labourer)</h3>
           </div>
           {loading ? (
             <div className="animate-pulse text-sm text-slate-400">Loading leaderboard...</div>
@@ -376,7 +384,17 @@ export function AdminCommissionFeePage() {
                         {b.userId?.fullName || 'N/A'}
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-700">
-                        {b.laborId?.fullName || 'N/A'}
+                        {b.assignments && b.assignments.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            {b.assignments.map((a, i) => (
+                              <span key={i} className="whitespace-nowrap">
+                                {a.labourId?.fullName || a.labourId?.name || 'N/A'}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          b.laborId?.fullName || 'N/A'
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
@@ -458,11 +476,24 @@ export function AdminCommissionFeePage() {
                   <p className="text-xs text-slate-500">{selectedBooking.userId?.phone || 'No phone'}</p>
                 </div>
                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                     <Wrench className="h-3.5 w-3.5" /> Labour
                   </p>
-                  <p className="font-semibold text-slate-900">{selectedBooking.laborId?.fullName || 'N/A'}</p>
-                  <p className="text-xs text-slate-500">{selectedBooking.laborId?.phone || 'No phone'}</p>
+                  {selectedBooking.assignments && selectedBooking.assignments.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {selectedBooking.assignments.map((a, i) => (
+                        <div key={i} className="flex flex-col border-b border-slate-200/50 pb-2 last:border-0 last:pb-0">
+                          <span className="font-semibold text-slate-900">{a.labourId?.fullName || a.labourId?.name || 'N/A'}</span>
+                          <span className="text-xs text-slate-500">{a.labourId?.phone || 'No phone'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-slate-900">{selectedBooking.laborId?.fullName || 'N/A'}</p>
+                      <p className="text-xs text-slate-500">{selectedBooking.laborId?.phone || 'No phone'}</p>
+                    </>
+                  )}
                 </div>
               </div>
 

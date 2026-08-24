@@ -99,7 +99,7 @@ export function AppUserLocationModal({
         setGeoBusy(false)
         setHint('Could not read GPS. Enter your area manually below.')
       },
-      { enableHighAccuracy: false, timeout: 14_000, maximumAge: 60_000 },
+      { enableHighAccuracy: true, timeout: 14_000, maximumAge: 60_000 },
     )
   }, [])
 

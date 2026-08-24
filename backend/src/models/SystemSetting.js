@@ -61,11 +61,6 @@ const systemSettingSchema = new mongoose.Schema(
       cashEnabled: { type: Boolean, default: true },
       onlineEnabled: { type: Boolean, default: true }
     },
-    walletLimit: {
-      type: Number,
-      min: 0,
-      default: 100,
-    },
     labourCashLimit: {
       type: Number,
       min: 0,

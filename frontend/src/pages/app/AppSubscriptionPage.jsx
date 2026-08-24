@@ -12,6 +12,7 @@ import {
   Shield,
   RotateCcw,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { userSubscriptionApi } from '../../api/userSubscriptionApi'
 import { useSelector } from 'react-redux'
 
@@ -59,6 +60,8 @@ export function AppSubscriptionPage() {
   const [processing, setProcessing] = useState(false)
   const [currentHour, setCurrentHour] = useState(getCurrentISTHour())
   const [toast, setToast] = useState({ message: '', variant: 'success' })
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false)
+  const navigate = useNavigate()
   const user = useSelector((s) => s.auth.user)
 
   const trialEndsAt = user?.labourProfile?.trialEndsAt
@@ -78,14 +81,20 @@ export function AppSubscriptionPage() {
     setTimeout(() => setToast({ message: '', variant: 'success' }), 4000)
   }
 
+  const [plans, setPlans] = useState([])
+
   const loadData = async () => {
     try {
       setLoading(true)
-      const res = await userSubscriptionApi.getMySubscription()
+      const [res, plansRes] = await Promise.all([
+        userSubscriptionApi.getMySubscription(),
+        userSubscriptionApi.getPlans()
+      ])
       setActiveSubscription(res?.data?.subscription || null)
       if (res?.data?.settings) {
         setSettings(res.data.settings)
       }
+      setPlans(plansRes?.data?.plans || [])
     } catch (err) {
       console.error(err)
     } finally {
@@ -116,7 +125,7 @@ export function AppSubscriptionPage() {
       document.body.appendChild(script)
     })
 
-  const handleSubscribe = async () => {
+  const handleSubscribe = async (planId = null) => {
     try {
       setProcessing(true)
 
@@ -126,7 +135,8 @@ export function AppSubscriptionPage() {
         return
       }
 
-      const orderRes = await userSubscriptionApi.createOrder()
+      // TODO: Pass planId to backend once backend supports dynamic plans checkout
+      const orderRes = await userSubscriptionApi.createOrder(planId ? { planId } : {})
       const { order, keyId, price } = orderRes.data
 
       const options = {
@@ -143,8 +153,10 @@ export function AppSubscriptionPage() {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
             })
-            showToast('Subscription activated! You can now receive bookings.', 'success')
-            loadData()
+            setShowSuccessPopup(true)
+            setTimeout(() => {
+              navigate('/app', { replace: true })
+            }, 3000)
           } catch {
             showToast('Payment verification failed. Contact support.', 'error')
           }
@@ -181,6 +193,35 @@ export function AppSubscriptionPage() {
     <div className="min-h-screen bg-slate-50 pb-28 pt-4">
       <AnimatePresence>
         {toast.message && <Toast message={toast.message} variant={toast.variant} />}
+        {showSuccessPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ type: 'spring', bounce: 0.5 }}
+              className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl"
+            >
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <CheckCircle2 className="h-8 w-8" />
+              </div>
+              <h3 className="mb-2 text-xl font-black text-slate-900">Payment Successful!</h3>
+              <p className="mb-6 text-sm leading-relaxed text-slate-500">
+                Your daily marketplace access has been successfully activated. You are now ready to receive job opportunities.
+              </p>
+              <button
+                onClick={() => navigate('/app', { replace: true })}
+                className="w-full rounded-xl bg-gradient-to-r from-brand to-blue-800 py-3.5 text-sm font-bold text-white shadow-lg transition hover:from-brand/90"
+              >
+                Continue to Dashboard
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <div className="mx-auto max-w-lg space-y-4 px-4">
@@ -306,104 +347,192 @@ export function AppSubscriptionPage() {
 
         {/* ── NEED TO SUBSCRIBE ── */}
         {!trialActive && !isSubscribedToday && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-          >
-            <div className="p-6">
-              {/* Price display */}
-              <div className="mb-5 text-center">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Today's Access</p>
-                <div className="mt-2 flex items-baseline justify-center gap-1">
-                  <span className="text-5xl font-black text-brand">₹{dailySubscriptionPrice}</span>
-                  <span className="text-lg font-bold text-slate-400">/day</span>
-                </div>
-              </div>
-
-              {/* Window info */}
-              <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="h-4 w-4 text-brand" />
-                  <p className="text-xs font-bold uppercase text-slate-500">Subscription Window</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-center">
-                    <p className="text-xs text-slate-400">Opens</p>
-                    <p className="text-lg font-black text-slate-900">{formatHour(subscriptionStartHour)}</p>
-                  </div>
-                  <div className="flex-1 mx-3 h-0.5 bg-slate-200 relative">
-                    <div
-                      className="absolute inset-y-0 left-0 bg-brand rounded-full"
-                      style={{
-                        width: isWithinWindow
-                          ? `${Math.min(100, ((currentHour - subscriptionStartHour) / (subscriptionEndHour - subscriptionStartHour)) * 100)}%`
-                          : '0%'
-                      }}
-                    />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-slate-400">Closes</p>
-                    <p className="text-lg font-black text-slate-900">{formatHour(subscriptionEndHour)}</p>
-                  </div>
-                </div>
-                {isWithinWindow ? (
-                  <p className="mt-2 text-center text-xs font-semibold text-emerald-700">
-                    ● Window is currently open — subscribe now!
-                  </p>
-                ) : windowOpensInHours != null ? (
-                  <p className="mt-2 text-center text-xs font-semibold text-amber-700">
-                    ● Opens in {windowOpensInHours} hour{windowOpensInHours !== 1 ? 's' : ''}
-                  </p>
-                ) : (
-                  <p className="mt-2 text-center text-xs font-semibold text-slate-500">
-                    ● Window closed for today
-                  </p>
-                )}
-              </div>
-
-              {/* Features */}
-              <ul className="mb-5 space-y-2.5">
-                {[
-                  { icon: CheckCircle2, text: 'Unlimited job offers for today', tone: 'text-emerald-600' },
-                  { icon: IndianRupee, text: 'Keep 100% of your earnings', tone: 'text-brand' },
-                  { icon: RotateCcw, text: 'Full refund if you get 0 bookings today', tone: 'text-amber-600' },
-                  { icon: Lock, text: 'Only pay on days you want to work', tone: 'text-slate-500' },
-                ].map(({ icon: Icon, text, tone }) => (
-                  <li key={text} className="flex items-center gap-3">
-                    <Icon className={`h-4 w-4 shrink-0 ${tone}`} />
-                    <span className="text-sm font-medium text-slate-700">{text}</span>
-                  </li>
-                ))}
-              </ul>
-
-              {/* Pay button */}
-              <button
-                type="button"
-                id="subscribe-now-btn"
-                onClick={handleSubscribe}
-                disabled={processing || !isWithinWindow}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand to-blue-800 py-4 text-base font-bold text-white shadow-lg shadow-brand/30 transition hover:from-brand/90 disabled:opacity-60"
+          <div className="space-y-8">
+            {settings.isUserSubscriptionEnabled && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
               >
-                {processing ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <>
-                    <Shield className="h-5 w-5" />
-                    Pay ₹{dailySubscriptionPrice} — Start Earning
-                  </>
-                )}
-              </button>
+                <div className="p-6">
+                  {/* Price display */}
+                  <div className="mb-5 text-center">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Daily Access</p>
+                    <div className="mt-2 flex items-baseline justify-center gap-1">
+                      <span className="text-5xl font-black text-brand">₹{dailySubscriptionPrice}</span>
+                      <span className="text-lg font-bold text-slate-400">/day</span>
+                    </div>
+                  </div>
 
-              {!isWithinWindow && (
-                <p className="mt-2 text-center text-xs text-slate-500">
-                  {windowOpensInHours != null
-                    ? `Subscription opens at ${formatHour(subscriptionStartHour)}`
-                    : `Today's window is closed. Come back tomorrow from ${formatHour(subscriptionStartHour)}`}
-                </p>
-              )}
+                  {/* Window info */}
+                  <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="h-4 w-4 text-brand" />
+                      <p className="text-xs font-bold uppercase text-slate-500">Subscription Window</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-center">
+                        <p className="text-xs text-slate-400">Opens</p>
+                        <p className="text-lg font-black text-slate-900">{formatHour(subscriptionStartHour)}</p>
+                      </div>
+                      <div className="flex-1 mx-3 h-0.5 bg-slate-200 relative">
+                        <div
+                          className="absolute inset-y-0 left-0 bg-brand rounded-full"
+                          style={{
+                            width: isWithinWindow
+                              ? `${Math.min(100, ((currentHour - subscriptionStartHour) / (subscriptionEndHour - subscriptionStartHour)) * 100)}%`
+                              : '0%'
+                          }}
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-slate-400">Closes</p>
+                        <p className="text-lg font-black text-slate-900">{formatHour(subscriptionEndHour)}</p>
+                      </div>
+                    </div>
+                    {isWithinWindow ? (
+                      <p className="mt-2 text-center text-xs font-semibold text-emerald-700">
+                        ● Window is currently open — subscribe now!
+                      </p>
+                    ) : windowOpensInHours != null ? (
+                      <p className="mt-2 text-center text-xs font-semibold text-amber-700">
+                        ● Opens in {windowOpensInHours} hour{windowOpensInHours !== 1 ? 's' : ''}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-center text-xs font-semibold text-slate-500">
+                        ● Window closed for today
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Features */}
+                  <ul className="mb-5 space-y-2.5">
+                    {[
+                      { icon: CheckCircle2, text: 'Unlimited job offers for today', tone: 'text-emerald-600' },
+                      { icon: IndianRupee, text: 'Keep 100% of your earnings', tone: 'text-brand' },
+                      { icon: RotateCcw, text: 'Full refund if you get 0 bookings today', tone: 'text-amber-600' },
+                      { icon: Lock, text: 'Only pay on days you want to work', tone: 'text-slate-500' },
+                    ].map(({ icon: Icon, text, tone }) => (
+                      <li key={text} className="flex items-center gap-3">
+                        <Icon className={`h-4 w-4 shrink-0 ${tone}`} />
+                        <span className="text-sm font-medium text-slate-700">{text}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Pay button */}
+                  <button
+                    type="button"
+                    onClick={() => handleSubscribe(null)}
+                    disabled={processing || !isWithinWindow}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-brand to-blue-800 py-4 text-base font-bold text-white shadow-lg shadow-brand/30 transition hover:from-brand/90 disabled:opacity-60"
+                  >
+                    {processing ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Shield className="h-5 w-5" />
+                        Pay ₹{dailySubscriptionPrice} — Start Earning
+                      </>
+                    )}
+                  </button>
+
+                  {!isWithinWindow && (
+                    <p className="mt-2 text-center text-xs text-slate-500">
+                      {windowOpensInHours != null
+                        ? `Subscription opens at ${formatHour(subscriptionStartHour)}`
+                        : `Today's window is closed. Come back tomorrow from ${formatHour(subscriptionStartHour)}`}
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            <div>
+              <h2 className="mb-4 text-xl font-black text-slate-800 text-center">Or Choose a Package</h2>
+              <div className="space-y-4">
+            {plans.map(plan => (
+              <motion.div
+                key={plan._id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="overflow-hidden rounded-2xl border border-brand/20 bg-white shadow-sm hover:border-brand transition"
+              >
+                <div className="p-6">
+                  {/* Price display */}
+                  <div className="mb-4 text-center">
+                    <p className="text-xs font-bold uppercase tracking-wide text-brand">{plan.name}</p>
+                    <div className="mt-2 flex items-baseline justify-center gap-1">
+                      <span className="text-4xl font-black text-slate-900">₹{plan.price}</span>
+                      <span className="text-sm font-bold text-slate-400">/ {plan.durationDays} days</span>
+                    </div>
+                  </div>
+
+                  {/* Window info */}
+                  <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="h-4 w-4 text-brand" />
+                      <p className="text-xs font-bold uppercase text-slate-500">Subscription Window</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-center">
+                        <p className="text-xs text-slate-400">Opens</p>
+                        <p className="text-lg font-black text-slate-900">{formatHour(subscriptionStartHour)}</p>
+                      </div>
+                      <div className="flex-1 mx-3 h-0.5 bg-slate-200 relative">
+                        <div
+                          className="absolute inset-y-0 left-0 bg-brand rounded-full"
+                          style={{
+                            width: isWithinWindow
+                              ? `${Math.min(100, ((currentHour - subscriptionStartHour) / (subscriptionEndHour - subscriptionStartHour)) * 100)}%`
+                              : '0%'
+                          }}
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs text-slate-400">Closes</p>
+                        <p className="text-lg font-black text-slate-900">{formatHour(subscriptionEndHour)}</p>
+                      </div>
+                    </div>
+                    {isWithinWindow ? (
+                      <p className="mt-2 text-center text-xs font-semibold text-emerald-700">
+                        ● Window is currently open — subscribe now!
+                      </p>
+                    ) : windowOpensInHours != null ? (
+                      <p className="mt-2 text-center text-xs font-semibold text-amber-700">
+                        ● Opens in {windowOpensInHours} hour{windowOpensInHours !== 1 ? 's' : ''}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-center text-xs font-semibold text-slate-500">
+                        ● Window closed for today
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Features */}
+                  <ul className="mb-5 space-y-2 text-sm text-slate-600">
+                    {plan.features?.map((f, i) => (
+                      <li key={i} className="flex gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-brand" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Pay button */}
+                  <button
+                    type="button"
+                    onClick={() => handleSubscribe(plan._id)}
+                    disabled={processing}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 text-sm font-bold text-white shadow-lg shadow-brand/20 transition hover:bg-brand/90 disabled:opacity-60"
+                  >
+                    {processing ? <Loader2 className="h-5 w-5 animate-spin" /> : `Select ${plan.name}`}
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+              </div>
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Refund Policy Card */}

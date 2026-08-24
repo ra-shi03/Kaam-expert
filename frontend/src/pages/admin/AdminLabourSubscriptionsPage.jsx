@@ -12,6 +12,7 @@ import {
   RefreshCw,
   RotateCcw,
   Shield,
+  Trash2,
   TrendingUp,
   Users,
   Wallet,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { adminLabourSubscriptionsApi } from '../../api/adminLabourSubscriptionsApi.js'
+import { adminSettingsApi } from '../../api/adminSettingsApi.js'
 
 // ─── Toast ─────────────────────────────────────────────────────────────────
 function Toast({ message, variant = 'success' }) {
@@ -40,6 +42,10 @@ function Toast({ message, variant = 'success' }) {
       {message}
     </motion.div>
   )
+}
+
+function getCurrentISTHour() {
+  return parseInt(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false }))
 }
 
 // ─── Stat Card ─────────────────────────────────────────────────────────────
@@ -206,6 +212,92 @@ function RefundModal({ sub, onClose, onDone }) {
   )
 }
 
+// ─── Subscription Plan Modal ────────────────────────────────────────────────
+function SubscriptionPlanModal({ plan, onClose, onDone }) {
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    name: plan?.name || '',
+    durationDays: plan?.durationDays || 7,
+    price: plan?.price || 99,
+    features: plan?.features?.join(', ') || '',
+    isActive: plan?.isActive ?? true,
+  })
+
+  const [err, setErr] = useState('')
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setErr('')
+    setLoading(true)
+    try {
+      const payload = {
+        ...form,
+        durationDays: Number(form.durationDays),
+        price: Number(form.price),
+        features: form.features.split(',').map(f => f.trim()).filter(Boolean)
+      }
+      if (plan) {
+        await adminLabourSubscriptionsApi.updatePlan(plan._id, payload)
+      } else {
+        await adminLabourSubscriptionsApi.createPlan(payload)
+      }
+      onDone(plan ? 'Plan updated' : 'Plan created')
+    } catch (error) {
+      setErr(error.message || 'Failed to save plan')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 p-4 pb-3">
+          <h3 className="text-lg font-bold text-slate-800">{plan ? 'Edit Plan' : 'Create Plan'}</h3>
+          <button onClick={onClose} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {err && <p className="text-sm text-rose-600 font-bold bg-rose-50 p-2 rounded-xl">{err}</p>}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Plan Name</label>
+            <input type="text" required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-brand" placeholder="e.g. 1 Week" />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-slate-500 mb-1">Duration (Days)</label>
+              <input type="number" required min="1" value={form.durationDays} onChange={e => setForm({...form, durationDays: e.target.value})} className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-brand" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-bold text-slate-500 mb-1">Price (₹)</label>
+              <input type="number" required min="0" value={form.price} onChange={e => setForm({...form, price: e.target.value})} className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-brand" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 mb-1">Features (comma separated)</label>
+            <textarea required value={form.features} onChange={e => setForm({...form, features: e.target.value})} rows={3} className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-brand" placeholder="Access to jobs, Priority support..." />
+          </div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <input type="checkbox" checked={form.isActive} onChange={e => setForm({...form, isActive: e.target.checked})} className="h-4 w-4 rounded text-brand focus:ring-brand" />
+            Plan is Active
+          </label>
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 hover:bg-slate-200">Cancel</button>
+            <button type="submit" disabled={loading} className="flex-1 rounded-xl bg-brand py-3 text-sm font-bold text-white hover:bg-brand/90 flex items-center justify-center">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Plan'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────────
 export function AdminLabourSubscriptionsPage() {
   const [activeTab, setActiveTab] = useState('subscriptions')
@@ -215,6 +307,9 @@ export function AdminLabourSubscriptionsPage() {
   const [refundEligible, setRefundEligible] = useState([])
   const [history, setHistory] = useState([])
   const [total, setTotal] = useState(0)
+  const [plans, setPlans] = useState([])
+  const [settings, setSettings] = useState(null)
+  const [currentHour, setCurrentHour] = useState(getCurrentISTHour())
   const [page, setPage] = useState(1)
   const LIMIT = 30
 
@@ -228,6 +323,8 @@ export function AdminLabourSubscriptionsPage() {
   const [actionSub, setActionSub] = useState(null)
 
   const [toast, setToast] = useState({ message: '', variant: 'success' })
+  const [showPlanModal, setShowPlanModal] = useState(false)
+  const [editingPlan, setEditingPlan] = useState(null)
 
   const showToast = useCallback((message, variant = 'success') => {
     setToast({ message, variant })
@@ -236,10 +333,14 @@ export function AdminLabourSubscriptionsPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await adminLabourSubscriptionsApi.getStats({ date: selectedDate })
-      setStats(res?.data)
+      const [res, settingsRes] = await Promise.all([
+        adminLabourSubscriptionsApi.getStats({ date: selectedDate !== new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) ? selectedDate : undefined }),
+        adminSettingsApi.getSettings()
+      ])
+      setStats(res?.data || null)
+      setSettings(settingsRes?.data?.settings || null)
     } catch (e) {
-      console.error('Stats error', e)
+      console.error('Failed to fetch stats/settings', e)
     }
   }, [selectedDate])
 
@@ -264,6 +365,9 @@ export function AdminLabourSubscriptionsPage() {
         const res = await adminLabourSubscriptionsApi.getRefundHistory({ date: selectedDate !== new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) ? selectedDate : undefined, page })
         setHistory(res?.data?.subscriptions || [])
         setTotal(res?.data?.total || 0)
+      } else if (activeTab === 'plans') {
+        const res = await adminLabourSubscriptionsApi.getPlans()
+        setPlans(res?.data?.plans || [])
       }
     } catch (e) {
       showToast('Failed to load data', 'error')
@@ -280,12 +384,29 @@ export function AdminLabourSubscriptionsPage() {
     fetchData()
   }, [fetchData])
 
+  const handleDeletePlan = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this subscription plan?')) return
+    try {
+      await adminLabourSubscriptionsApi.deletePlan(id)
+      showToast('Plan deleted successfully', 'success')
+      fetchData()
+    } catch (e) {
+      showToast('Failed to delete plan', 'error')
+    }
+  }
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentHour(getCurrentISTHour()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
+
   const pages = Math.ceil(total / LIMIT)
 
   const TABS = [
     { id: 'subscriptions', label: 'All Subscriptions', icon: Users },
     { id: 'refund-eligible', label: 'Refund Eligible', icon: RotateCcw },
     { id: 'history', label: 'Refund History', icon: Clock },
+    { id: 'plans', label: 'Subscription Plans', icon: Shield },
   ]
 
   function formatHour(h) {
@@ -338,6 +459,45 @@ export function AdminLabourSubscriptionsPage() {
         <StatCard icon={AlertTriangle} label="Pending Refund" value={stats?.pendingRefund ?? '—'} loading={!stats} accent="rose" />
         <StatCard icon={TrendingUp} label="Rejected" value={stats?.rejectedRefund ?? '—'} loading={!stats} accent="slate" />
       </div>
+
+      {/* Subscription Window */}
+      {settings?.isUserSubscriptionEnabled && (
+        <GlassPanel className="p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="h-5 w-5 text-brand" />
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Subscription Window</h2>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="text-center">
+              <p className="text-xs text-slate-400">Opens</p>
+              <p className="text-xl font-black text-slate-900">{formatHour(settings.subscriptionStartHour)}</p>
+            </div>
+            <div className="flex-1 mx-6 h-1 bg-slate-100 relative rounded-full overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0 bg-brand rounded-full transition-all duration-1000"
+                style={{
+                  width: (currentHour >= settings.subscriptionStartHour && currentHour < settings.subscriptionEndHour)
+                    ? `${Math.min(100, ((currentHour - settings.subscriptionStartHour) / (settings.subscriptionEndHour - settings.subscriptionStartHour)) * 100)}%`
+                    : '0%'
+                }}
+              />
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-slate-400">Closes</p>
+              <p className="text-xl font-black text-slate-900">{formatHour(settings.subscriptionEndHour)}</p>
+            </div>
+          </div>
+          {(currentHour >= settings.subscriptionStartHour && currentHour < settings.subscriptionEndHour) ? (
+            <p className="mt-4 text-center text-sm font-bold text-emerald-700">
+              ● Window is currently open — subscribe now!
+            </p>
+          ) : (
+            <p className="mt-4 text-center text-sm font-bold text-slate-500">
+              ● Window is currently closed
+            </p>
+          )}
+        </GlassPanel>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-200">
@@ -455,7 +615,7 @@ export function AdminLabourSubscriptionsPage() {
             </div>
           )}
         </GlassPanel>
-      ) : (
+      ) : activeTab === 'subscriptions' || activeTab === 'history' ? (
         /* ── Subscriptions / History Table ── */
         <GlassPanel className="overflow-hidden rounded-3xl p-0">
           {(activeTab === 'subscriptions' ? subscriptions : history).length === 0 ? (
@@ -470,6 +630,7 @@ export function AdminLabourSubscriptionsPage() {
                   <tr>
                     <th className="px-5 py-3">Labour</th>
                     <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3">Transaction ID</th>
                     <th className="px-5 py-3">Amount</th>
                     <th className="px-5 py-3">Bookings</th>
                     <th className="px-5 py-3">Sub Status</th>
@@ -489,6 +650,13 @@ export function AdminLabourSubscriptionsPage() {
                           <p className="text-xs text-slate-500">+91 {sub.labour?.phone || '—'}</p>
                         </td>
                         <td className="px-5 py-3 text-xs font-mono text-slate-600">{sub.date}</td>
+                        <td className="px-5 py-3 text-xs font-mono text-slate-500">
+                          {sub.transactionId ? (
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5">{sub.transactionId}</span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                         <td className="px-5 py-3 font-black text-brand">₹{sub.amountPaid}</td>
                         <td className="px-5 py-3">
                           <span className="font-bold text-slate-900">{sub.bookingsReceived || 0}</span>
@@ -528,7 +696,50 @@ export function AdminLabourSubscriptionsPage() {
             </div>
           )}
         </GlassPanel>
-      )}
+      ) : activeTab === 'plans' ? (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={() => { setEditingPlan(null); setShowPlanModal(true); }} className="rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand/90">
+              + Add Subscription
+            </button>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {plans.map(plan => (
+              <GlassPanel key={plan._id} className="relative p-5 flex flex-col h-full">
+                <div className="absolute top-4 right-4 flex items-center gap-2">
+                  {!plan.isActive && (
+                    <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 ring-1 ring-rose-200">
+                      INACTIVE
+                    </span>
+                  )}
+                  <button
+                    onClick={() => handleDeletePlan(plan._id)}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <h3 className="text-xl font-black text-slate-800 pr-16">{plan.name}</h3>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-brand">₹{plan.price}</span>
+                  <span className="text-sm font-semibold text-slate-500">/ {plan.durationDays} days</span>
+                </div>
+                <ul className="mt-4 mb-6 flex-1 space-y-2 text-sm text-slate-600">
+                  {plan.features?.map((f, i) => (
+                    <li key={i} className="flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0 text-brand" /> {f}</li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => { setEditingPlan(plan); setShowPlanModal(true); }}
+                  className="mt-auto w-full rounded-xl border border-slate-200 py-2 text-sm font-bold text-slate-700 transition hover:border-brand hover:text-brand"
+                >
+                  Edit Plan
+                </button>
+              </GlassPanel>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* Pagination */}
       {pages > 1 && (
@@ -564,6 +775,19 @@ export function AdminLabourSubscriptionsPage() {
             setActionSub(null)
             showToast(msg, 'success')
             fetchStats()
+            fetchData()
+          }}
+        />
+      )}
+
+      {/* Subscription Plan Modal */}
+      {showPlanModal && (
+        <SubscriptionPlanModal
+          plan={editingPlan}
+          onClose={() => setShowPlanModal(false)}
+          onDone={(msg) => {
+            setShowPlanModal(false)
+            showToast(msg, 'success')
             fetchData()
           }}
         />

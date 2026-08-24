@@ -8,6 +8,8 @@ import {
 } from '../../app-ui/feedback/AppBottomSheet.jsx'
 import { appSpring } from '../appMotion.js'
 
+import { useAuth } from '../../../hooks/useAuth.js'
+
 const OPTIONS = [
   {
     id: 'instant',
@@ -27,6 +29,7 @@ const OPTIONS = [
 
 export function BookingTypeSheet({ open, onClose, value, onSelect, categoryLabel }) {
   const reduce = useReducedMotion()
+  const { user } = useAuth()
 
   const sheet = (
     <AnimatePresence>
@@ -60,7 +63,12 @@ export function BookingTypeSheet({ open, onClose, value, onSelect, categoryLabel
                 }
               />
               <motion.div layout className="space-y-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                {OPTIONS.map((opt) => {
+                {OPTIONS.filter(opt => {
+                  if (opt.id === 'instant' && (user?.role === 'contractor' || user?.role === 'corporate')) {
+                    return false;
+                  }
+                  return true;
+                }).map((opt) => {
                   const Icon = opt.icon
                   const active = value === opt.id
                   return (

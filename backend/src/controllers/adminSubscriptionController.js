@@ -1,3 +1,4 @@
+import { SubscriptionPlan } from '../models/SubscriptionPlan.js'
 import { UserSubscription } from '../models/UserSubscription.js'
 import { SystemSetting } from '../models/SystemSetting.js'
 import { Wallet } from '../models/Wallet.js'
@@ -288,4 +289,45 @@ export const getRefundHistory = asyncHandler(async (req, res) => {
   return sendSuccess(res, {
     data: { subscriptions, total, page: Number(page), limit: Number(limit) },
   })
+})
+
+export const getSubscriptionPlans = asyncHandler(async (req, res) => {
+  let plans = await SubscriptionPlan.find().sort({ durationDays: 1 }).lean()
+  
+  if (plans.length === 0) {
+    const defaultPlans = [
+      { name: '1 Week', durationDays: 7, price: 99, features: ['Access to all daily jobs', 'Priority support'] },
+      { name: '15 Days', durationDays: 15, price: 199, features: ['Access to all daily jobs', 'Priority support', 'Featured profile'] },
+      { name: '1 Month', durationDays: 30, price: 299, features: ['Access to all daily jobs', 'Priority support', 'Featured profile', 'Zero commission on first 5 jobs'] }
+    ]
+    await SubscriptionPlan.insertMany(defaultPlans)
+    plans = await SubscriptionPlan.find().sort({ durationDays: 1 }).lean()
+  }
+
+  return sendSuccess(res, { data: { plans } })
+})
+
+export const createSubscriptionPlan = asyncHandler(async (req, res) => {
+  const { name, durationDays, price, features, isActive } = req.body
+  const plan = await SubscriptionPlan.create({ name, durationDays, price, features, isActive })
+  return sendSuccess(res, { message: 'Plan created successfully', data: { plan } })
+})
+
+export const updateSubscriptionPlan = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const { name, durationDays, price, features, isActive } = req.body
+  const plan = await SubscriptionPlan.findByIdAndUpdate(
+    id,
+    { name, durationDays, price, features, isActive },
+    { new: true, runValidators: true }
+  )
+  if (!plan) return sendError(res, { message: 'Plan not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  return sendSuccess(res, { message: 'Plan updated successfully', data: { plan } })
+})
+
+export const deleteSubscriptionPlan = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const plan = await SubscriptionPlan.findByIdAndDelete(id)
+  if (!plan) return sendError(res, { message: 'Plan not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  return sendSuccess(res, { message: 'Plan deleted successfully' })
 })

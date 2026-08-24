@@ -535,7 +535,107 @@ function BookingDetailsModal({ booking, onClose }) {
             <p className="text-slate-600 mt-1 text-xs">{booking.address?.locationText}</p>
           </div>
 
-          {booking.laborId && (
+          {booking.assignments && booking.assignments.length > 0 ? (
+            <div className="border-t border-slate-100 pt-4">
+              <p className="text-slate-500 text-xs mb-2">Assigned Labour Crew</p>
+              <div className="grid grid-cols-1 gap-4">
+                {(() => {
+                  // Calculate shares based on services if bulk booking
+                  let availableServices = [];
+                  if (booking.contractorInfo?.services?.length > 0) {
+                    let subTotal = 0;
+                    booking.contractorInfo.services.forEach(s => {
+                      subTotal += (s.price || 0) * (booking.hours || 1) * (s.quantity || 1);
+                    });
+                    const ratio = subTotal > 0 ? booking.laborShare / subTotal : 0;
+                    booking.contractorInfo.services.forEach(s => {
+                      const share = (s.price || 0) * (booking.hours || 1) * ratio;
+                      for (let i = 0; i < (s.quantity || 1); i++) {
+                        availableServices.push({ serviceId: String(s.serviceId?._id || s.serviceId), share, assigned: false });
+                      }
+                    });
+                  }
+
+                  // Assign specific services to labourers
+                  if (booking.assignments && booking.assignments.length > 0 && availableServices.length > 0) {
+                    booking.assignments.forEach(a => {
+                      const labour = a.labourId;
+                      if (!labour) return;
+                      const labServiceIds = [
+                        ...(labour.serviceIds || []),
+                        ...(labour.labourProfile?.serviceIds || [])
+                      ].map(id => String(id));
+                      let matchedService = availableServices.find(as => !as.assigned && labServiceIds.includes(as.serviceId));
+                      if (!matchedService) matchedService = availableServices.find(as => !as.assigned);
+                      if (matchedService) {
+                        matchedService.assigned = true;
+                        matchedService.labourIdStr = String(labour._id || labour);
+                      }
+                    });
+                  }
+
+                  return booking.assignments.map((a, idx) => {
+                    let share = 0;
+                    if (availableServices.length > 0) {
+                      const myService = availableServices.find(as => as.labourIdStr === String(a.labourId?._id || a.labourId));
+                      if (myService) {
+                        share = myService.share;
+                      } else {
+                        share = booking.laborShare / booking.assignments.length;
+                      }
+                    } else {
+                      share = booking.laborShare / booking.assignments.length;
+                    }
+                    return (
+                      <div key={a._id} className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex flex-col gap-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-bold text-sm text-slate-900">{a.labourId?.fullName || 'Pending Linking'}</p>
+                            <p className="text-xs text-slate-600">{a.labourId?.phone || 'Awaiting Worker'}</p>
+                            <p className="text-xs font-semibold text-brand mt-1 uppercase">{a.status}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-slate-500">Labour Share</p>
+                            <p className="font-bold text-sm text-brand">₹{share.toFixed(2)}</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-slate-500">Start OTP:</span> <span className="font-mono font-semibold">{a.startOtp || 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">End OTP:</span> <span className="font-mono font-semibold">{a.completionOtp || 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Start Time:</span> <span className="font-semibold">{a.startedAt ? new Date(a.startedAt).toLocaleString() : 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">End Time:</span> <span className="font-semibold">{a.completedAt ? new Date(a.completedAt).toLocaleString() : 'N/A'}</span>
+                          </div>
+                        </div>
+                        {(a.startWorkImage || a.endWorkImage) && (
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            {a.startWorkImage && (
+                               <div>
+                                 <p className="text-slate-500 text-[10px] mb-1">Start Image</p>
+                                 <img src={a.startWorkImage} alt="Start Work" className="w-full h-16 object-cover rounded shadow-sm border border-slate-200" />
+                               </div>
+                            )}
+                            {a.endWorkImage && (
+                               <div>
+                                 <p className="text-slate-500 text-[10px] mb-1">End Image</p>
+                                 <img src={a.endWorkImage} alt="End Work" className="w-full h-16 object-cover rounded shadow-sm border border-slate-200" />
+                               </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                })()}
+              </div>
+            </div>
+          ) : booking.laborId && (
             <div className="border-t border-slate-100 pt-4">
               <p className="text-slate-500 text-xs mb-1">Assigned Labour</p>
               <p className="font-semibold">{booking.laborId?.fullName}</p>
@@ -546,39 +646,43 @@ function BookingDetailsModal({ booking, onClose }) {
             </div>
           )}
 
-          <div className="border-t border-slate-100 pt-4 grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-slate-500 text-xs">Start OTP</p>
-              <p className="font-mono font-semibold">{booking.startOtp || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-slate-500 text-xs">Completion OTP</p>
-              <p className="font-mono font-semibold">{booking.completionOtp || 'N/A'}</p>
-            </div>
-          </div>
+          {(!booking.assignments || booking.assignments.length === 0) && (
+            <>
+              <div className="border-t border-slate-100 pt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-slate-500 text-xs">Start OTP</p>
+                  <p className="font-mono font-semibold">{booking.startOtp || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 text-xs">Completion OTP</p>
+                  <p className="font-mono font-semibold">{booking.completionOtp || 'N/A'}</p>
+                </div>
+              </div>
 
-          <div className="border-t border-slate-100 pt-4 grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-slate-500 text-xs mb-2">Start Work Image</p>
-              {booking.startWorkImage ? (
-                <img src={booking.startWorkImage} alt="Start Work" className="w-full h-auto rounded-lg shadow-sm border border-slate-200" />
-              ) : (
-                <div className="w-full h-24 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 text-xs italic">
-                  Not uploaded
+              <div className="border-t border-slate-100 pt-4 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-slate-500 text-xs mb-2">Start Work Image</p>
+                  {booking.startWorkImage ? (
+                    <img src={booking.startWorkImage} alt="Start Work" className="w-full h-auto rounded-lg shadow-sm border border-slate-200" />
+                  ) : (
+                    <div className="w-full h-24 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 text-xs italic">
+                      Not uploaded
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div>
-              <p className="text-slate-500 text-xs mb-2">End Work Image</p>
-              {booking.endWorkImage ? (
-                <img src={booking.endWorkImage} alt="End Work" className="w-full h-auto rounded-lg shadow-sm border border-slate-200" />
-              ) : (
-                <div className="w-full h-24 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 text-xs italic">
-                  Not uploaded
+                <div>
+                  <p className="text-slate-500 text-xs mb-2">End Work Image</p>
+                  {booking.endWorkImage ? (
+                    <img src={booking.endWorkImage} alt="End Work" className="w-full h-auto rounded-lg shadow-sm border border-slate-200" />
+                  ) : (
+                    <div className="w-full h-24 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center text-slate-400 text-xs italic">
+                      Not uploaded
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            </>
+          )}
 
           <div className="border-t border-slate-100 pt-4 bg-slate-50 p-3 rounded-lg">
             <p className="font-extrabold text-sm mb-2">Financial Breakdown</p>
@@ -613,14 +717,13 @@ function BookingDetailsModal({ booking, onClose }) {
   )
 }
 
-function IndividualBookingsTab() {
+function BookingsListTab({ type }) {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const { data, isLoading, isError, refetch } = useGetAdminBookingsQuery(
-    { status: statusFilter },
+  const { data, isLoading, isError, refetch } = useGetAdminBookingsQuery({ status: statusFilter, type },
   )
   const [deleteAdminBooking] = useDeleteAdminBookingMutation()
 
@@ -800,8 +903,8 @@ export function AdminBookingsPage() {
         </button>
       </div>
 
-      {activeTab === 'contractor' && <ContractorRequestsTab />}
-      {activeTab === 'customer' && <IndividualBookingsTab />}
+      {activeTab === 'contractor' && <BookingsListTab type="contractor" />}
+      {activeTab === 'customer' && <BookingsListTab type="individual" />}
     </div>
   )
 }

@@ -113,6 +113,37 @@ const bookingSchema = new mongoose.Schema(
     acceptedLabourIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     // Keep single acceptedLabourId for simple customer queries
     acceptedLabourId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    
+    // Per-labourer assignments details for bulk
+    assignments: [{
+      labourId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      status: {
+        type: String,
+        enum: ['ACCEPTED', 'EN_ROUTE', 'STARTED', 'COMPLETED', 'REJECTED', 'CANCELLED'],
+        default: 'ACCEPTED'
+      },
+      startOtp: String,
+      completionOtp: String,
+      startWorkImage: String,
+      endWorkImage: String,
+      startedAt: Date,
+      completedAt: Date
+    }],
+    
+    // Contractor Specific Details
+    contractorInfo: {
+      companyName: String,
+      gstNumber: String,
+      projectName: String,
+      siteContactNumber: String,
+      services: [{
+        serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'LabourService' },
+        quantity: Number,
+        price: Number
+      }]
+    },
+    
+    // Legacy fields (kept for backward compatibility or simple 1-to-1 bookings)
     startedAt: { type: Date },
     startOtp: { type: String },
     completionOtp: { type: String },

@@ -15,14 +15,24 @@ import {
   Camera,
   Upload,
   Wallet,
+  User,
 } from 'lucide-react'
 import { bookingsApi } from '../../api/bookingsApi.js'
 import { ApiError } from '../../api/http.js'
 import { useSocket } from '../../context/SocketContext.jsx'
+import { useSelector } from 'react-redux'
 import { AppStackScreenHeader } from '../../components/app/AppStackScreenHeader.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { uploadMedia, assetUrlFromUpload } from '../../api/uploadApi.js'
 import { UPLOAD_FOLDERS } from '../../constants/uploadFolders.js'
+
+function formatCountdown(ms) {
+  if (ms <= 0) return '00:00:00'
+  const h = Math.floor(ms / 3600000)
+  const m = Math.floor((ms % 3600000) / 60000)
+  const s = Math.floor((ms % 60000) / 1000)
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
 
 const STATUS_CONFIG = {
   ACCEPTED: {
@@ -54,6 +64,7 @@ export function ActiveJob() {
   const { bookingId } = useParams()
   const navigate = useNavigate()
   const socket = useSocket()
+  const user = useSelector((state) => state.auth.user)
   const reduce = useReducedMotion()
   const [showPaymentWaiting, setShowPaymentWaiting] = useState(false)
   const mapRef = useRef(null)
@@ -72,6 +83,12 @@ export function ActiveJob() {
   const [showCashConfirm, setShowCashConfirm] = useState(false)
   const [pendingCashSubmit, setPendingCashSubmit] = useState(null)
 
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Fetch booking
   useEffect(() => {
     if (!bookingId) return
@@ -79,11 +96,8 @@ export function ActiveJob() {
     bookingsApi.getBookingStatus(bookingId)
       .then((res) => {
         if (cancelled) return
-        const b = res.data?.booking || null
+        const b = res.data?.booking
         setBooking(b)
-        if (b && b.status === 'COMPLETED') {
-          setShowPaymentWaiting(true)
-        }
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof ApiError ? err.message : 'Failed to load job')
@@ -101,9 +115,6 @@ export function ActiveJob() {
     const handleStatusUpdate = (data) => {
       if (data.bookingId === bookingId) {
         setBooking((prev) => prev ? { ...prev, status: data.status, paymentStatus: data.paymentStatus || prev.paymentStatus } : prev)
-        if (data.status === 'COMPLETED') {
-          setShowPaymentWaiting(true)
-        }
       }
     }
 
@@ -136,10 +147,20 @@ export function ActiveJob() {
       const res = await bookingsApi.updateBookingStatus(bookingId, payload)
       setOtp('')
       setJobImage(null)
-      setBooking((prev) => prev ? { ...prev, status: nextStatus } : prev)
-      if (nextStatus === 'COMPLETED') {
-        setShowPaymentWaiting(true)
-      }
+      setBooking((prev) => {
+        if (!prev) return prev
+        const newBooking = { ...prev, status: nextStatus }
+        if (newBooking.assignments && newBooking.assignments.length > 0 && user) {
+          const myIdx = newBooking.assignments.findIndex(a => {
+            const aId = typeof a.labourId === 'object' ? a.labourId._id : a.labourId
+            return String(aId) === String(user._id)
+          })
+          if (myIdx !== -1) {
+            newBooking.assignments[myIdx].status = nextStatus
+          }
+        }
+        return newBooking
+      })
     } catch (err) {
       setUpdateError(err instanceof ApiError ? err.message : 'Failed to update status')
     } finally {
@@ -206,6 +227,27 @@ export function ActiveJob() {
     }
   }, [bookingId, navigate])
 
+  // Trigger payment waiting popup ONLY if this specific labourer's status is COMPLETED
+  useEffect(() => {
+    if (!booking) return
+    let rawStatus = booking.status || 'ACCEPTED'
+    if (booking.assignments && booking.assignments.length > 0 && user) {
+      const myAssignment = booking.assignments.find(a => {
+        const aId = typeof a.labourId === 'object' ? a.labourId._id : a.labourId
+        return String(aId) === String(user._id)
+      })
+      if (myAssignment) {
+        rawStatus = myAssignment.status || rawStatus
+      }
+    }
+    if (rawStatus === 'ASSIGNED') rawStatus = 'ACCEPTED'
+    const status = rawStatus.toUpperCase()
+
+    if (status === 'COMPLETED') {
+      setShowPaymentWaiting(true)
+    }
+  }, [booking, user])
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -228,15 +270,32 @@ export function ActiveJob() {
     )
   }
 
-  const status = (booking.status || 'ACCEPTED').toUpperCase()
+  let rawStatus = booking.status || 'ACCEPTED'
+  
+  if (booking.assignments && booking.assignments.length > 0 && user) {
+    const myAssignment = booking.assignments.find(a => {
+      const aId = typeof a.labourId === 'object' ? a.labourId._id : a.labourId
+      return String(aId) === String(user._id)
+    })
+    if (myAssignment) {
+      rawStatus = myAssignment.status || rawStatus
+    }
+  }
+
+  if (rawStatus === 'ASSIGNED') {
+    rawStatus = 'ACCEPTED'
+  }
+
+  const status = rawStatus.toUpperCase()
   const config = STATUS_CONFIG[status]
   const stepIndex = STEP_ORDER.indexOf(status)
   const isCompleted = status === 'COMPLETED'
   const isCancelled = status === 'CANCELLED'
   const customer = booking.userId && typeof booking.userId === 'object' ? booking.userId : null
 
+
   // Check if it's too early to start a scheduled job (more than 30 mins away)
-  const isTooEarly = booking.type === 'SCHEDULED' && booking.status === 'ACCEPTED' &&
+  const isTooEarly = booking.type === 'SCHEDULED' && status === 'ACCEPTED' &&
     (new Date(booking.scheduledAt).getTime() - Date.now() > 30 * 60 * 1000)
 
   return (
@@ -299,12 +358,59 @@ export function ActiveJob() {
 
       {/* Booking Details */}
       <GlassPanel className="p-4 text-sm">
-        {booking.totalAmount && (
-          <div className="flex justify-between">
-            <span className="text-slate-500">Amount</span>
-            <span className="font-bold text-slate-900">₹{booking.totalAmount}</span>
-          </div>
-        )}
+        {booking && (() => {
+          let share = booking.laborShare || booking.basePrice || 0;
+          if (booking.assignments && booking.assignments.length > 0) {
+            if (booking.contractorInfo?.services?.length > 0) {
+              let subTotal = 0;
+              booking.contractorInfo.services.forEach(s => {
+                subTotal += (s.price || 0) * (booking.hours || 1) * (s.quantity || 1);
+              });
+              const ratio = subTotal > 0 ? (booking.laborShare || 0) / subTotal : 0;
+              
+              let availableServices = [];
+              booking.contractorInfo.services.forEach(s => {
+                const sShare = (s.price || 0) * (booking.hours || 1) * ratio;
+                for (let i = 0; i < (s.quantity || 1); i++) {
+                  availableServices.push({ serviceId: String(s.serviceId?._id || s.serviceId), share: sShare, assigned: false });
+                }
+              });
+              
+              booking.assignments.forEach(a => {
+                const labour = a.labourId;
+                if (!labour) return;
+                const labServiceIds = [
+                  ...(labour.serviceIds || []),
+                  ...(labour.labourProfile?.serviceIds || [])
+                ].map(id => String(id));
+                let matchedService = availableServices.find(as => !as.assigned && labServiceIds.includes(as.serviceId));
+                if (!matchedService) matchedService = availableServices.find(as => !as.assigned);
+                if (matchedService) {
+                  matchedService.assigned = true;
+                  matchedService.labourIdStr = String(labour._id || labour);
+                }
+              });
+              
+              const myService = availableServices.find(as => as.labourIdStr === String(user?._id));
+              if (myService) {
+                share = myService.share;
+              } else {
+                share = booking.laborShare / booking.assignments.length;
+              }
+            } else {
+              const mainLabId = typeof booking.laborId === 'object' ? booking.laborId?._id : booking.laborId;
+              if (String(mainLabId) !== String(user?._id) && !booking.acceptedLabourIds?.includes(user?._id)) {
+                share = 0;
+              }
+            }
+          }
+          return share > 0 ? (
+            <div className="flex justify-between">
+              <span className="text-slate-500">Your Earning</span>
+              <span className="font-bold text-slate-900">₹{share.toFixed(2)}</span>
+            </div>
+          ) : null;
+        })()}
         {booking.paymentMethod && (
           <div className="mt-2 flex justify-between">
             <span className="text-slate-500">Payment</span>
@@ -312,6 +418,41 @@ export function ActiveJob() {
           </div>
         )}
       </GlassPanel>
+
+      {/* Team Members */}
+      {(booking.quantity > 1 || (booking.contractorInfo?.services && booking.contractorInfo.services.length > 0)) && (
+        <GlassPanel className="p-4">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Team Members</p>
+          <div className="space-y-3">
+            {Array.from({ length: booking.quantity || 1 }).map((_, idx) => {
+              const assignment = booking.assignments?.[idx];
+              const isMe = assignment && String(assignment.labourId?._id || assignment.labourId) === String(user?._id);
+              return (
+                <div key={idx} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-3 text-sm text-slate-700">
+                    <div className={`flex items-center justify-center w-7 h-7 rounded-full shadow-sm border shrink-0 ${isMe ? 'bg-brand/10 border-brand/20' : 'bg-slate-100 border-slate-200'}`}>
+                      <User className={`h-4 w-4 ${isMe ? 'text-brand' : 'text-slate-400'}`} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">Professional {idx + 1} {isMe && '(You)'}</span>
+                      <span className={`font-bold leading-tight ${assignment ? 'text-slate-800' : 'text-slate-400'}`}>
+                        {assignment 
+                          ? `${assignment.labourId?.fullName || assignment.labourId?.name || 'Assigned'}`
+                          : 'Pending Acceptance'}
+                      </span>
+                    </div>
+                  </div>
+                  {assignment && assignment.status && (
+                    <div className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                      {assignment.status}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </GlassPanel>
+      )}
 
       {/* Error */}
       {updateError && (
@@ -325,12 +466,22 @@ export function ActiveJob() {
         </motion.p>
       )}
 
+      {/* Global Countdown for Scheduled Jobs */}
+      {booking.type === 'SCHEDULED' && booking.scheduledAt && new Date(booking.scheduledAt).getTime() > now && status !== 'STARTED' && !isCompleted && !isCancelled && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center mb-2 mt-4">
+          <Clock className="mx-auto mb-1 h-5 w-5 text-amber-500" />
+          <p className="text-xs font-bold uppercase text-amber-800">Job Starts In</p>
+          <p className="text-xl font-black tabular-nums text-amber-900 tracking-wider">
+            {formatCountdown(new Date(booking.scheduledAt).getTime() - now)}
+          </p>
+        </div>
+      )}
+
       {/* Action Button */}
       {config && !isCompleted && !isCancelled && (
         <div className="space-y-3">
           {isTooEarly ? (
             <GlassPanel className="p-4 text-center">
-              <Clock className="mx-auto h-8 w-8 text-amber-500 mb-2" />
               <p className="text-sm font-bold text-slate-800">Scheduled for later</p>
               <p className="text-xs text-slate-500 mt-1">
                 You can start your journey 30 minutes before the scheduled time.
@@ -389,7 +540,7 @@ export function ActiveJob() {
 
                   <button
                     type="button"
-                    disabled={updating || otp.length < 4 || !jobImage || uploadingImage}
+                    disabled={updating || otp.length < 4 || !jobImage || uploadingImage || (booking.type === 'SCHEDULED' && booking.scheduledAt && new Date(booking.scheduledAt).getTime() > now)}
                     onClick={() => handleStatusUpdate(config.next, true)}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:opacity-90 active:scale-[0.98] disabled:opacity-50 ${config.color}`}
                   >
@@ -398,6 +549,30 @@ export function ActiveJob() {
                 </GlassPanel>
               ) : status === 'STARTED' ? (
                 <GlassPanel className="space-y-4 border-blue-600/20 bg-blue-50 p-4 text-left">
+                  {booking.hours && (
+                    <div className="rounded-xl border border-blue-200 bg-white p-3 text-center mb-2">
+                      <Clock className="mx-auto mb-1 h-5 w-5 text-blue-500" />
+                      <p className="text-xs font-bold uppercase text-blue-800">Job Time Remaining</p>
+                      <p className="text-xl font-black tabular-nums text-blue-900 tracking-wider">
+                        {(() => {
+                          let startedAt;
+                          if (booking.assignments && booking.assignments.length > 0 && user) {
+                            const myAssignment = booking.assignments.find(a => {
+                              const aId = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
+                              return String(aId) === String(user._id);
+                            });
+                            startedAt = myAssignment?.startedAt;
+                          }
+                          startedAt = startedAt || booking.startedAt || new Date();
+                          
+                          const durationMs = booking.hours * 60 * 60 * 1000;
+                          const elapsed = now - new Date(startedAt).getTime();
+                          const remaining = Math.max(0, durationMs - elapsed);
+                          return formatCountdown(remaining);
+                        })()}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-sm font-bold text-slate-800 mb-2">1. Upload After Work Image</p>
                     {jobImage ? (
@@ -513,6 +688,30 @@ export function ActiveJob() {
                 <p className="text-sm text-slate-500 mb-6 leading-relaxed">
                   The transaction has been completed successfully and the amount has been credited to your earnings.
                 </p>
+
+                {/* Team Members List Inside Popup */}
+                {(booking?.quantity > 1 || (booking?.contractorInfo?.services && booking.contractorInfo.services.length > 0)) && (
+                  <div className="mb-6 text-left border border-slate-100 rounded-xl p-3 bg-slate-50 overflow-y-auto max-h-40">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Team Members</p>
+                    <div className="space-y-2">
+                      {Array.from({ length: booking.quantity || 1 }).map((_, idx) => {
+                        const a = booking.assignments?.[idx];
+                        const isMe = a && String(a.labourId?._id || a.labourId) === String(user?._id);
+                        return (
+                          <div key={idx} className="flex items-center gap-2 text-sm">
+                            <div className={`flex items-center justify-center w-6 h-6 rounded-full shrink-0 ${isMe ? 'bg-brand/10 text-brand' : 'bg-slate-200 text-slate-500'}`}>
+                              <User className="h-3.5 w-3.5" />
+                            </div>
+                            <span className={`font-semibold ${a ? 'text-slate-800' : 'text-slate-400'} truncate`}>
+                              {a ? `${a.labourId?.fullName || a.labourId?.name || 'Assigned'}` : 'Pending'} {isMe && '(You)'}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {

@@ -10,35 +10,68 @@ import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import { parseISTDateTime } from '../utils/dateHelper.js'
 
 export const calculateBill = asyncHandler(async (req, res) => {
-  const { serviceId, hours = 1, quantity = 1, address } = req.body
-  const service = await LabourService.findById(serviceId)
-  let hourlyRate = 0
-  
-  if (service) {
-    hourlyRate = service.basePrice
-    if (address) {
-      const activeZones = await Zone.find({ isActive: true }).lean()
-      const matchedZone = activeZones.find(z => address.toLowerCase().includes(z.city.toLowerCase()))
+  const { serviceId, hours = 1, quantity = 1, address, contractorServices } = req.body
+
+  let matchedZone = null
+  if (address) {
+    const activeZones = await Zone.find({ isActive: true }).lean()
+    matchedZone = activeZones.find(z => address.toLowerCase().includes(z.city.toLowerCase()))
+  }
+
+  const resolveHourlyRate = async (sId) => {
+    const service = await LabourService.findById(sId)
+    let hourlyRate = 0
+    let name = ''
+    if (service) {
+      hourlyRate = service.basePrice
+      name = service.name
       if (matchedZone && service.zones && service.zones.length > 0) {
         const zonePricing = service.zones.find(z => String(z.zone) === String(matchedZone._id))
         if (zonePricing && typeof zonePricing.price === 'number') {
           hourlyRate = zonePricing.price
         }
       }
-    }
-  } else {
-    const subcategory = await LabourSubcategory.findById(serviceId)
-    if (subcategory) {
-      hourlyRate = subcategory.basePrice || 800 // Fallback
     } else {
-      const { LabourCategory } = await import('../models/LabourCategory.js')
-      const category = await LabourCategory.findById(serviceId)
-      if (category) {
-        hourlyRate = 800 // Fallback
+      const subcategory = await LabourSubcategory.findById(sId)
+      if (subcategory) {
+        hourlyRate = subcategory.basePrice || 800
+        name = subcategory.name
       } else {
-        return sendError(res, { message: 'Service or Category not found', statusCode: HTTP_STATUS.NOT_FOUND })
+        const { LabourCategory } = await import('../models/LabourCategory.js')
+        const category = await LabourCategory.findById(sId)
+        if (category) {
+          hourlyRate = 800
+          name = category.name
+        } else {
+          return { error: 'Service or Category not found' }
+        }
       }
     }
+    return { hourlyRate, name }
+  }
+
+  let subTotal = 0
+  let breakdown = []
+
+  const servicesToCalculate = contractorServices && contractorServices.length > 0 
+    ? contractorServices 
+    : [{ serviceId, quantity }]
+
+  for (const item of servicesToCalculate) {
+    if (!item.serviceId) continue
+    const { hourlyRate, name, error } = await resolveHourlyRate(item.serviceId)
+    if (error) return sendError(res, { message: error, statusCode: HTTP_STATUS.NOT_FOUND })
+    
+    const itemTotal = hourlyRate * hours * item.quantity
+    subTotal += itemTotal
+    breakdown.push({
+      serviceId: item.serviceId,
+      name,
+      hourlyRate,
+      hours,
+      quantity: item.quantity,
+      subTotal: itemTotal
+    })
   }
 
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })
@@ -47,7 +80,7 @@ export const calculateBill = asyncHandler(async (req, res) => {
   }
 
   // Calculate Subtotal (Hourly Rate * Hours * Quantity)
-  let subTotal = hourlyRate * hours * quantity
+  // subTotal already calculated above
   let maxHourDiscount = 0
 
   if (hours >= 8 && settings.maxHourDiscountPercentage > 0) {
@@ -90,13 +123,14 @@ export const calculateBill = asyncHandler(async (req, res) => {
       totalAmount,
       commissionAmount, // Internal calculation preview
       laborShare: basePrice - commissionAmount,
-      paymentModes: settings.paymentModes || { cashEnabled: true, onlineEnabled: true }
+      paymentModes: settings.paymentModes || { cashEnabled: true, onlineEnabled: true },
+      breakdown
     }
   })
 })
 
 export const createBooking = asyncHandler(async (req, res) => {
-  const { serviceId, type, scheduledAt, timeSlot, endTime, locationText, lat, lng, paymentMethod, notes, hours = 1, quantity = 1, imageNames = [] } = req.body
+  const { serviceId, type, scheduledAt, timeSlot, endTime, locationText, lat, lng, paymentMethod, notes, hours = 1, quantity = 1, imageNames = [], contractorInfo } = req.body
 
   if (!serviceId || !type || !locationText || !paymentMethod) {
     return sendError(res, { message: 'Missing required fields', statusCode: HTTP_STATUS.BAD_REQUEST })
@@ -129,15 +163,32 @@ export const createBooking = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'We currently do not provide service in this area (Zone not found).', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
   
-  let hourlyRate = service.basePrice
-  if (service.zones && service.zones.length > 0) {
-    const zonePricing = service.zones.find(z => String(z.zone) === String(matchingZone._id))
-    if (zonePricing && typeof zonePricing.price === 'number') {
-      hourlyRate = zonePricing.price
+  const resolveHourlyRate = async (sId) => {
+    let hrRate = 0
+    const srv = await LabourService.findById(sId)
+    if (srv) {
+      hrRate = srv.basePrice
+      if (matchingZone && srv.zones && srv.zones.length > 0) {
+        const zonePricing = srv.zones.find(z => String(z.zone) === String(matchingZone._id))
+        if (zonePricing && typeof zonePricing.price === 'number') {
+          hrRate = zonePricing.price
+        }
+      }
     }
+    return hrRate
   }
 
-  let subTotal = hourlyRate * hours * quantity
+  let subTotal = 0
+  if (contractorInfo && contractorInfo.services && contractorInfo.services.length > 0) {
+    for (const item of contractorInfo.services) {
+      const hrRate = await resolveHourlyRate(item.serviceId)
+      item.price = hrRate // Store the unit hourly rate
+      subTotal += hrRate * hours * (item.quantity || 1)
+    }
+  } else {
+    const hrRate = await resolveHourlyRate(serviceId)
+    subTotal = hrRate * hours * quantity
+  }
   let maxHourDiscount = 0
   if (hours >= 8 && settings?.maxHourDiscountPercentage > 0) {
     maxHourDiscount = (subTotal * settings.maxHourDiscountPercentage) / 100
@@ -169,6 +220,11 @@ export const createBooking = asyncHandler(async (req, res) => {
   const startOtp = Math.floor(1000 + Math.random() * 9000).toString()
   const completionOtp = Math.floor(1000 + Math.random() * 9000).toString()
 
+  let totalQuantity = quantity
+  if (contractorInfo && contractorInfo.services) {
+    totalQuantity = contractorInfo.services.reduce((acc, curr) => acc + (curr.quantity || 1), 0)
+  }
+
   const booking = await Booking.create({
     userId: req.user._id,
     subcategoryId: service.subcategoryId,
@@ -180,7 +236,8 @@ export const createBooking = asyncHandler(async (req, res) => {
     images: Array.isArray(imageNames) ? imageNames : [],
     notes,
     hours,
-    quantity,
+    quantity: totalQuantity,
+    contractorInfo,
     maxHourDiscount,
     address: { 
       locationText,
@@ -233,9 +290,10 @@ export const createBooking = asyncHandler(async (req, res) => {
 export const getBookingStatus = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id)
     .populate('subcategoryId')
-    .populate('serviceId')
+    .populate('serviceId').populate('contractorInfo.services.serviceId')
     .populate('laborId', 'fullName phone profileImageUrl')
     .populate('userId', 'fullName phone')
+    .populate('assignments.labourId', 'fullName phone profileImageUrl serviceIds labourProfile')
     .lean()
 
   if (!booking) {
@@ -244,8 +302,19 @@ export const getBookingStatus = asyncHandler(async (req, res) => {
 
   // Hide OTPs from labourer
   if (['labour', 'contractor'].includes(req.user.role)) {
-    delete booking.startOtp
-    delete booking.completionOtp
+    // Only hide if the requesting user is the labourer. If it's the contractor, they SHOULD see the OTPs to share with labourer or verify?
+    // Wait, the contractor IS the customer in this scenario. The contractor role acts as the buyer. 
+    // If the req.user._id matches booking.userId, they are the customer, they should see OTPs.
+    if (String(req.user._id) !== String(booking.userId._id || booking.userId)) {
+      delete booking.startOtp
+      delete booking.completionOtp
+      if (booking.assignments) {
+        booking.assignments.forEach(a => {
+          delete a.startOtp;
+          delete a.completionOtp;
+        })
+      }
+    }
   }
 
   return sendSuccess(res, { data: { booking } })
@@ -258,25 +327,41 @@ export const getMyBookings = asyncHandler(async (req, res) => {
   if (role === 'customer' || role === 'contractor') {
     query = { userId: _id }
   } else if (role === 'labour' || role === 'contractor') {
-    query = { laborId: _id, status: { $in: ['ACCEPTED', 'ASSIGNED', 'EN_ROUTE', 'STARTED', 'COMPLETED', 'CANCELLED'] } }
+    // A contractor could also be a labourer for some jobs if configured that way, but mainly they are customers.
+    // We'll use an OR query to support both if they act as both.
+    query = { 
+      $or: [
+        { userId: _id },
+        { laborId: _id, status: { $in: ['ACCEPTED', 'ASSIGNED', 'EN_ROUTE', 'STARTED', 'COMPLETED', 'CANCELLED'] } },
+        { acceptedLabourIds: _id }
+      ] 
+    }
   } else {
     return sendError(res, { message: 'Unauthorized role for fetching bookings', statusCode: HTTP_STATUS.FORBIDDEN })
   }
 
   const bookings = await Booking.find(query)
     .populate('subcategoryId')
-    .populate('serviceId')
+    .populate('serviceId').populate('contractorInfo.services.serviceId')
     .populate('userId', 'fullName phone')
     .populate('laborId', 'fullName phone profileImageUrl')
+    .populate('assignments.labourId', 'fullName phone profileImageUrl serviceIds labourProfile')
     .sort({ createdAt: -1 })
     .lean()
 
-  if (['labour', 'contractor'].includes(role)) {
-    bookings.forEach(b => {
+  bookings.forEach(b => {
+    // Hide OTPs if the requesting user is NOT the customer
+    if (String(_id) !== String(b.userId._id || b.userId)) {
       delete b.startOtp
       delete b.completionOtp
-    })
-  }
+      if (b.assignments) {
+        b.assignments.forEach(a => {
+          delete a.startOtp;
+          delete a.completionOtp;
+        })
+      }
+    }
+  })
 
   return sendSuccess(res, { data: { bookings } })
 })
@@ -310,7 +395,10 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
   
   if (!booking) return sendError(res, { message: 'Booking not found', statusCode: HTTP_STATUS.NOT_FOUND })
   
-  if (String(booking.laborId) !== String(req.user._id) && String(booking.userId) !== String(req.user._id)) {
+  const isLabourer = String(req.user._id) !== String(booking.userId);
+  const labourIdStr = String(req.user._id);
+
+  if (isLabourer && !booking.acceptedLabourIds?.includes(labourIdStr) && String(booking.laborId) !== labourIdStr) {
     return sendError(res, { message: 'Unauthorized', statusCode: HTTP_STATUS.FORBIDDEN })
   }
 
@@ -320,28 +408,71 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
     'STARTED': ['COMPLETED']
   }
 
-  if (!validTransitions[booking.status]?.includes(status)) {
-    return sendError(res, { message: `Invalid transition from ${booking.status} to ${status}`, statusCode: HTTP_STATUS.BAD_REQUEST })
+  // Find specific assignment if bulk booking
+  let assignment = booking.assignments?.find(a => String(a.labourId) === labourIdStr);
+  const currentStatus = assignment ? assignment.status : booking.status;
+
+  if (currentStatus === status) {
+    return sendSuccess(res, { message: `Status is already ${status}`, data: { booking } })
   }
+
+  if (!validTransitions[currentStatus]?.includes(status)) {
+    return sendError(res, { message: `Invalid transition from ${currentStatus} to ${status}`, statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  const startOtp = assignment ? assignment.startOtp : booking.startOtp;
+  const completionOtp = assignment ? assignment.completionOtp : booking.completionOtp;
 
   // OTP Verification
   if (status === 'STARTED') {
     if (!otp) return sendError(res, { message: 'OTP is required to start the job', statusCode: HTTP_STATUS.BAD_REQUEST })
-    if (otp !== booking.startOtp) return sendError(res, { message: 'Invalid Start OTP', statusCode: HTTP_STATUS.BAD_REQUEST })
+    if (otp !== startOtp) return sendError(res, { message: 'Invalid Start OTP', statusCode: HTTP_STATUS.BAD_REQUEST })
     const finalStartImg = startWorkImage || beforeImage
-    if (finalStartImg) booking.startWorkImage = finalStartImg
     
-    booking.startedAt = new Date()
+    if (assignment) {
+      if (finalStartImg) assignment.startWorkImage = finalStartImg;
+      assignment.startedAt = new Date();
+    } else {
+      if (finalStartImg) booking.startWorkImage = finalStartImg;
+      booking.startedAt = new Date();
+    }
   }
 
   if (status === 'COMPLETED') {
     if (!otp) return sendError(res, { message: 'OTP is required to complete the job', statusCode: HTTP_STATUS.BAD_REQUEST })
-    if (otp !== booking.completionOtp) return sendError(res, { message: 'Invalid Completion OTP', statusCode: HTTP_STATUS.BAD_REQUEST })
+    if (otp !== completionOtp) return sendError(res, { message: 'Invalid Completion OTP', statusCode: HTTP_STATUS.BAD_REQUEST })
     const finalEndImg = endWorkImage || afterImage
-    if (finalEndImg) booking.endWorkImage = finalEndImg
+    
+    if (assignment) {
+      if (finalEndImg) assignment.endWorkImage = finalEndImg;
+      assignment.completedAt = new Date();
+    } else {
+      if (finalEndImg) booking.endWorkImage = finalEndImg;
+    }
   }
 
-  booking.status = status
+  if (assignment) {
+    assignment.status = status;
+  } else {
+    booking.status = status;
+  }
+
+  // Calculate top-level booking status based on assignments if it's a bulk booking
+  if (booking.quantity > 1 && booking.assignments && booking.assignments.length > 0) {
+    const allStatuses = booking.assignments.map(a => a.status);
+    if (allStatuses.every(s => s === 'COMPLETED')) {
+      booking.status = 'COMPLETED';
+    } else if (allStatuses.some(s => s === 'STARTED' || s === 'COMPLETED')) {
+      booking.status = 'STARTED';
+    } else if (allStatuses.some(s => s === 'EN_ROUTE')) {
+      booking.status = 'EN_ROUTE';
+    } else if (allStatuses.length === booking.quantity && allStatuses.every(s => s === 'ACCEPTED')) {
+      booking.status = 'ACCEPTED';
+    }
+  } else if (!assignment) {
+    booking.status = status;
+  }
+
   await booking.save()
 
   // Phase 4: Handle Commission if Cash Payment and Completed
@@ -390,6 +521,12 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
   // Notify customer
   import('../socket.js').then(({ emitToUser }) => {
     emitToUser(booking.userId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status })
+    if (booking.assignments && booking.assignments.length > 0) {
+      booking.assignments.forEach(a => {
+        const lid = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
+        if (lid) emitToUser(lid, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status })
+      });
+    }
   }).catch(err => console.error(err))
 
   return sendSuccess(res, { message: `Booking marked as ${status}`, data: { booking } })
@@ -461,7 +598,13 @@ export const confirmCashPayment = asyncHandler(async (req, res) => {
   // Notify both
   import('../socket.js').then(({ emitToUser }) => {
     emitToUser(booking.laborId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
-    emitToUser(booking.userId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
+        emitToUser(booking.userId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
+        if (booking.assignments && booking.assignments.length > 0) {
+          booking.assignments.forEach(a => {
+            const lid = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
+            if (lid) emitToUser(lid, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
+          });
+        }
   }).catch(err => console.error(err))
 
   return sendSuccess(res, { message: 'Cash payment confirmed', data: { booking } })

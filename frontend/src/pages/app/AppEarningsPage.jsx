@@ -7,6 +7,7 @@ import { uploadDocument, assetUrlFromUpload } from '../../api/uploadApi.js'
 import { withdrawalsApi } from '../../api/withdrawalsApi.js'
 import { walletsApi } from '../../api/walletsApi.js'
 import { paymentsApi } from '../../api/paymentsApi.js'
+import { useSelector } from 'react-redux'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { formatInrFromPaise } from '../../lib/labourEarningsFlow.js'
@@ -23,6 +24,7 @@ function loadRazorpay() {
 }
 
 export function AppEarningsPage() {
+  const user = useSelector((state) => state.auth.user)
   const [totalEarnings, setTotalEarnings] = useState(0)
   const [totalCashEarnings, setTotalCashEarnings] = useState(0)
   const [totalPaid, setTotalPaid] = useState(0)
@@ -56,8 +58,55 @@ export function AppEarningsPage() {
       let onlineSum = 0
       let cashSum = 0
       allBookings.forEach(b => {
-        if (b.status === 'COMPLETED' || b.status === 'ACCEPTED' || b.status === 'ASSIGNED' || b.status === 'STARTED') {
-          const share = b.laborShare || b.basePrice || 0
+        if (b.paymentStatus === 'PAID') {
+          let share = b.laborShare || b.basePrice || 0
+          
+          // Bulk booking share split logic
+          if (b.assignments && b.assignments.length > 0) {
+            if (b.contractorInfo?.services?.length > 0) {
+              let subTotal = 0
+              b.contractorInfo.services.forEach(s => {
+                subTotal += (s.price || 0) * (b.hours || 1) * (s.quantity || 1)
+              })
+              const ratio = subTotal > 0 ? (b.laborShare || 0) / subTotal : 0
+              
+              let availableServices = []
+              b.contractorInfo.services.forEach(s => {
+                const sShare = (s.price || 0) * (b.hours || 1) * ratio
+                for (let i = 0; i < (s.quantity || 1); i++) {
+                  availableServices.push({ serviceId: String(s.serviceId?._id || s.serviceId), share: sShare, assigned: false })
+                }
+              })
+
+              b.assignments.forEach(a => {
+                const labour = a.labourId;
+                if (!labour) return;
+                const labServiceIds = [
+                  ...(labour.serviceIds || []),
+                  ...(labour.labourProfile?.serviceIds || [])
+                ].map(id => String(id));
+                let matchedService = availableServices.find(as => !as.assigned && labServiceIds.includes(as.serviceId));
+                if (!matchedService) matchedService = availableServices.find(as => !as.assigned);
+                if (matchedService) {
+                  matchedService.assigned = true;
+                  matchedService.labourIdStr = String(labour._id || labour);
+                }
+              })
+              
+              const myService = availableServices.find(as => as.labourIdStr === String(user?._id));
+              if (myService) {
+                share = myService.share;
+              } else {
+                share = b.laborShare / b.assignments.length;
+              }
+            } else {
+              const mainLabId = typeof b.laborId === 'object' ? b.laborId?._id : b.laborId
+              if (String(mainLabId) !== String(user?._id) && !b.acceptedLabourIds?.includes(user?._id)) {
+                share = 0
+              }
+            }
+          }
+
           if (b.paymentMethod === 'CASH') {
             cashSum += share * 100
           } else {

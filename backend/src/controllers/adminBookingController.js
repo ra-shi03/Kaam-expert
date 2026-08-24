@@ -27,6 +27,12 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     query.adminSettlementStatus = adminSettlementStatus
   }
 
+  if (req.query.type === 'contractor') {
+    query.contractorInfo = { $exists: true }
+  } else if (req.query.type === 'individual') {
+    query.contractorInfo = { $exists: false }
+  }
+
   if (startDate || endDate) {
     query.createdAt = {}
     if (startDate) query.createdAt.$gte = new Date(startDate)
@@ -57,14 +63,15 @@ export const getAllBookings = asyncHandler(async (req, res) => {
 
   const total = await Booking.countDocuments(query)
   const bookingsRaw = await Booking.find(query)
-    .populate('userId', 'fullName phone email profileImageUrl')
-    .populate('laborId', 'fullName phone email profileImageUrl savedAddress')
+    .populate('userId', 'fullName phone email profileImageUrl serviceIds labourProfile')
+    .populate('laborId', 'fullName phone email profileImageUrl serviceIds labourProfile savedAddress')
     .populate({
       path: 'subcategoryId',
       select: 'name',
       populate: { path: 'categoryId', select: 'name' }
     })
     .populate('serviceId', 'name basePrice')
+    .populate('assignments.labourId', 'fullName phone profileImageUrl serviceIds labourProfile')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(Number(limit))
@@ -94,8 +101,8 @@ import { Zone } from '../models/Zone.js'
 
 export const getBookingDetails = asyncHandler(async (req, res) => {
   const booking = await Booking.findById(req.params.id)
-    .populate('userId', 'fullName phone email profileImageUrl')
-    .populate('laborId', 'fullName phone email profileImageUrl savedAddress')
+    .populate('userId', 'fullName phone email profileImageUrl serviceIds labourProfile')
+    .populate('laborId', 'fullName phone email profileImageUrl serviceIds labourProfile savedAddress')
     .populate({
       path: 'subcategoryId',
       select: 'name',
@@ -174,8 +181,8 @@ export const assignLabourerManually = asyncHandler(async (req, res) => {
   await booking.save()
 
   const updatedBooking = await Booking.findById(id)
-    .populate('userId', 'fullName phone email profileImageUrl')
-    .populate('laborId', 'fullName phone email profileImageUrl')
+    .populate('userId', 'fullName phone email profileImageUrl serviceIds labourProfile')
+    .populate('laborId', 'fullName phone email profileImageUrl serviceIds labourProfile')
     .populate('subcategoryId', 'name')
     .populate('serviceId', 'name basePrice')
     .lean()

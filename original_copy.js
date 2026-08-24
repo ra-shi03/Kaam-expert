@@ -17,7 +17,6 @@ import {
   Star,
   Wallet,
   Zap,
-  Trash2,
 } from 'lucide-react'
 import { AppStackScreenHeader } from '../../../components/app/AppStackScreenHeader.jsx'
 import { AppButton } from '../../../components/app-ui/buttons/AppButton.jsx'
@@ -113,51 +112,12 @@ export function IndividualBookingFlowPage() {
 
   const [noMatch, setNoMatch] = useState(false)
   const [imageFiles, setImageFiles] = useState([])
-  const [availableServicesList, setAvailableServicesList] = useState([])
-
-  const contractorServiceNames = useMemo(() => {
-    if (realUser?.role !== 'contractor' || !draft.contractorServices) return ''
-    return draft.contractorServices
-      .map(cs => {
-        const found = availableServicesList.find(s => s.value === cs.serviceId)
-        return found ? found.name : ''
-      })
-      .filter(Boolean)
-      .join(', ')
-  }, [realUser, draft.contractorServices, availableServicesList])
 
   const [calculatedBill, setCalculatedBill] = useState(null)
   const [isCalculating, setIsCalculating] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
-  const [reviewQueue, setReviewQueue] = useState([])
-  const [currentReviewIndex, setCurrentReviewIndex] = useState(0)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
-
-  const handleOpenReview = useCallback(() => {
-    if (realUser?.role === 'contractor' && activeBooking?.assignments?.length > 0) {
-      setReviewQueue(activeBooking.assignments.map(a => a.labourId).filter(Boolean))
-      setCurrentReviewIndex(0)
-    } else {
-      setReviewQueue([])
-    }
-    setReviewOpen(true)
-  }, [realUser, activeBooking])
-
-  const handleReviewSubmitted = useCallback(() => {
-    if (reviewQueue.length > 0 && currentReviewIndex < reviewQueue.length - 1) {
-      // Force modal to briefly close and reopen for animation / reset
-      setReviewOpen(false)
-      setTimeout(() => {
-        setCurrentReviewIndex(prev => prev + 1)
-        setReviewOpen(true)
-      }, 300)
-    } else {
-      setReviewOpen(false)
-      clearBookingDraft()
-      navigate('/app', { replace: true })
-    }
-  }, [reviewQueue, currentReviewIndex, navigate, clearBookingDraft])
 
 
   const inputRef = useRef(null)
@@ -265,7 +225,7 @@ export function IndividualBookingFlowPage() {
               setActiveBooking(res.data.booking)
               const b = res.data.booking
               if (b.paymentStatus === 'PAID') {
-                handleOpenReview()
+                setReviewOpen(true)
               }
             }
           }).catch(() => { })
@@ -284,7 +244,7 @@ export function IndividualBookingFlowPage() {
 
     let cancelled = false
     const loc = readAppUserLocation()
-    fetchLabourCategoriesGrouped(loc?.lat, loc?.lng, loc?.city, loc?.address)
+    fetchLabourCategoriesGrouped(loc?.lat, loc?.lng)
       .then((res) => {
         if (cancelled) return
         const groups = res.data?.groups ?? []
@@ -313,34 +273,6 @@ export function IndividualBookingFlowPage() {
       cancelled = true
     }
   }, [categoryIdParam, groupIdParam, syncDraft])
-
-  useEffect(() => {
-    if (realUser?.role !== 'contractor') return
-    let cancelled = false
-    const loc = readAppUserLocation()
-    fetchLabourCategoriesGrouped(loc?.lat, loc?.lng, loc?.city, loc?.address)
-      .then((res) => {
-        if (cancelled) return
-        const groups = res.data?.groups ?? []
-        let allServices = []
-        for (const g of groups) {
-          for (const c of (g.categories || [])) {
-            for (const s of (c.services || [])) {
-              allServices.push({ 
-                ...s, 
-                categoryName: c.name, 
-                groupName: g.name,
-                label: `${s.name} - ₹${s.hourlyPrice || s.basePrice || 0}`,
-                value: String(s._id)
-              })
-            }
-          }
-        }
-        setAvailableServicesList(allServices)
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [realUser])
 
   const [paymentModes, setPaymentModes] = useState({ cashEnabled: true, onlineEnabled: true })
   
@@ -457,8 +389,7 @@ export function IndividualBookingFlowPage() {
         serviceId: draft.serviceId || draft.categoryId,
         hours,
         quantity: draft.quantity || 1,
-        address: draft.address,
-        ...(realUser?.role === 'contractor' ? { contractorServices: draft.contractorServices } : {})
+        address: draft.address
       }).then(res => {
         if (!cancelled) {
           setCalculatedBill(res.data)
@@ -505,7 +436,7 @@ export function IndividualBookingFlowPage() {
         }
       },
       () => { },
-      { enableHighAccuracy: true, timeout: 10_000 },
+      { enableHighAccuracy: false, timeout: 10_000 },
     )
   }
 
@@ -522,25 +453,6 @@ export function IndividualBookingFlowPage() {
   }
 
   const validateDetails = () => {
-    if (realUser?.role === 'contractor') {
-      if (!draft.companyName?.trim()) {
-        setFormError('Please enter a Company Name.')
-        return false
-      }
-      if (!draft.gstNumber?.trim()) {
-        setFormError('Please enter a GST Number.')
-        return false
-      }
-      if (!draft.projectName?.trim()) {
-        setFormError('Please enter a Project Name.')
-        return false
-      }
-      if (!draft.siteContactNumber?.trim()) {
-        setFormError('Please enter a Site Contact Number.')
-        return false
-      }
-    }
-
     if (!draft.address?.trim()) {
       setFormError('Add your work location to continue.')
       return false
@@ -610,7 +522,7 @@ export function IndividualBookingFlowPage() {
             if (activeBooking?.type === 'SCHEDULED') {
               setPaymentSuccess(true)
             } else {
-              handleOpenReview()
+              setReviewOpen(true)
             }
           } catch (err) {
             alert('Payment verification failed. Contact support.')
@@ -644,23 +556,17 @@ export function IndividualBookingFlowPage() {
         serviceId: draft.serviceId || draft.categoryId, // Fallback
         hours,
         quantity: draft.quantity || 1,
-        address: draft.address,
-        ...(realUser?.role === 'contractor' ? { contractorServices: draft.contractorServices } : {})
+        address: draft.address
       })
       setCalculatedBill(res.data)
       syncDraft({ billAmount: res.data.totalAmount })
 
       const modes = res.data.paymentModes || { cashEnabled: true, onlineEnabled: true }
       let currentPaymentMethod = draft.paymentMethod || 'CASH'
-      
-      if (realUser?.role === 'contractor') {
+      if (currentPaymentMethod === 'CASH' && !modes.cashEnabled && modes.onlineEnabled) {
         currentPaymentMethod = 'ONLINE'
-      } else {
-        if (currentPaymentMethod === 'CASH' && !modes.cashEnabled && modes.onlineEnabled) {
-          currentPaymentMethod = 'ONLINE'
-        } else if (currentPaymentMethod === 'ONLINE' && !modes.onlineEnabled && modes.cashEnabled) {
-          currentPaymentMethod = 'CASH'
-        }
+      } else if (currentPaymentMethod === 'ONLINE' && !modes.onlineEnabled && modes.cashEnabled) {
+        currentPaymentMethod = 'CASH'
       }
       
       if (currentPaymentMethod !== draft.paymentMethod) {
@@ -700,7 +606,7 @@ export function IndividualBookingFlowPage() {
         locationText: draft.address.trim(),
         lat: draft.lat || 28.6139,
         lng: draft.lng || 77.2090,
-        paymentMethod: realUser?.role === 'contractor' ? 'ONLINE' : (draft.paymentMethod || 'CASH'),
+        paymentMethod: draft.paymentMethod || 'CASH',
         notes: draft.notes,
         durationKind: draft.durationKind,
         durationDays: days,
@@ -709,15 +615,6 @@ export function IndividualBookingFlowPage() {
         timeSlot: draft.timeSlot,
         scheduledAt: draft.serviceDate,
         imageNames: uploadedImageUrls,
-        ...(realUser?.role === 'contractor' ? {
-          contractorInfo: {
-            companyName: draft.companyName,
-            gstNumber: draft.gstNumber,
-            projectName: draft.projectName,
-            siteContactNumber: draft.siteContactNumber,
-            services: draft.contractorServices || [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }]
-          }
-        } : {})
       }
 
       const res = await bookingsApi.createBooking(payload)
@@ -773,7 +670,7 @@ export function IndividualBookingFlowPage() {
     return (
       <div className="pb-8">
         <AppStackScreenHeader title="Matching labour" onBack={() => goStep('summary')} />
-        <BookingServiceHighlight categoryName={draft.categoryName} serviceName={realUser?.role === 'contractor' && contractorServiceNames ? contractorServiceNames : draft.serviceName} />
+        <BookingServiceHighlight categoryName={draft.categoryName} serviceName={draft.serviceName} />
 
         <div className="px-4 mt-6">
           <div className="lc-booking-flow-card">
@@ -841,218 +738,140 @@ export function IndividualBookingFlowPage() {
           title={step === 'payment' ? 'Payment' : (step === 'billing' || booking?.status === 'COMPLETED') ? 'Billing' : 'Worker on the way'}
           onBack={() => (step === 'payment' ? goStep(booking?.status === 'COMPLETED' ? 'billing' : 'active') : navigate('/app/my-bookings', { replace: true }))}
         />
-        <BookingServiceHighlight categoryName={draft.categoryName} serviceName={realUser?.role === 'contractor' && contractorServiceNames ? contractorServiceNames : draft.serviceName} />
+        <BookingServiceHighlight categoryName={draft.categoryName} serviceName={draft.serviceName} />
 
-        {step !== 'billing' && booking && booking.quantity > 1 ? (
-          <div className="space-y-4">
-            <div className="lc-booking-flow-card">
-              <p className="lc-booking-flow-label font-bold">Assigned Labourers ({booking.assignments?.length || 0} / {booking.quantity})</p>
-            </div>
-            {booking.assignments?.map((assignment, idx) => {
-              const worker = assignment.labourId;
-              const assignTimelineIdx = statusSequence.indexOf(assignment.status) - 2;
-              return (
-                <div key={worker?._id || idx} className="space-y-4">
-                  <GlassPanel className="overflow-hidden border-slate-200/90 p-0">
-                    <motion.div className="flex gap-4 p-4">
-                      <img
-                        src={worker?.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(worker?.fullName || 'W')}`}
-                        alt=""
-                        className="h-16 w-16 rounded-2xl object-cover ring-2 ring-white"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-lg font-black text-slate-900">{worker?.fullName || 'Unknown'}</p>
-                        <p className="text-xs font-semibold text-brand">{worker?.phone}</p>
-                        <p className="mt-1 text-[11px] text-slate-500">{draft.categoryName}</p>
-                      </div>
-                    </motion.div>
-                    <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/80 p-3">
-                      <a
-                        href={`tel:${worker?.phone}`}
-                        className="flex flex-col items-center justify-center gap-1 rounded-xl bg-white py-2.5 text-[10px] font-bold text-slate-800 ring-1 ring-slate-200/90"
-                      >
-                        <Phone className="h-4 w-4 text-brand" aria-hidden />
-                        Call
-                      </a>
-                    </div>
-                  </GlassPanel>
-
-                  <div className="lc-booking-flow-card">
-                    <p className="lc-booking-flow-label">Status</p>
-                    <ol className="mt-3 space-y-2">
-                      {[
-                        { id: 'accepted', label: 'Accepted' },
-                        { id: 'en_route', label: 'En Route' },
-                        { id: 'started', label: 'Job Started' },
-                        { id: 'completed', label: 'Completed' },
-                      ].map((t, i) => {
-                        const done = i <= Math.max(0, assignTimelineIdx);
-                        return (
-                          <li key={t.id} className="flex items-center gap-3">
-                            <span
-                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${done ? 'bg-brand text-white' : 'bg-slate-100 text-slate-400'
-                                }`}
-                            >
-                              {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
-                            </span>
-                            <span className={`text-sm font-semibold ${done ? 'text-black' : 'text-black/40'}`}>{t.label}</span>
-                          </li>
-                        )
-                      })}
-                    </ol>
-                  </div>
-
-                  {assignment.status !== 'COMPLETED' && assignment.startOtp && (
-                    <div className="lc-booking-flow-card">
-                      <p className="lc-booking-flow-label mb-2">Security OTPs</p>
-                      <div className="flex gap-4">
-                        <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
-                          <p className="text-[10px] text-slate-500 font-semibold">Start OTP</p>
-                          <p className="text-xl font-black text-slate-800 tracking-widest">{assignment.startOtp}</p>
-                        </div>
-                        <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
-                          <p className="text-[10px] text-slate-500 font-semibold">Completion OTP</p>
-                          <p className="text-xl font-black text-slate-800 tracking-widest">{assignment.completionOtp}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          worker && step !== 'billing' ? (
-            <div className="space-y-4">
-              <GlassPanel className="overflow-hidden border-slate-200/90 p-0">
-                <motion.div className="flex gap-4 p-4">
-                  <img
-                    src={worker.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(worker.fullName || 'W')}`}
-                    alt=""
-                    className="h-16 w-16 rounded-2xl object-cover ring-2 ring-white"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-lg font-black text-slate-900">{worker.fullName || 'Unknown'}</p>
-                    <p className="text-xs font-semibold text-brand">{worker.phone}</p>
-                    <p className="mt-1 text-[11px] text-slate-500">{draft.categoryName}</p>
-                  </div>
-                </motion.div>
-                <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/80 p-3">
-                  <a
-                    href={`tel:${worker.phone}`}
-                    className="flex flex-col items-center justify-center gap-1 rounded-xl bg-white py-2.5 text-[10px] font-bold text-slate-800 ring-1 ring-slate-200/90"
-                  >
-                    <Phone className="h-4 w-4 text-brand" aria-hidden />
-                    Call
-                  </a>
-                </div>
-              </GlassPanel>
-
-              <div className="lc-booking-flow-card">
-                <p className="lc-booking-flow-label">Status</p>
-                <ol className="mt-3 space-y-2">
-                  {[
-                    { id: 'accepted', label: 'Accepted' },
-                    { id: 'en_route', label: 'En Route' },
-                    { id: 'started', label: 'Job Started' },
-                    { id: 'completed', label: 'Completed' },
-                  ].map((t, i) => {
-                    const done = i <= Math.max(0, timelineIdx)
-                    return (
-                      <li key={t.id} className="flex items-center gap-3">
-                        <span
-                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${done ? 'bg-brand text-white' : 'bg-slate-100 text-slate-400'
-                            }`}
-                        >
-                          {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
-                        </span>
-                        <span className={`text-sm font-semibold ${done ? 'text-black' : 'text-black/40'}`}>{t.label}</span>
-                      </li>
-                    )
-                  })}
-                </ol>
+        {worker && step !== 'billing' ? (
+          <GlassPanel className="overflow-hidden border-slate-200/90 p-0">
+            <motion.div className="flex gap-4 p-4">
+              <img
+                src={worker.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(worker.fullName || 'W')}`}
+                alt=""
+                className="h-16 w-16 rounded-2xl object-cover ring-2 ring-white"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-lg font-black text-slate-900">{worker.fullName || 'Unknown'}</p>
+                <p className="text-xs font-semibold text-brand">{worker.phone}</p>
+                <p className="mt-1 text-[11px] text-slate-500">{draft.categoryName}</p>
               </div>
+            </motion.div>
+            <div className="grid grid-cols-1 gap-2 border-t border-slate-100 bg-slate-50/80 p-3">
+              <a
+                href={`tel:${worker.phone}`}
+                className="flex flex-col items-center justify-center gap-1 rounded-xl bg-white py-2.5 text-[10px] font-bold text-slate-800 ring-1 ring-slate-200/90"
+              >
+                <Phone className="h-4 w-4 text-brand" aria-hidden />
+                Call
+              </a>
+            </div>
+          </GlassPanel>
+        ) : null}
 
-              {booking.status !== 'COMPLETED' && booking.startOtp && (
+        {step !== 'billing' && (
+          <div className="lc-booking-flow-card">
+            <p className="lc-booking-flow-label">Status</p>
+            <ol className="mt-3 space-y-2">
+              {[
+                { id: 'accepted', label: 'Accepted' },
+                { id: 'en_route', label: 'En Route' },
+                { id: 'started', label: 'Job Started' },
+                { id: 'completed', label: 'Completed' },
+              ].map((t, i) => {
+                const done = i <= Math.max(0, timelineIdx)
+                return (
+                  <li key={t.id} className="flex items-center gap-3">
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black ${done ? 'bg-brand text-white' : 'bg-slate-100 text-slate-400'
+                        }`}
+                    >
+                      {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                    </span>
+                    <span className={`text-sm font-semibold ${done ? 'text-black' : 'text-black/40'}`}>{t.label}</span>
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
+        )}
+
+        {booking && (
+          <div className="space-y-4">
+            {step !== 'billing' && (
+              <>
                 <div className="lc-booking-flow-card">
-                  <p className="lc-booking-flow-label mb-2">Security OTPs</p>
-                  <div className="flex gap-4">
-                    <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
-                      <p className="text-[10px] text-slate-500 font-semibold">Start OTP</p>
-                      <p className="text-xl font-black text-slate-800 tracking-widest">{booking.startOtp}</p>
+                  <p className="lc-booking-flow-label mb-2">Booking Details</p>
+                  <div className="space-y-2 text-sm text-slate-700">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-slate-500">Date</span>
+                      <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? new Date(booking.scheduledAt).toLocaleDateString() : 'ASAP'}</span>
                     </div>
-                    <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
-                      <p className="text-[10px] text-slate-500 font-semibold">Completion OTP</p>
-                      <p className="text-xl font-black text-slate-800 tracking-widest">{booking.completionOtp}</p>
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-slate-500">Time</span>
+                      <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? booking.timeSlot : 'Earliest available'}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-slate-500">Location</span>
+                      <span className="line-clamp-2 mt-0.5 text-slate-900 font-medium">{booking.address?.locationText}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-slate-900 mt-2">
+                      <span>Total Bill</span>
+                      <span>₹{booking.totalAmount?.toLocaleString('en-IN') || 0}</span>
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-          ) : null
-        )}
 
-        {booking && step !== 'billing' && (
-          <div className="space-y-4">
-            <div className="lc-booking-flow-card">
-              <p className="lc-booking-flow-label mb-2">Booking Details</p>
-              <div className="space-y-2 text-sm text-slate-700">
-                <div className="flex justify-between">
-                  <span className="font-semibold text-slate-500">Date</span>
-                  <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? new Date(booking.scheduledAt).toLocaleDateString() : 'ASAP'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-semibold text-slate-500">Time</span>
-                  <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? booking.timeSlot : 'Earliest available'}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-semibold text-slate-500">Location</span>
-                  <span className="line-clamp-2 mt-0.5 text-slate-900 font-medium">{booking.address?.locationText}</span>
-                </div>
-                <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-slate-900 mt-2">
-                  <span>Total Bill</span>
-                  <span>₹{booking.totalAmount?.toLocaleString('en-IN') || 0}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+                {booking.status !== 'COMPLETED' && (
+                  <div className="lc-booking-flow-card">
+                    <p className="lc-booking-flow-label mb-2">Security OTPs</p>
+                    <div className="flex gap-4">
+                      <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                        <p className="text-[10px] text-slate-500 font-semibold">Start OTP</p>
+                        <p className="text-xl font-black text-slate-800 tracking-widest">{booking.startOtp}</p>
+                      </div>
+                      <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                        <p className="text-[10px] text-slate-500 font-semibold">Completion OTP</p>
+                        <p className="text-xl font-black text-slate-800 tracking-widest">{booking.completionOtp}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             
-            {(step === 'billing' || booking?.status === 'COMPLETED') && (
+            {(step === 'billing' || booking.status === 'COMPLETED') && (
               <div className="lc-booking-flow-card space-y-3 text-sm lc-booking-flow-body">
                 <div className="flex justify-between gap-2">
                   <span className="lc-booking-flow-muted">Service</span>
                   <span className="text-right font-bold text-black">
-                    <span className="lc-booking-highlight-title block text-base">{booking?.category?.name || draft.categoryName}</span>
-                    {booking?.service?.name || draft.serviceName ? <span className="text-xs font-semibold">{booking?.service?.name || draft.serviceName}</span> : null}
+                    <span className="lc-booking-highlight-title block text-base">{booking.category?.name || draft.categoryName}</span>
+                    {booking.service?.name || draft.serviceName ? <span className="text-xs font-semibold">{booking.service?.name || draft.serviceName}</span> : null}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="lc-booking-flow-muted">Booking</span>
-                  <span className="font-bold capitalize text-black">{booking?.type?.toLowerCase() || 'scheduled'}</span>
+                  <span className="font-bold capitalize text-black">{booking.type?.toLowerCase() || 'scheduled'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="lc-booking-flow-muted">Date</span>
                   <span className="font-bold text-black">
-                    {booking?.type === 'INSTANT' ? 'Today (ASAP)' : booking?.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'N/A'}
+                    {booking.type === 'INSTANT' ? 'Today (ASAP)' : booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="lc-booking-flow-muted">Time</span>
                   <span className="font-bold text-black">
-                    {booking?.type === 'INSTANT' ? 'Earliest Available' : booking?.timeSlot || 'N/A'}
+                    {booking.type === 'INSTANT' ? 'Earliest Available' : booking.timeSlot || 'N/A'}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="lc-booking-flow-muted">Duration</span>
                   <span className="font-bold text-black">
-                    {booking?.duration ? `${booking.duration} Hour${booking.duration > 1 ? 's' : ''}` : 'Few hours'}
+                    {booking.duration ? `${booking.duration} Hour${booking.duration > 1 ? 's' : ''}` : 'Few hours'}
                   </span>
                 </div>
 
                 <p className="flex items-start gap-2 font-medium text-black">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
-                  {booking?.address?.locationText || 'N/A'}
+                  {booking.address?.locationText || 'N/A'}
                 </p>
 
                 <div className="border-t border-slate-200 pt-3 mt-2">
@@ -1060,19 +879,19 @@ export function IndividualBookingFlowPage() {
                     <span className="flex flex-col">
                       <span>Service fee</span>
                     </span>
-                    <span>₹{booking?.basePrice?.toLocaleString('en-IN') || 0}</span>
+                    <span>₹{booking.basePrice?.toLocaleString('en-IN') || 0}</span>
                   </div>
                   <div className="mt-1 flex justify-between lc-booking-flow-muted">
                     <span>Platform fee</span>
-                    <span>₹{booking?.platformFee?.toLocaleString('en-IN') || 0}</span>
+                    <span>₹{booking.platformFee?.toLocaleString('en-IN') || 0}</span>
                   </div>
                   <div className="flex justify-between lc-booking-flow-muted">
                     <span>Taxes</span>
-                    <span>₹{booking?.taxes?.toLocaleString('en-IN') || 0}</span>
+                    <span>₹{booking.taxes?.toLocaleString('en-IN') || 0}</span>
                   </div>
                   <div className="mt-2 flex justify-between text-base font-extrabold text-black">
                     <span>Total</span>
-                    <span>₹{booking?.totalAmount?.toLocaleString('en-IN') || 0}</span>
+                    <span>₹{booking.totalAmount?.toLocaleString('en-IN') || 0}</span>
                   </div>
                 </div>
               </div>
@@ -1080,11 +899,22 @@ export function IndividualBookingFlowPage() {
             {step === 'billing' && (
               <div className="lc-booking-flow-card space-y-3 mt-4">
                 <p className="lc-booking-flow-label font-bold text-slate-800">Payment Method</p>
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => syncDraft({ paymentMethod: 'CASH' })}
+                    className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 font-bold transition-all ${(draft.paymentMethod || booking.paymentMethod) === 'CASH'
+                        ? 'border-brand bg-brand/5 text-brand'
+                        : 'border-slate-200 text-slate-500 hover:border-brand/30 hover:bg-slate-50'
+                      }`}
+                  >
+                    <IndianRupee className="h-5 w-5" />
+                    Cash
+                  </button>
                   <button
                     type="button"
                     onClick={() => syncDraft({ paymentMethod: 'ONLINE' })}
-                    className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 font-bold transition-all ${(draft.paymentMethod || booking?.paymentMethod) === 'ONLINE'
+                    className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 font-bold transition-all ${(draft.paymentMethod || booking.paymentMethod) === 'ONLINE'
                         ? 'border-brand bg-brand/5 text-brand'
                         : 'border-slate-200 text-slate-500 hover:border-brand/30 hover:bg-slate-50'
                       }`}
@@ -1095,6 +925,9 @@ export function IndividualBookingFlowPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
         {step === 'payment' ? (
           <motion.div className="space-y-4">
             <FieldLabel>Select Payment Method</FieldLabel>
@@ -1159,20 +992,13 @@ export function IndividualBookingFlowPage() {
                   {isPaying ? 'Processing...' : 'Proceed to pay'}
                 </BookingPrimaryButton>
               ) : activeBooking?.status === 'COMPLETED' ? (
-                <BookingPrimaryButton type="button" onClick={handleOpenReview}>
-                  <Star className="h-4 w-4" aria-hidden />
-                  Rate your experience
-                </BookingPrimaryButton>
-              ) : null
-            ) : activeBooking?.status === 'COMPLETED' && activeBooking?.paymentStatus === 'PAID' ? (
-              !reviewOpen ? (
-                <BookingPrimaryButton type="button" onClick={handleOpenReview}>
+                <BookingPrimaryButton type="button" onClick={() => setReviewOpen(true)}>
                   <Star className="h-4 w-4" aria-hidden />
                   Rate your experience
                 </BookingPrimaryButton>
               ) : null
             ) : activeBooking?.status === 'COMPLETED' ? (
-              <BookingPrimaryButton type="button" onClick={handleOpenReview}>
+              <BookingPrimaryButton type="button" onClick={() => setReviewOpen(true)}>
                 <Star className="h-4 w-4" aria-hidden />
                 Rate your experience
               </BookingPrimaryButton>
@@ -1189,13 +1015,13 @@ export function IndividualBookingFlowPage() {
         <BookingReviewModal
           open={reviewOpen}
           bookingId={activeBookingId}
-          workerName={
-            (reviewQueue[currentReviewIndex]?.fullName || reviewQueue[currentReviewIndex]?.name) ||
-            (activeBooking?.laborId?.fullName || activeBooking?.laborId?.name) || ''
-          }
-          revieweeId={reviewQueue[currentReviewIndex]?._id || reviewQueue[currentReviewIndex]}
+          workerName={activeBooking?.laborId?.fullName || activeBooking?.laborId?.name || ''}
           onClose={() => setReviewOpen(false)}
-          onSubmitted={handleReviewSubmitted}
+          onSubmitted={() => {
+            setReviewOpen(false)
+            clearBookingDraft()
+            navigate('/app', { replace: true })
+          }}
         />
 
         {paymentSuccess && (
@@ -1223,7 +1049,7 @@ export function IndividualBookingFlowPage() {
                 type="button"
                 onClick={() => {
                   setPaymentSuccess(false)
-                  handleOpenReview()
+                  setReviewOpen(true)
                 }}
                 className="w-full rounded-xl bg-brand py-3 text-sm font-bold text-white transition hover:bg-brand/90 active:scale-95"
               >
@@ -1262,7 +1088,7 @@ export function IndividualBookingFlowPage() {
                     if (activeBooking?.type === 'SCHEDULED') {
                       setPaymentSuccess(true)
                     } else {
-                      handleOpenReview()
+                      setReviewOpen(true)
                     }
                   } catch (e) {
                     alert('Failed to confirm cash payment')
@@ -1298,7 +1124,7 @@ export function IndividualBookingFlowPage() {
       />
 
       <div className="space-y-4 px-4">
-        <BookingServiceHighlight categoryName={draft.categoryName} serviceName={realUser?.role === 'contractor' && contractorServiceNames ? contractorServiceNames : draft.serviceName} />
+        <BookingServiceHighlight categoryName={draft.categoryName} serviceName={draft.serviceName} />
 
         {step !== 'searching' ? (
           <div className="lc-booking-flow-card py-3">
@@ -1430,105 +1256,9 @@ export function IndividualBookingFlowPage() {
               ) : null}
             </motion.div>
 
-              {realUser?.role === 'contractor' ? (
-                <>
-                  <motion.div className="mb-4">
-                    <FieldLabel>Company Name *</FieldLabel>
-                    <input
-                      value={draft.companyName || ''}
-                      onChange={(e) => syncDraft({ companyName: e.target.value })}
-                      placeholder="Enter company name"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black outline-none focus:border-brand focus:ring-1"
-                    />
-                  </motion.div>
-                  <motion.div className="mb-4">
-                    <FieldLabel>GST Number *</FieldLabel>
-                    <input
-                      value={draft.gstNumber || ''}
-                      onChange={(e) => syncDraft({ gstNumber: e.target.value })}
-                      placeholder="Enter GST number"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black outline-none focus:border-brand focus:ring-1"
-                    />
-                  </motion.div>
-                  <motion.div className="mb-4">
-                    <FieldLabel>Project Name *</FieldLabel>
-                    <input
-                      value={draft.projectName || ''}
-                      onChange={(e) => syncDraft({ projectName: e.target.value })}
-                      placeholder="Enter project name"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black outline-none focus:border-brand focus:ring-1"
-                    />
-                  </motion.div>
-                  <motion.div className="mb-4">
-                    <FieldLabel>Site Contact Number *</FieldLabel>
-                    <input
-                      type="tel"
-                      value={draft.siteContactNumber || ''}
-                      onChange={(e) => syncDraft({ siteContactNumber: e.target.value })}
-                      placeholder="Enter site contact number"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black outline-none focus:border-brand focus:ring-1"
-                    />
-                  </motion.div>
-                  <motion.div className="mb-4">
-                    <FieldLabel>Services Required *</FieldLabel>
-                    {(draft.contractorServices?.length ? draft.contractorServices : [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }]).map((cs, idx) => (
-                      <div key={idx} className="flex gap-2 items-start mb-2">
-                        <div className="flex-1">
-                          <AppSearchableSelect
-                            value={cs.serviceId}
-                            onChange={(val) => {
-                              const newList = [...(draft.contractorServices?.length ? draft.contractorServices : [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }])]
-                              const selectedService = availableServicesList.find(s => s.value === val)
-                              newList[idx] = { ...newList[idx], serviceId: val, price: selectedService?.basePrice || selectedService?.hourlyPrice || 0 }
-                              syncDraft({ contractorServices: newList })
-                            }}
-                            options={availableServicesList}
-                            placeholder="Select Service"
-                          />
-                        </div>
-                        <div className="w-32">
-                          <input
-                            type="number"
-                            min="1"
-                            value={cs.quantity || ''}
-                            onChange={(e) => {
-                              const newList = [...(draft.contractorServices?.length ? draft.contractorServices : [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }])]
-                              newList[idx] = { ...newList[idx], quantity: parseInt(e.target.value, 10) || 1 }
-                              syncDraft({ contractorServices: newList })
-                            }}
-                            placeholder="No. of Labour"
-                            className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-semibold text-black outline-none focus:border-brand focus:ring-1 h-[46px]"
-                          />
-                        </div>
-                        {idx > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newList = [...(draft.contractorServices?.length ? draft.contractorServices : [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }])]
-                              newList.splice(idx, 1)
-                              syncDraft({ contractorServices: newList })
-                            }}
-                            className="h-[46px] px-3 flex items-center justify-center rounded-xl bg-red-50 text-red-500 font-bold hover:bg-red-100"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newList = [...(draft.contractorServices?.length ? draft.contractorServices : [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }])]
-                        newList.push({ serviceId: '', quantity: 1, price: 0 })
-                        syncDraft({ contractorServices: newList })
-                      }}
-                      className="text-brand font-semibold text-sm mt-1 hover:underline text-left block"
-                    >
-                      + Add more services
-                    </button>
-                  </motion.div>
-                </>
-              ) : null}
+
+
+
               <motion.div>
                 <FieldLabel>Required Duration</FieldLabel>
                 <div className="relative">
@@ -1615,11 +1345,7 @@ export function IndividualBookingFlowPage() {
                   <span className="lc-booking-flow-muted">Service</span>
                   <span className="text-right font-bold text-black">
                     <span className="lc-booking-highlight-title block text-base">{draft.categoryName}</span>
-                    {realUser?.role === 'contractor' && contractorServiceNames ? (
-                      <span className="text-xs font-semibold">{contractorServiceNames}</span>
-                    ) : draft.serviceName ? (
-                      <span className="text-xs font-semibold">{draft.serviceName}</span>
-                    ) : null}
+                    {draft.serviceName ? <span className="text-xs font-semibold">{draft.serviceName}</span> : null}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -1660,37 +1386,23 @@ export function IndividualBookingFlowPage() {
                   </div>
                 ) : null}
                 <div className="border-t border-slate-200 pt-3 mt-2">
-                  {realUser?.role === 'contractor' && calculatedBill.breakdown && calculatedBill.breakdown.length > 0 ? (
-                    calculatedBill.breakdown.map((item, idx) => (
-                      <div key={idx} className="flex justify-between font-semibold text-black mb-2">
-                        <span className="flex flex-col">
-                          <span>{item.name || 'Service fee'}</span>
-                          <span className="text-[11px] text-slate-500 font-medium">
-                            {`Hourly rate (${formatInr(item.hourlyRate)}/hr) × ${item.hours} hrs${item.quantity > 1 ? ` × ${item.quantity} workers` : ''}`}
-                          </span>
-                        </span>
-                        <span>{formatInr(item.subTotal)}</span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex justify-between font-semibold text-black">
-                      <span className="flex flex-col">
-                        <span>Service fee</span>
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          {(() => {
-                            const h = draft.durationKind === 'few_hours' ? (draft.hours || draft.minHours || 1) : 
-                                     draft.durationKind === 'half_day' ? 4 : 
-                                     draft.durationKind === 'full_day' ? 8 : 
-                                     draft.durationKind === 'multi_day' ? ((draft.durationDays || 1) * 8) : 
-                                     (draft.hours || draft.minHours || 1);
-                            const q = draft.quantity || 1;
-                            return `Hourly rate (${formatInr((calculatedBill.subTotal || calculatedBill.basePrice) / (h * q))}/hr) × ${h} hrs${q > 1 ? ` × ${q} workers` : ''}`;
-                          })()}
-                        </span>
+                  <div className="flex justify-between font-semibold text-black">
+                    <span className="flex flex-col">
+                      <span>Service fee</span>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        {(() => {
+                          const h = draft.durationKind === 'few_hours' ? (draft.hours || draft.minHours || 1) : 
+                                   draft.durationKind === 'half_day' ? 4 : 
+                                   draft.durationKind === 'full_day' ? 8 : 
+                                   draft.durationKind === 'multi_day' ? ((draft.durationDays || 1) * 8) : 
+                                   (draft.hours || draft.minHours || 1);
+                          const q = draft.quantity || 1;
+                          return `Hourly rate (${formatInr((calculatedBill.subTotal || calculatedBill.basePrice) / (h * q))}/hr) × ${h} hrs${q > 1 ? ` × ${q} workers` : ''}`;
+                        })()}
                       </span>
-                      <span>{formatInr(calculatedBill.subTotal || calculatedBill.basePrice)}</span>
-                    </div>
-                  )}
+                    </span>
+                    <span>{formatInr(calculatedBill.subTotal || calculatedBill.basePrice)}</span>
+                  </div>
                   {calculatedBill.maxHourDiscount > 0 ? (
                     <div className="mt-1 flex justify-between font-semibold text-emerald-600">
                       <span>Discount</span>
@@ -1714,8 +1426,8 @@ export function IndividualBookingFlowPage() {
 
               <div className="lc-booking-flow-card space-y-3">
                 <p className="lc-booking-flow-label font-bold text-slate-800">Payment Method</p>
-                <div className={`grid gap-3 ${calculatedBill?.paymentModes?.cashEnabled && calculatedBill?.paymentModes?.onlineEnabled && realUser?.role !== 'contractor' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                  {calculatedBill?.paymentModes?.cashEnabled !== false && realUser?.role !== 'contractor' && (
+                <div className={`grid gap-3 ${calculatedBill?.paymentModes?.cashEnabled && calculatedBill?.paymentModes?.onlineEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {calculatedBill?.paymentModes?.cashEnabled !== false && (
                     <button
                       type="button"
                       onClick={() => syncDraft({ paymentMethod: 'CASH' })}
@@ -1732,7 +1444,7 @@ export function IndividualBookingFlowPage() {
                     <button
                       type="button"
                       onClick={() => syncDraft({ paymentMethod: 'ONLINE' })}
-                      className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 font-bold transition-all ${draft.paymentMethod === 'ONLINE' || (realUser?.role === 'contractor' && !draft.paymentMethod)
+                      className={`flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 font-bold transition-all ${draft.paymentMethod === 'ONLINE'
                           ? 'border-brand bg-brand/5 text-brand'
                           : 'border-slate-200 text-slate-500 hover:border-brand/30 hover:bg-slate-50'
                         }`}

@@ -29,6 +29,7 @@ import { buildAssignmentDetailSnapshot } from '../../lib/labourAssignmentDetail.
 import { uploadMedia, assetUrlFromUpload } from '../../api/uploadApi.js'
 import { UPLOAD_FOLDERS } from '../../constants/uploadFolders.js'
 import { useSocket } from '../../context/SocketContext.jsx'
+import { useSelector } from 'react-redux'
 
 const STATUS_DOT = {
   brand: 'bg-brand',
@@ -133,13 +134,19 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
   const [livePaymentStatus, setLivePaymentStatus] = useState(rawJob?.paymentStatus || 'PENDING')
   
   const socket = useSocket()
+  const user = useSelector(state => state.auth.user)
+  
+  const assignment = activeRawJob?.assignments?.find(a => String(a.labourId?._id || a.labourId) === String(user?._id))
+  const displayStatus = assignment ? assignment.status : activeRawJob?.status
   
   useEffect(() => {
     if (!socket || !activeRawJob?._id) return
     const handleStatusUpdate = (data) => {
       if (data.bookingId === activeRawJob._id) {
-        if (data.paymentStatus) setLivePaymentStatus(data.paymentStatus)
-        if (data.status === 'COMPLETED') setShowPaymentWaiting(true)
+        if (data.paymentStatus) {
+          setLivePaymentStatus(data.paymentStatus)
+          setCachedRawJob(prev => prev ? { ...prev, paymentStatus: data.paymentStatus } : { ...activeRawJob, paymentStatus: data.paymentStatus })
+        }
       }
     }
     socket.on('BOOKING_STATUS_UPDATE', handleStatusUpdate)
@@ -149,11 +156,16 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
   useEffect(() => {
     if (!open) {
       setShowPaymentWaiting(false)
-      setLivePaymentStatus('PENDING')
     } else if (activeRawJob) {
       setLivePaymentStatus(prev => prev === 'PAID' ? 'PAID' : (activeRawJob.paymentStatus || 'PENDING'))
     }
   }, [open, activeRawJob])
+
+  useEffect(() => {
+    if (open && displayStatus === 'COMPLETED') {
+      setShowPaymentWaiting(true)
+    }
+  }, [open, displayStatus])
 
   const handleStatusUpdate = async (nextStatus, requireOtp) => {
     if (requireOtp && !otp) {
@@ -180,12 +192,9 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
       setOtp('')
       setJobImage(null)
       
-      setCachedRawJob(prev => prev ? { ...prev, status: nextStatus, startedAt: updatedBooking?.startedAt || prev.startedAt } : (rawJob ? { ...rawJob, status: nextStatus, startedAt: updatedBooking?.startedAt || rawJob.startedAt } : null))
+      setCachedRawJob(updatedBooking || (prev => prev ? { ...prev, status: nextStatus, startedAt: updatedBooking?.startedAt || prev.startedAt } : (rawJob ? { ...rawJob, status: nextStatus, startedAt: updatedBooking?.startedAt || rawJob.startedAt } : null)))
       
       if (onRefresh) onRefresh()
-      if (nextStatus === 'COMPLETED') {
-        setShowPaymentWaiting(true)
-      }
     } catch (err) {
       setErrorMsg(err.message || 'Failed to update status.')
     } finally {
@@ -356,7 +365,7 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
               </GlassPanel>
             </section>
 
-            {activeRawJob && displayKind === 'active' && !['COMPLETED', 'CANCELLED'].includes(activeRawJob.status) ? (
+            {activeRawJob && displayKind === 'active' && !['COMPLETED', 'CANCELLED'].includes(displayStatus) ? (
               <section>
                 <h2 className="mb-2 px-0.5 text-xs font-bold uppercase tracking-wider text-brand">
                   Live Job Actions
@@ -364,14 +373,14 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                 <GlassPanel className="space-y-3 border-brand/20 bg-brand/5 p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-slate-800">Current Status:</span>
-                    <AppBadge variant="brand">{activeRawJob.status}</AppBadge>
+                    <AppBadge variant="brand">{displayStatus}</AppBadge>
                   </div>
                   
                   {errorMsg && (
                     <p className="text-xs font-bold text-rose-600">{errorMsg}</p>
                   )}
 
-                  {activeRawJob.status === 'ACCEPTED' && (
+                  {displayStatus === 'ACCEPTED' && (
                     <AppPrimaryButton 
                       type="button" 
                       onClick={() => handleStatusUpdate('EN_ROUTE', false)}
@@ -382,7 +391,7 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                     </AppPrimaryButton>
                   )}
 
-                  {activeRawJob.status === 'EN_ROUTE' && (
+                  {displayStatus === 'EN_ROUTE' && (
                     <div className="space-y-4">
                       <div>
                         <p className="text-sm font-bold text-slate-800 mb-2">1. Upload Before Work Image</p>
@@ -441,9 +450,21 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                     </div>
                   )}
 
-                  {activeRawJob.status === 'STARTED' && (
+                  {displayStatus === 'STARTED' && (
                     <div className="space-y-4">
-                      <JobCountdownTimer startedAt={activeRawJob.startedAt} hours={activeRawJob.hours || 1} />
+                      {(() => {
+                        let startedAt = activeRawJob.startedAt;
+                        if (activeRawJob.assignments && activeRawJob.assignments.length > 0 && user) {
+                          const myAssignment = activeRawJob.assignments.find(a => {
+                            const aId = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
+                            return String(aId) === String(user._id);
+                          });
+                          if (myAssignment?.startedAt) startedAt = myAssignment.startedAt;
+                        }
+                        // Default to now if not available yet but status is started
+                        startedAt = startedAt || new Date();
+                        return <JobCountdownTimer startedAt={startedAt} hours={activeRawJob.hours || 1} />;
+                      })()}
                       <div>
                         <p className="text-sm font-bold text-slate-800 mb-2">1. Upload After Work Image</p>
                         {jobImage ? (
@@ -526,6 +547,40 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
               </GlassPanel>
             </section>
 
+            {(activeRawJob.quantity > 1 || (activeRawJob.contractorInfo?.services && activeRawJob.contractorInfo.services.length > 0)) && (
+              <section>
+                <h2 className="mb-2 px-0.5 text-xs font-bold uppercase tracking-wider text-slate-400">Team Members</h2>
+                <GlassPanel className="border-slate-200/90 p-4 space-y-3">
+                  {Array.from({ length: activeRawJob.quantity || 1 }).map((_, idx) => {
+                    const assignment = activeRawJob.assignments?.[idx];
+                    const isMe = assignment && String(assignment.labourId?._id || assignment.labourId) === String(user?._id);
+                    return (
+                      <div key={idx} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-3 text-sm text-slate-700">
+                          <div className={`flex items-center justify-center w-7 h-7 rounded-full shadow-sm border shrink-0 ${isMe ? 'bg-brand/10 border-brand/20' : 'bg-slate-100 border-slate-200'}`}>
+                            <User className={`h-4 w-4 ${isMe ? 'text-brand' : 'text-slate-400'}`} />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] uppercase font-bold text-slate-400">Professional {idx + 1} {isMe && '(You)'}</span>
+                            <span className={`font-bold leading-tight ${assignment ? 'text-slate-800' : 'text-slate-400'}`}>
+                              {assignment 
+                                ? `${assignment.labourId?.fullName || assignment.labourId?.name || 'Assigned'}`
+                                : 'Pending Acceptance'}
+                            </span>
+                          </div>
+                        </div>
+                        {assignment && assignment.status && (
+                          <div className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-md text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                            {assignment.status}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </GlassPanel>
+              </section>
+            )}
+
             {detail.rawNotes ? (
               <section>
                 <h2 className="mb-2 px-0.5 text-xs font-bold uppercase tracking-wider text-slate-400">Instructions</h2>
@@ -592,6 +647,30 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                     <p className="text-sm font-medium text-slate-500 mb-8 leading-relaxed px-4">
                       The customer has paid successfully. Collect your earnings from the wallet.
                     </p>
+
+                    {/* Team Members List Inside Popup */}
+                    {(activeRawJob.quantity > 1 || (activeRawJob.contractorInfo?.services && activeRawJob.contractorInfo.services.length > 0)) && (
+                      <div className="mb-6 text-left border border-slate-100 rounded-xl p-3 bg-slate-50 overflow-y-auto max-h-40">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Team Members</p>
+                        <div className="space-y-2">
+                          {Array.from({ length: activeRawJob.quantity || 1 }).map((_, idx) => {
+                            const a = activeRawJob.assignments?.[idx];
+                            const isMe = a && String(a.labourId?._id || a.labourId) === String(user?._id);
+                            return (
+                              <div key={idx} className="flex items-center gap-2 text-sm">
+                                <div className={`flex items-center justify-center w-6 h-6 rounded-full shrink-0 ${isMe ? 'bg-brand/10 text-brand' : 'bg-slate-200 text-slate-500'}`}>
+                                  <User className="h-3.5 w-3.5" />
+                                </div>
+                                <span className={`font-semibold ${a ? 'text-slate-800' : 'text-slate-400'} truncate`}>
+                                  {a ? `${a.labourId?.fullName || a.labourId?.name || 'Assigned'}` : 'Pending'} {isMe && '(You)'}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => {

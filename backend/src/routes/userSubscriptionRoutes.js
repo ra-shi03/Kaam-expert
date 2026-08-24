@@ -6,6 +6,7 @@ import {
   verifyRazorpayPayment,
   getMySubscription,
   checkLabourAccess,
+  getActiveSubscriptionPlans,
 } from '../controllers/userSubscriptionController.js'
 
 const router = Router()
@@ -15,6 +16,7 @@ router.use(protect)
 // Daily Subscriptions are only for LABOUR role
 router.use(restrictTo(USER_ROLES.LABOUR))
 
+router.get('/plans', getActiveSubscriptionPlans)
 router.get('/my-subscription', getMySubscription)
 router.get('/check-access', checkLabourAccess)
 router.post('/order', createRazorpayOrder)

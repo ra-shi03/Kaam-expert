@@ -56,9 +56,11 @@ export function B2cBookingCard({ booking, isLabour }) {
               )}
             </div>
             <p className="truncate text-base font-extrabold text-slate-900 leading-tight">
-              {booking.serviceId?.name || subcategory?.name || 'Service Booking'}
+              {booking.contractorInfo?.services?.length > 0
+                ? booking.contractorInfo.services.map(s => s.serviceId?.name || s.name || 'Service').join(', ')
+                : (booking.serviceId?.name || subcategory?.name || 'Service Booking')}
             </p>
-            {subcategory?.name && (
+            {(!booking.contractorInfo?.services || booking.contractorInfo.services.length === 0) && subcategory?.name && (
                 <p className="truncate text-xs text-slate-500 font-medium mt-1">
                   {subcategory.name}
                 </p>
@@ -100,20 +102,73 @@ export function B2cBookingCard({ booking, isLabour }) {
             </div>
           )}
 
-          {((isLabour && booking.userId) || (!isLabour && booking.laborId)) && (
-            <div className="flex items-center gap-3 text-sm text-slate-700 mt-2 pt-3 border-t border-slate-100/80">
-              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white shadow-sm border border-slate-100 shrink-0">
-                <User className="h-4 w-4 text-brand" />
-              </div>
-              <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-slate-400">{isLabour ? 'Customer' : 'Professional'}</span>
+          {isLabour ? (
+            booking.userId && (
+              <div className="flex items-center gap-3 text-sm text-slate-700 mt-2 pt-3 border-t border-slate-100/80">
+                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white shadow-sm border border-slate-100 shrink-0">
+                  <User className="h-4 w-4 text-brand" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Customer</span>
                   <span className="font-bold leading-tight text-slate-800">
-                    {isLabour 
-                    ? `${booking.userId?.fullName || 'Guest'} ${booking.userId?.phone ? `• ${booking.userId.phone}` : ''}`
-                    : `${booking.laborId?.fullName || booking.laborId?.name || 'Assigned'} ${booking.laborId?.phone ? `• ${booking.laborId.phone}` : ''}`}
+                    {`${booking.userId?.fullName || 'Guest'} ${booking.userId?.phone ? `• ${booking.userId.phone}` : ''}`}
                   </span>
+                </div>
               </div>
-            </div>
+            )
+          ) : (
+            (booking.quantity > 1 || (booking.contractorInfo?.services && booking.contractorInfo.services.length > 0)) ? (
+              <div className="mt-2 pt-3 border-t border-slate-100/80 space-y-3">
+                {Array.from({ length: booking.quantity || 1 }).map((_, idx) => {
+                  const assignment = booking.assignments?.[idx];
+                  return (
+                    <div key={idx} className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-3 text-sm text-slate-700">
+                        <div className="flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 shadow-sm border border-slate-200 shrink-0">
+                          <User className="h-4 w-4 text-slate-400" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Professional {idx + 1}</span>
+                          <span className={`font-bold leading-tight ${assignment ? 'text-slate-800' : 'text-slate-400'}`}>
+                            {assignment 
+                              ? `${assignment.labourId?.fullName || assignment.labourId?.name || 'Assigned'} ${assignment.labourId?.phone ? `• ${assignment.labourId.phone}` : ''}`
+                              : 'Pending Acceptance'}
+                          </span>
+                        </div>
+                      </div>
+                      {assignment && (assignment.startOtp || assignment.completionOtp) && (
+                        <div className="flex gap-2">
+                          {assignment.startOtp && (
+                            <div className="flex flex-col items-center px-2 py-1 bg-blue-50/50 border border-blue-100/50 rounded-lg">
+                              <span className="text-[8px] font-bold text-blue-500/80 uppercase tracking-wider mb-0.5">Start OTP</span>
+                              <span className="text-xs font-black text-blue-700 leading-none">{assignment.startOtp}</span>
+                            </div>
+                          )}
+                          {assignment.completionOtp && (
+                            <div className="flex flex-col items-center px-2 py-1 bg-purple-50/50 border border-purple-100/50 rounded-lg">
+                              <span className="text-[8px] font-bold text-purple-500/80 uppercase tracking-wider mb-0.5">End OTP</span>
+                              <span className="text-xs font-black text-purple-700 leading-none">{assignment.completionOtp}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : booking.laborId ? (
+              <div className="flex items-center gap-3 text-sm text-slate-700 mt-2 pt-3 border-t border-slate-100/80">
+                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white shadow-sm border border-slate-100 shrink-0">
+                  <User className="h-4 w-4 text-brand" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Professional</span>
+                  <span className="font-bold leading-tight text-slate-800">
+                    {`${booking.laborId?.fullName || booking.laborId?.name || 'Assigned'} ${booking.laborId?.phone ? `• ${booking.laborId.phone}` : ''}`}
+                  </span>
+                </div>
+              </div>
+            ) : null
           )}
         </div>
 
@@ -137,7 +192,7 @@ export function B2cBookingCard({ booking, isLabour }) {
               </div>
           ) : <div />}
           
-          {(booking.startOtp || booking.completionOtp) && (
+          {(!booking.assignments || booking.assignments.length === 0) && (booking.quantity === 1 || !booking.quantity) && (!booking.contractorInfo?.services || booking.contractorInfo.services.length === 0) && (booking.startOtp || booking.completionOtp) && (
             <div className="flex gap-2">
               {booking.startOtp && (
                 <div className="flex flex-col items-center px-3 py-1.5 bg-blue-50/50 border border-blue-100/50 rounded-lg">

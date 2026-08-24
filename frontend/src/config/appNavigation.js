@@ -41,7 +41,7 @@ const byRole = {
     bottomNav: [
       { id: 'home', to: '/app', label: 'Home', icon: Home, end: true },
       { id: 'book', to: '/app/my-bookings', label: 'Bookings', icon: CalendarClock },
-      { id: 'billing', to: '/app/billing', label: 'Billing', icon: FileText },
+      { id: 'search', to: '/app/search', label: 'Search', icon: Search },
       { id: 'profile', to: '/app/profile', label: 'Profile', icon: UserRound },
     ],
     drawerNav: [
@@ -49,7 +49,6 @@ const byRole = {
       { id: 'search', to: '/app/search', label: 'Search skills', icon: Search },
       { id: 'book', to: '/app/my-bookings', label: 'Bookings & requests', icon: ClipboardList },
       { id: 'billing', to: '/app/billing', label: 'Billing & contracts', icon: FileText },
-      { id: 'workforce', to: '/app/workforce', label: 'Workforce', icon: ClipboardList },
       { id: 'support', to: '/app/support', label: 'Support & issues', icon: LifeBuoy },
       { id: 'profile', to: '/app/profile', label: 'Profile & settings', icon: UserRound },
     ],

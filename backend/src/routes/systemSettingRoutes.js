@@ -50,15 +50,6 @@ router.patch(
 )
 
 router.patch(
-  '/wallet-limit',
-  [
-    body('walletLimit').isNumeric().withMessage('Wallet limit is required'),
-  ],
-  validateRequest,
-  settings.updateWalletLimit,
-)
-
-router.patch(
   '/labour-cash-limit',
   [
     body('labourCashLimit').isNumeric().withMessage('Labour cash limit is required'),

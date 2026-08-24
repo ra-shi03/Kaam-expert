@@ -87,26 +87,16 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
     }
   }
 
-  // Atomic FCFS Update
-  const booking = await Booking.findOneAndUpdate(
-    { _id: bookingId, status: 'BROADCASTING' },
-    {
-      $set: {
-        status: 'ACCEPTED',
-        acceptedLabourId: labour._id,
-        laborId: labour._id,
-      },
-    },
-    { new: true }
-  )
-
+  // Fetch booking first to check quantity logic
+  let booking = await Booking.findOne({ _id: bookingId, status: 'BROADCASTING' })
+  
   if (!booking) {
     const currentBooking = await Booking.findById(bookingId)
     if (!currentBooking) {
       return sendError(res, { message: 'Booking not found', statusCode: HTTP_STATUS.NOT_FOUND })
     }
     if (currentBooking.status === 'ACCEPTED') {
-      return sendError(res, { message: 'Booking was already accepted by another labourer', statusCode: HTTP_STATUS.CONFLICT })
+      return sendError(res, { message: 'Booking was already fully accepted', statusCode: HTTP_STATUS.CONFLICT })
     }
     if (currentBooking.status === 'CANCELLED') {
       return sendError(res, { message: 'Booking was cancelled by the customer', statusCode: HTTP_STATUS.BAD_REQUEST })
@@ -116,6 +106,36 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
       statusCode: HTTP_STATUS.BAD_REQUEST,
     })
   }
+
+  // Check if labourer already accepted
+  if (booking.acceptedLabourIds && booking.acceptedLabourIds.includes(labour._id)) {
+    return sendError(res, { message: 'You have already accepted this booking', statusCode: HTTP_STATUS.CONFLICT })
+  }
+
+  // Push to accepted lists
+  booking.acceptedLabourIds = booking.acceptedLabourIds || []
+  booking.acceptedLabourIds.push(labour._id)
+
+  const startOtp = Math.floor(1000 + Math.random() * 9000).toString()
+  const completionOtp = Math.floor(1000 + Math.random() * 9000).toString()
+
+  booking.assignments = booking.assignments || []
+  booking.assignments.push({
+    labourId: labour._id,
+    status: 'ACCEPTED',
+    startOtp,
+    completionOtp
+  })
+
+  // For backward compatibility (quantity=1)
+  booking.acceptedLabourId = labour._id
+  booking.laborId = labour._id
+  
+  if (booking.acceptedLabourIds.length >= (booking.quantity || 1)) {
+    booking.status = 'ACCEPTED'
+  }
+
+  await booking.save()
 
   // Increment subscription bookingsAccepted count
   if (accessCheck.subscription) {
@@ -134,10 +154,13 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
   // Notify customer
   import('../socket.js')
     .then(({ emitToUser, getSocketServer }) => {
-      emitToUser(booking.userId, 'BOOKING_ACCEPTED', { bookingId: booking._id, laborId: labour._id })
-      const io = getSocketServer()
-      if (io) {
-        io.emit('BOOKING_EXPIRED', { bookingId: booking._id, winnerId: labour._id })
+      emitToUser(booking.userId, 'BOOKING_ACCEPTED', { bookingId: booking._id, laborId: labour._id, quantity: booking.quantity, acceptedCount: booking.acceptedLabourIds.length })
+      
+      if (booking.status === 'ACCEPTED') {
+        const io = getSocketServer()
+        if (io) {
+          io.emit('BOOKING_EXPIRED', { bookingId: booking._id, winnerId: labour._id }) // Tells others it's fully booked
+        }
       }
     })
     .catch((err) => console.error('Failed to notify sockets:', err))

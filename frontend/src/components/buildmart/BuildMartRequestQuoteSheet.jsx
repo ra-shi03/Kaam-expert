@@ -65,7 +65,8 @@ export function BuildMartRequestQuoteSheet({
           },
           () => {
             alert('Could not fetch location. Please enter manually.')
-          }
+          },
+          { enableHighAccuracy: true, timeout: 10_000 }
         )
       }
     }

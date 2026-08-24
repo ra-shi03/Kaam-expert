@@ -35,7 +35,6 @@ function loadRazorpay() {
 export function LaborWallet() {
   const reduce = useReducedMotion()
   const [wallet, setWallet] = useState(null)
-  const [walletLimit, setWalletLimit] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [clearing, setClearing] = useState(false)
@@ -49,11 +48,9 @@ export function LaborWallet() {
       walletsApi.getMyWallet(),
       adminSettingsApi.getSettings().catch(() => ({ data: {} })),
     ])
-      .then(([walletRes, settingsRes]) => {
+      .then(([walletRes]) => {
         if (cancelled) return
         setWallet(walletRes.data?.wallet || {})
-        const settings = settingsRes.data?.settings || {}
-        setWalletLimit(settings.walletLimit ?? null)
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof ApiError ? err.message : 'Failed to load wallet')
@@ -64,8 +61,6 @@ export function LaborWallet() {
 
     return () => { cancelled = true }
   }, [])
-
-  const isBlocked = walletLimit != null && wallet && (wallet.adminBalance || 0) > walletLimit
 
   const handleClearDues = useCallback(async () => {
     if (!wallet || (wallet.adminBalance || 0) <= 0) return
@@ -159,23 +154,6 @@ export function LaborWallet() {
     <div className="space-y-4 pb-8">
       <AppStackScreenHeader title="My Wallet" backTo="/app" />
 
-      {/* Blocked Warning */}
-      {isBlocked && (
-        <motion.div
-          initial={reduce ? false : { opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-3 rounded-2xl border-2 border-rose-200 bg-rose-50 px-4 py-4"
-        >
-          <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-rose-500" aria-hidden />
-          <div>
-            <p className="text-sm font-extrabold text-rose-800">Account Blocked</p>
-            <p className="mt-1 text-xs text-rose-700">
-              Your dues exceed ₹{walletLimit}. You cannot receive new jobs until you clear your dues.
-            </p>
-          </div>
-        </motion.div>
-      )}
-
       {/* Balance Cards */}
       <div className="grid grid-cols-2 gap-3">
         {/* Earnings */}
@@ -217,26 +195,17 @@ export function LaborWallet() {
 
       {/* Wallet Info */}
       <GlassPanel className="p-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-3">
           <Wallet className="h-4 w-4 text-brand" aria-hidden />
           <p className="text-xs font-bold uppercase tracking-wider text-slate-500">How it works</p>
         </div>
-        <ul className="mt-3 space-y-2 text-xs text-slate-600">
-          <li className="flex items-start gap-2">
-            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600" />
-            <b className="text-blue-700">Earnings:</b> Money from online payments auto-credited when jobs complete
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-500" />
-            <b className="text-rose-700">Dues:</b> Cash payments collected — owed to the platform
-          </li>
-          {walletLimit != null && (
-            <li className="flex items-start gap-2">
-              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-              <b className="text-amber-700">Limit:</b> Account blocked if dues exceed {formatInr(walletLimit)}
-            </li>
-          )}
-        </ul>
+        <div className="flex items-start gap-3 rounded-xl bg-slate-50 border border-slate-200/60 p-4">
+          <Info className="h-5 w-5 text-slate-400 shrink-0 mt-0.5" />
+          <div className="text-sm text-slate-600 space-y-2">
+            <p><b className="text-slate-700">Earnings:</b> Your completed bookings (excluding commission).</p>
+            <p><b className="text-slate-700">Dues (Admin Balance):</b> Unpaid commissions from cash payments.</p>
+          </div>
+        </div>
       </GlassPanel>
 
       {/* Clear Dues */}

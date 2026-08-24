@@ -1,6 +1,7 @@
 import Razorpay from 'razorpay'
 import crypto from 'crypto'
 import { UserSubscription } from '../models/UserSubscription.js'
+import { SubscriptionPlan } from '../models/SubscriptionPlan.js'
 import { SystemSetting } from '../models/SystemSetting.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
@@ -251,4 +252,9 @@ export const checkLabourAccess = asyncHandler(async (req, res) => {
       canPurchaseNow: currentHour >= startHour && currentHour < endHour,
     },
   })
+})
+
+export const getActiveSubscriptionPlans = asyncHandler(async (req, res) => {
+  const plans = await SubscriptionPlan.find({ isActive: true }).sort({ durationDays: 1 }).lean()
+  return sendSuccess(res, { data: { plans } })
 })

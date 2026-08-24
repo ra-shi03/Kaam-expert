@@ -2,7 +2,6 @@ import { User } from '../models/User.js'
 import { Booking } from '../models/Booking.js'
 import { BroadcastLog } from '../models/BroadcastLog.js'
 import { SystemSetting } from '../models/SystemSetting.js'
-import { checkWalletEligibility } from '../controllers/walletController.js'
 import { getRoadDistances } from '../utils/googleMapsDistance.js'
 import { UserSubscription } from '../models/UserSubscription.js'
 import { Review } from '../models/Review.js'
@@ -65,7 +64,10 @@ export async function startBroadcastCycle(bookingId) {
     'labourProfile.currentLongitude': { $gte: bookingLng - bufferLngDiff, $lte: bookingLng + bufferLngDiff }
   }
 
-  if (booking.serviceId) {
+  if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 0) {
+    const requestedServiceIds = booking.contractorInfo.services.map(s => s.serviceId)
+    query['labourProfile.serviceIds'] = { $in: requestedServiceIds }
+  } else if (booking.serviceId) {
     query['labourProfile.serviceIds'] = booking.serviceId
   } else if (booking.subcategoryId) {
     query['labourProfile.subcategoryIds'] = booking.subcategoryId
@@ -107,6 +109,8 @@ export async function startBroadcastCycle(bookingId) {
 
   const potentialLaborers = potentialLaborersRaw.filter(labor => {
     const schedule = labor.labourProfile?.schedule || []
+    if (schedule.length === 0) return true // Assume available if no schedule set
+
     const dayEntry = schedule.find(s => s.day === targetDayName)
     if (!dayEntry || !dayEntry.isAvailable) return false
     
@@ -132,19 +136,8 @@ export async function startBroadcastCycle(bookingId) {
     return
   }
 
-  // 3. Wallet Eligibility Filter
-  const walletEligible = []
-  for (const labor of potentialLaborers) {
-    const isEligible = await checkWalletEligibility(labor._id)
-    if (isEligible) {
-      walletEligible.push(labor)
-    }
-  }
-
-  if (walletEligible.length === 0) {
-    await markBookingFailed(booking, 'No eligible laborers found (Wallet)')
-    return
-  }
+  // Wallet Eligibility Filter removed as per request
+  const walletEligible = potentialLaborers
 
   // 3b. Subscription Eligibility Filter
   const subEligible = []
@@ -266,20 +259,49 @@ export async function startBroadcastCycle(bookingId) {
     const laborUpdates = []
 
     import('../models/LabourService.js').then(async ({ LabourService }) => {
-      const service = await LabourService.findById(booking.serviceId)
-      const serviceName = service ? service.name : 'Requested Service'
+      let serviceName = 'Requested Service'
+      if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 1) {
+        serviceName = 'Multiple Services'
+      } else {
+        const service = await LabourService.findById(booking.serviceId)
+        if (service) serviceName = service.name
+      }
 
       eligibleLaborers.forEach(labor => {
+        let singleShare = booking.laborShare || booking.basePrice
+        let matchedServiceName = serviceName
+
+        if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 0) {
+          // Find which service this labourer is matched for
+          const laborServiceIds = labor.labourProfile?.serviceIds?.map(id => String(id)) || []
+          const matchedService = booking.contractorInfo.services.find(s => laborServiceIds.includes(String(s.serviceId)))
+          
+          if (matchedService) {
+            // They matched this specific service. Calculate their single unit share.
+            const unitSubTotal = (matchedService.price || 0) * (booking.hours || 1)
+            // Apply the same ratio of deductions (commission, discounts) that the total laborShare has
+            const ratio = (booking.basePrice && booking.basePrice > 0) ? (booking.laborShare / booking.basePrice) : 1
+            singleShare = Math.round(unitSubTotal * ratio)
+            
+            // Wait, also fetch the name of their specific service!
+            // But we can't await inside a forEach sync loop easily, so we just stick with 'Multiple Services' or use a map if we pre-fetched.
+          } else if (booking.quantity > 1) {
+            singleShare = Math.round(singleShare / booking.quantity)
+          }
+        } else if (booking.quantity > 1) {
+          singleShare = Math.round(singleShare / booking.quantity)
+        }
+
         emitToUser(labor._id, 'BOOKING_RECEIVED', {
           bookingId: booking._id,
           customerName: booking.userId?.fullName || 'Customer',
-          serviceName: serviceName,
+          serviceName: matchedServiceName,
           date: booking.scheduledAt || booking.createdAt,
           time: booking.timeSlot || 'Earliest available',
           duration: booking.hours || 1,
           customerLocation: booking.address?.locationText || 'Service Location',
           approximateDistance: labor.approximateDistance,
-          estimatedEarnings: booking.laborShare || booking.basePrice,
+          estimatedEarnings: singleShare,
           timeoutMs: BROADCAST_TIMEOUT_MS
         })
         
@@ -304,19 +326,35 @@ export async function startBroadcastCycle(bookingId) {
   setTimeout(async () => {
     const currentBooking = await Booking.findById(booking._id)
     if (currentBooking && currentBooking.status === 'BROADCASTING') {
-      currentBooking.status = 'FAILED'
-      await currentBooking.save()
-      console.log(`Booking ${booking._id} EXPIRED without acceptance.`)
-      
-      // Notify customer
-      import('../socket.js').then(({ emitToUser }) => {
-        emitToUser(currentBooking.userId, 'BOOKING_FAILED', { bookingId: currentBooking._id, reason: 'Expired' })
+      if (currentBooking.acceptedLabourIds && currentBooking.acceptedLabourIds.length > 0) {
+        // Partially accepted, but timeout reached. Let's just finalize the partial match.
+        currentBooking.status = 'ACCEPTED'
+        await currentBooking.save()
+        console.log(`Booking ${booking._id} EXPIRED with partial acceptance (${currentBooking.acceptedLabourIds.length}/${currentBooking.quantity || 1}).`)
         
-        // Notify laborers that it expired
-        eligibleLaborers.forEach(labor => {
-          emitToUser(labor._id, 'BOOKING_EXPIRED', { bookingId: currentBooking._id })
-        })
-      }).catch(err => console.error(err))
+        import('../socket.js').then(({ emitToUser, getSocketServer }) => {
+          emitToUser(currentBooking.userId, 'BOOKING_ACCEPTED', { bookingId: currentBooking._id, partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
+          
+          const io = getSocketServer()
+          if (io) {
+            io.emit('BOOKING_EXPIRED', { bookingId: currentBooking._id })
+          }
+        }).catch(err => console.error(err))
+      } else {
+        currentBooking.status = 'FAILED'
+        await currentBooking.save()
+        console.log(`Booking ${booking._id} EXPIRED without acceptance.`)
+        
+        // Notify customer
+        import('../socket.js').then(({ emitToUser }) => {
+          emitToUser(currentBooking.userId, 'BOOKING_FAILED', { bookingId: currentBooking._id, reason: 'Expired' })
+          
+          // Notify laborers that it expired
+          eligibleLaborers.forEach(labor => {
+            emitToUser(labor._id, 'BOOKING_EXPIRED', { bookingId: currentBooking._id })
+          })
+        }).catch(err => console.error(err))
+      }
     }
   }, BROADCAST_TIMEOUT_MS)
 }

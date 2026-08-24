@@ -23,13 +23,6 @@ export const adminSettingsApi = {
     })
   },
 
-  updateWalletLimit: (payload) => {
-    return apiRequest('/admin/settings/wallet-limit', {
-      method: 'PATCH',
-      body: payload,
-    })
-  },
-
   updateLabourCashLimit: (payload) => {
     return apiRequest('/admin/settings/labour-cash-limit', {
       method: 'PATCH',

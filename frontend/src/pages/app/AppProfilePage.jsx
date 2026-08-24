@@ -217,8 +217,9 @@ export function AppProfilePage() {
       if (!document.querySelector('#google-maps-script')) {
         const script = document.createElement('script')
         script.id = 'google-maps-script'
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`
         script.async = true
+        script.defer = true
         script.onload = initAutocomplete
         document.head.appendChild(script)
       } else {
@@ -273,7 +274,8 @@ export function AppProfilePage() {
       (error) => {
         setIsFetchingLocation(false)
         setProfileErr(error.message)
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10_000 }
     )
   }, [])
 
@@ -362,7 +364,7 @@ export function AppProfilePage() {
     setEditCity(user?.city || '')
     setEditState(user?.state || '')
     setEditCountry(user?.country || 'India')
-    setEditExperienceYears(user?.labourProfile?.experienceYears || '')
+    setEditExperienceYears(user?.labourProfile?.experienceYears ?? '')
     setProfileErr('')
     setEditProfileOpen(true)
   }, [user])
@@ -396,7 +398,7 @@ export function AppProfilePage() {
         country: editCountry.trim() || undefined,
         ...(user?.role === USER_ROLES.LABOUR ? {
           labourProfile: {
-            experienceYears: editExperienceYears ? Number(editExperienceYears) : undefined
+            experienceYears: editExperienceYears !== '' ? Number(editExperienceYears) : undefined
           }
         } : {})
       })
@@ -417,7 +419,7 @@ export function AppProfilePage() {
     } finally {
       setSavingProfile(false)
     }
-  }, [editNameValue, editPhoneValue, editEmailValue, editPermanentAddress, editCurrentLocation, editCity, editState, editCountry, dispatch])
+  }, [editNameValue, editPhoneValue, editEmailValue, editPermanentAddress, editCurrentLocation, editCity, editState, editCountry, editExperienceYears, user, dispatch])
 
   const handleToggleRole = useCallback(async () => {
     const newRole = user?.role === USER_ROLES.CUSTOMER ? USER_ROLES.CONTRACTOR : USER_ROLES.CUSTOMER

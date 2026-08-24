@@ -106,12 +106,12 @@ export const updateMe = asyncHandler(async (req, res) => {
   }
 
   if (user.role === USER_ROLES.LABOUR && req.body.labourProfile) {
-    user.labourProfile = user.labourProfile || {}
+    if (!user.labourProfile) user.labourProfile = {}
     if (req.body.labourProfile.skills !== undefined) {
-      user.labourProfile.skills = req.body.labourProfile.skills
+      user.set('labourProfile.skills', req.body.labourProfile.skills)
     }
     if (req.body.labourProfile.experienceYears !== undefined) {
-      user.labourProfile.experienceYears = req.body.labourProfile.experienceYears
+      user.set('labourProfile.experienceYears', req.body.labourProfile.experienceYears)
     }
   }
 

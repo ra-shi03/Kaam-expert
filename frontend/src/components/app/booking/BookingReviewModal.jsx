@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Star, Send, X, CheckCircle2 } from 'lucide-react'
@@ -30,16 +30,28 @@ const RATING_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent']
  *   open        – boolean, whether the modal is visible
  *   bookingId   – string, _id of the completed booking
  *   workerName  – string, labourer's name to display
+ *   revieweeId  – string (optional), specific labourer to review
  *   onClose     – fn(), called when user dismisses without submitting
  *   onSubmitted – fn(), called after successful review submission
  */
-export function BookingReviewModal({ open, bookingId, workerName, onClose, onSubmitted }) {
+export function BookingReviewModal({ open, bookingId, workerName, revieweeId, onClose, onSubmitted }) {
   const [rating, setRating] = useState(0)
   const [hoveredRating, setHoveredRating] = useState(0)
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setRating(0)
+      setHoveredRating(0)
+      setComment('')
+      setSubmitting(false)
+      setError('')
+      setSubmitted(false)
+    }
+  }, [open, revieweeId])
 
   const displayRating = hoveredRating || rating
 
@@ -51,7 +63,7 @@ export function BookingReviewModal({ open, bookingId, workerName, onClose, onSub
     setError('')
     setSubmitting(true)
     try {
-      await reviewsApi.submitReview({ bookingId, rating, comment: comment.trim() })
+      await reviewsApi.submitReview({ bookingId, rating, comment: comment.trim(), revieweeId })
       setSubmitted(true)
       setTimeout(() => {
         onSubmitted?.()

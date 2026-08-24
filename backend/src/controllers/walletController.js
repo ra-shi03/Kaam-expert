@@ -61,27 +61,7 @@ export const clearAdminDues = asyncHandler(async (req, res) => {
   return sendSuccess(res, { message: 'Admin dues cleared successfully', data: { wallet } })
 })
 
-// Used internally by the Broadcast Engine / Booking Completion flow
-export const checkWalletEligibility = async (userId) => {
-  const wallet = await Wallet.findOne({ userId })
-  if (!wallet) return true // New labor, no dues
 
-  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
-  
-  // Need to know if they are a vendor or labour to apply the correct limit
-  const User = mongoose.model('User')
-  const user = await User.findById(userId).select('role')
-  
-  let limit = settings?.walletLimit ?? 100
-  if (user && user.role === 'labour') {
-    limit = settings?.labourCashLimit ?? 500
-  } else if (user && user.role === 'contractor') {
-    return true // Vendors no longer use cash limits
-  }
-
-  const currentDues = wallet.adminBalance || 0
-  return currentDues <= limit
-}
 
 export const requestWithdrawal = asyncHandler(async (req, res) => {
   const { amount, bankDetails } = req.body

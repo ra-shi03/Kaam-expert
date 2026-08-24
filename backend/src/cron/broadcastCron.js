@@ -30,7 +30,7 @@ export function initBroadcastCron() {
         status: 'CREATED',
         scheduledAt: { 
           $lte: sixtyMinsFromNow,
-          $gt: now // Ensure we don't pick up severely outdated ones if they exist
+          $gt: new Date(now.getTime() - 12 * 60 * 60 * 1000) // Ensure we don't pick up severely outdated ones, but allow immediate timeslots
         }
       })
 

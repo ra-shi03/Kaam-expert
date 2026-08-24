@@ -1,6 +1,11 @@
 import { apiRequest } from './http.js'
 
 export const adminLabourSubscriptionsApi = {
+  getPlans: () => apiRequest('/admin/labour-subscriptions/plans', { method: 'GET' }),
+  createPlan: (payload) => apiRequest('/admin/labour-subscriptions/plans', { method: 'POST', body: payload }),
+  updatePlan: (id, payload) => apiRequest(`/admin/labour-subscriptions/plans/${id}`, { method: 'PATCH', body: payload }),
+  deletePlan: (id) => apiRequest(`/admin/labour-subscriptions/plans/${id}`, { method: 'DELETE' }),
+
   /** List labour subscriptions with date/status/refundStatus filters */
   getSubscriptions: (params = {}) => {
     const qs = new URLSearchParams()

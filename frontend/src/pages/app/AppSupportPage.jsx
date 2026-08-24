@@ -52,12 +52,6 @@ const TOPICS_BY_ROLE = {
     { id: 'attendance', label: 'Attendance', desc: 'Check-in errors, missing days' },
     { id: 'kyc', label: 'KYC & profile', desc: 'Verification, skills, documents' },
   ],
-  [USER_ROLES.CONTRACTOR]: [
-    { id: 'supply', label: 'Supply & allocation', desc: 'Admin assignments, crew counts' },
-    { id: 'workforce', label: 'Workforce', desc: 'Onboarding, replacements' },
-    { id: 'client', label: 'Client sites', desc: 'Coordination, escalations' },
-    { id: 'payment', label: 'Vendor payments', desc: 'Settlement, disputes' },
-  ],
 }
 
 const TOPIC_ICONS = {

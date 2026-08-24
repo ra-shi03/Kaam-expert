@@ -281,7 +281,17 @@ export function AdminPlatformFeePage() {
                         {b.userId?.fullName || 'N/A'}
                       </td>
                       <td className="px-6 py-4 font-medium text-slate-700">
-                        {b.laborId?.fullName || 'N/A'}
+                        {b.assignments && b.assignments.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            {b.assignments.map((a, i) => (
+                              <span key={i} className="whitespace-nowrap">
+                                {a.labourId?.fullName || a.labourId?.name || 'N/A'}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          b.laborId?.fullName || 'N/A'
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
@@ -366,11 +376,24 @@ export function AdminPlatformFeePage() {
                   <p className="text-xs text-slate-500">{selectedBooking.userId?.phone || 'No phone'}</p>
                 </div>
                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                  <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
                     <Wrench className="h-3.5 w-3.5" /> Labour
                   </p>
-                  <p className="font-semibold text-slate-900">{selectedBooking.laborId?.fullName || 'N/A'}</p>
-                  <p className="text-xs text-slate-500">{selectedBooking.laborId?.phone || 'No phone'}</p>
+                  {selectedBooking.assignments && selectedBooking.assignments.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {selectedBooking.assignments.map((a, i) => (
+                        <div key={i} className="flex flex-col border-b border-slate-200/50 pb-2 last:border-0 last:pb-0">
+                          <span className="font-semibold text-slate-900">{a.labourId?.fullName || a.labourId?.name || 'N/A'}</span>
+                          <span className="text-xs text-slate-500">{a.labourId?.phone || 'No phone'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-slate-900">{selectedBooking.laborId?.fullName || 'N/A'}</p>
+                      <p className="text-xs text-slate-500">{selectedBooking.laborId?.phone || 'No phone'}</p>
+                    </>
+                  )}
                 </div>
               </div>
 
