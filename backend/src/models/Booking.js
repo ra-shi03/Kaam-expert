@@ -54,6 +54,14 @@ const bookingSchema = new mongoose.Schema(
       type: Number,
       default: 1
     },
+    extraHours: {
+      type: Number,
+      default: 0
+    },
+    extraAmount: {
+      type: Number,
+      default: 0
+    },
     maxHourDiscount: {
       type: Number,
       default: 0
@@ -117,6 +125,7 @@ const bookingSchema = new mongoose.Schema(
     // Per-labourer assignments details for bulk
     assignments: [{
       labourId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'LabourService' },
       status: {
         type: String,
         enum: ['ACCEPTED', 'EN_ROUTE', 'STARTED', 'COMPLETED', 'REJECTED', 'CANCELLED'],
@@ -127,7 +136,9 @@ const bookingSchema = new mongoose.Schema(
       startWorkImage: String,
       endWorkImage: String,
       startedAt: Date,
-      completedAt: Date
+      completedAt: Date,
+      extraHours: { type: Number, default: 0 },
+      extraAmount: { type: Number, default: 0 }
     }],
     
     // Contractor Specific Details

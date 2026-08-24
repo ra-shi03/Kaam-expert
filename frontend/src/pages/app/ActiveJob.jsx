@@ -115,6 +115,9 @@ export function ActiveJob() {
     const handleStatusUpdate = (data) => {
       if (data.bookingId === bookingId) {
         setBooking((prev) => prev ? { ...prev, status: data.status, paymentStatus: data.paymentStatus || prev.paymentStatus } : prev)
+        if (data.paymentStatus === 'PAID') {
+          setShowPaymentWaiting(true)
+        }
       }
     }
 
@@ -556,16 +559,21 @@ export function ActiveJob() {
                       <p className="text-xl font-black tabular-nums text-blue-900 tracking-wider">
                         {(() => {
                           let startedAt;
+                          let myExtraHours = booking.extraHours || 0;
                           if (booking.assignments && booking.assignments.length > 0 && user) {
                             const myAssignment = booking.assignments.find(a => {
                               const aId = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
                               return String(aId) === String(user._id);
                             });
                             startedAt = myAssignment?.startedAt;
+                            if (myAssignment?.extraHours) {
+                              myExtraHours += myAssignment.extraHours;
+                            }
                           }
                           startedAt = startedAt || booking.startedAt || new Date();
                           
-                          const durationMs = booking.hours * 60 * 60 * 1000;
+                          const totalHours = (booking.hours || 1) + myExtraHours;
+                          const durationMs = totalHours * 60 * 60 * 1000;
                           const elapsed = now - new Date(startedAt).getTime();
                           const remaining = Math.max(0, durationMs - elapsed);
                           return formatCountdown(remaining);

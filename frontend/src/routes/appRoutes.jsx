@@ -20,6 +20,11 @@ import { ActiveJob } from '../pages/app/ActiveJob.jsx'
 import { LaborWallet } from '../pages/app/LaborWallet.jsx'
 import { AppSubCategoryServicePage } from '../pages/app/AppSubCategoryServicePage.jsx'
 import { AppSubscriptionPage } from '../pages/app/AppSubscriptionPage.jsx'
+import { AppPrivacyPolicyPage } from '../pages/app/AppPrivacyPolicyPage.jsx'
+import { AppTermsConditionsPage } from '../pages/app/AppTermsConditionsPage.jsx'
+import { AppFAQsPage } from '../pages/app/AppFAQsPage.jsx'
+import { AppCancellationPolicyPage } from '../pages/app/AppCancellationPolicyPage.jsx'
+import { AppRefundPolicyPage } from '../pages/app/AppRefundPolicyPage.jsx'
 import { USER_ROLES } from '../constants/userRoles.js'
 
 
@@ -142,6 +147,11 @@ export const appShellChildRoutes = (
         </RoleRoute>
       }
     />
+    <Route path="privacy-policy" element={<AppPrivacyPolicyPage />} />
+    <Route path="terms-conditions" element={<AppTermsConditionsPage />} />
+    <Route path="faqs" element={<AppFAQsPage />} />
+    <Route path="cancellation-policy" element={<AppCancellationPolicyPage />} />
+    <Route path="refund-policy" element={<AppRefundPolicyPage />} />
     <Route path="support" element={<AppSupportPage />} />
     <Route path="profile" element={<AppProfilePage />} />
     <Route

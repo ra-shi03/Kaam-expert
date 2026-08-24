@@ -40,4 +40,11 @@ export const bookingsApi = {
   confirmCashPayment: (id) => {
     return apiRequest(`/bookings/${id}/confirm-cash`, { method: 'POST' })
   },
+
+  addExtraTime: (id, payload) => {
+    return apiRequest(`/bookings/${id}/extra-time`, {
+      method: 'POST',
+      body: payload,
+    })
+  },
 }

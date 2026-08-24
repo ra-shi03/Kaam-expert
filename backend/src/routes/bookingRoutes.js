@@ -58,4 +58,15 @@ router.patch(
   booking.updatePaymentMethod,
 )
 
+router.post(
+  '/:id/extra-time',
+  [
+    body('extraHours').isNumeric().withMessage('extraHours must be a number'),
+    // Optional assignmentId if it's for a specific worker
+    body('assignmentId').optional().isMongoId().withMessage('Valid assignment ID required'),
+  ],
+  validateRequest,
+  booking.addExtraTime,
+)
+
 export default router

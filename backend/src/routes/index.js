@@ -26,6 +26,7 @@ import adminBannerRoutes from './adminBannerRoutes.js'
 import adminReportsRoutes from './adminReportsRoutes.js'
 import adminBookingRoutes from './adminBookingRoutes.js'
 import adminSubscriptionRoutes from './adminSubscriptionRoutes.js'
+import policyRoutes from './policyRoutes.js'
 
 
 const router = Router()
@@ -44,6 +45,7 @@ router.use('/reviews', reviewRoutes)
 router.use('/complaints', complaintRoutes)
 router.use('/banners', bannerRoutes)
 router.use('/user-subscriptions', userSubscriptionRoutes)
+router.use('/policies', policyRoutes)
 
 router.use('/admin/settings', systemSettingRoutes)
 router.use('/admin/zones', adminZoneRoutes)

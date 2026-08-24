@@ -33,6 +33,11 @@ import { AdminCashManagementPage } from './pages/admin/AdminCashManagementPage.j
 import { AdminReviewsRatingsPage } from './pages/admin/AdminReviewsRatingsPage.jsx'
 import { AdminLabourSubscriptionsPage } from './pages/admin/AdminLabourSubscriptionsPage.jsx'
 import { AdminFreeTrialPage } from './pages/admin/AdminFreeTrialPage.jsx'
+import { AdminPrivacyPolicyPage } from './pages/admin/AdminPrivacyPolicyPage.jsx'
+import { AdminTermsConditionsPage } from './pages/admin/AdminTermsConditionsPage.jsx'
+import { AdminFAQsPage } from './pages/admin/AdminFAQsPage.jsx'
+import { AdminCancellationPolicyPage } from './pages/admin/AdminCancellationPolicyPage.jsx'
+import { AdminRefundPolicyPage } from './pages/admin/AdminRefundPolicyPage.jsx'
 
 import { BroadcastPopup } from './components/app/BroadcastPopup.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
@@ -107,6 +112,11 @@ function App() {
             <Route path="reviews" element={<AdminReviewsRatingsPage />} />
             <Route path="labour-subscriptions" element={<AdminLabourSubscriptionsPage />} />
             <Route path="free-trials" element={<AdminFreeTrialPage />} />
+            <Route path="privacy-policy" element={<AdminPrivacyPolicyPage />} />
+            <Route path="terms-conditions" element={<AdminTermsConditionsPage />} />
+            <Route path="faqs" element={<AdminFAQsPage />} />
+            <Route path="cancellation-policy" element={<AdminCancellationPolicyPage />} />
+            <Route path="refund-policy" element={<AdminRefundPolicyPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

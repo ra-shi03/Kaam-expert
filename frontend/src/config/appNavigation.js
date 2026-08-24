@@ -33,6 +33,11 @@ const byRole = {
       { id: 'subscription', to: '/app/subscriptions', label: 'My Subscription', icon: ShieldCheck },
       { id: 'book', to: '/app/my-bookings', label: 'My bookings', icon: ClipboardList },
       { id: 'support', to: '/app/support', label: 'Support & issues', icon: LifeBuoy },
+      { id: 'privacy', to: '/app/privacy-policy', label: 'Privacy Policy', icon: FileText },
+      { id: 'terms', to: '/app/terms-conditions', label: 'Terms & Conditions', icon: FileText },
+      { id: 'faqs', to: '/app/faqs', label: 'FAQs', icon: FileText },
+      { id: 'cancellation', to: '/app/cancellation-policy', label: 'Cancellation Policy', icon: FileText },
+      { id: 'refund', to: '/app/refund-policy', label: 'Refund Policy', icon: FileText },
       { id: 'profile', to: '/app/profile', label: 'Profile & settings', icon: UserRound },
     ],
   },
@@ -50,6 +55,11 @@ const byRole = {
       { id: 'book', to: '/app/my-bookings', label: 'Bookings & requests', icon: ClipboardList },
       { id: 'billing', to: '/app/billing', label: 'Billing & contracts', icon: FileText },
       { id: 'support', to: '/app/support', label: 'Support & issues', icon: LifeBuoy },
+      { id: 'privacy', to: '/app/privacy-policy', label: 'Privacy Policy', icon: FileText },
+      { id: 'terms', to: '/app/terms-conditions', label: 'Terms & Conditions', icon: FileText },
+      { id: 'faqs', to: '/app/faqs', label: 'FAQs', icon: FileText },
+      { id: 'cancellation', to: '/app/cancellation-policy', label: 'Cancellation Policy', icon: FileText },
+      { id: 'refund', to: '/app/refund-policy', label: 'Refund Policy', icon: FileText },
       { id: 'profile', to: '/app/profile', label: 'Profile & settings', icon: UserRound },
     ],
   },
@@ -70,6 +80,11 @@ const byRole = {
       { id: 'kyc', to: '/app/kyc', label: 'Aadhaar KYC', icon: ShieldCheck },
       { id: 'workTypes', to: '/app/work-categories', label: 'Work types', icon: Wrench },
       { id: 'support', to: '/app/support', label: 'Support', icon: LifeBuoy },
+      { id: 'privacy', to: '/app/privacy-policy', label: 'Privacy Policy', icon: FileText },
+      { id: 'terms', to: '/app/terms-conditions', label: 'Terms & Conditions', icon: FileText },
+      { id: 'faqs', to: '/app/faqs', label: 'FAQs', icon: FileText },
+      { id: 'cancellation', to: '/app/cancellation-policy', label: 'Cancellation Policy', icon: FileText },
+      { id: 'refund', to: '/app/refund-policy', label: 'Refund Policy', icon: FileText },
       { id: 'profile', to: '/app/profile', label: 'Profile', icon: UserRound },
     ],
   },
@@ -93,6 +108,11 @@ export function getAppShellTitle(pathname) {
   if (pathname.startsWith('/app/profile')) return 'Profile'
   if (pathname.startsWith('/app/bookings')) return 'My bookings'
   if (pathname.startsWith('/app/search')) return 'Search'
+  if (pathname.startsWith('/app/privacy-policy')) return 'Privacy Policy'
+  if (pathname.startsWith('/app/terms-conditions')) return 'Terms & Conditions'
+  if (pathname.startsWith('/app/faqs')) return 'FAQs'
+  if (pathname.startsWith('/app/cancellation-policy')) return 'Cancellation Policy'
+  if (pathname.startsWith('/app/refund-policy')) return 'Refund Policy'
   return 'Home'
 }
 

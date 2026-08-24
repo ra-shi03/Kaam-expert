@@ -119,9 +119,22 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
   const startOtp = Math.floor(1000 + Math.random() * 9000).toString()
   const completionOtp = Math.floor(1000 + Math.random() * 9000).toString()
 
+  let assignedServiceId = booking.serviceId;
+  if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 0) {
+    const currentAssignments = booking.assignments || [];
+    for (const service of booking.contractorInfo.services) {
+      const currentCount = currentAssignments.filter(a => String(a.serviceId) === String(service.serviceId)).length;
+      if (currentCount < (service.quantity || 1)) {
+        assignedServiceId = service.serviceId;
+        break;
+      }
+    }
+  }
+
   booking.assignments = booking.assignments || []
   booking.assignments.push({
     labourId: labour._id,
+    serviceId: assignedServiceId,
     status: 'ACCEPTED',
     startOtp,
     completionOtp
@@ -153,11 +166,11 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
 
   // Notify customer
   import('../socket.js')
-    .then(({ emitToUser, getSocketServer }) => {
+    .then(({ emitToUser, getIo }) => {
       emitToUser(booking.userId, 'BOOKING_ACCEPTED', { bookingId: booking._id, laborId: labour._id, quantity: booking.quantity, acceptedCount: booking.acceptedLabourIds.length })
       
       if (booking.status === 'ACCEPTED') {
-        const io = getSocketServer()
+        const io = getIo()
         if (io) {
           io.emit('BOOKING_EXPIRED', { bookingId: booking._id, winnerId: labour._id }) // Tells others it's fully booked
         }
@@ -211,12 +224,12 @@ export const rejectBroadcast = asyncHandler(async (req, res) => {
     await booking.save()
 
     import('../socket.js')
-      .then(({ emitToUser, getSocketServer }) => {
+      .then(({ emitToUser, getIo }) => {
         emitToUser(booking.userId, 'BOOKING_FAILED', {
           bookingId: booking._id,
           reason: 'All available labourers declined',
         })
-        const io = getSocketServer()
+        const io = getIo()
         if (io) {
           io.emit('BOOKING_EXPIRED', { bookingId: booking._id })
         }

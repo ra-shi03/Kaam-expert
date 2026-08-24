@@ -28,9 +28,9 @@ export const getAllBookings = asyncHandler(async (req, res) => {
   }
 
   if (req.query.type === 'contractor') {
-    query.contractorInfo = { $exists: true }
+    query['contractorInfo.services.0'] = { $exists: true }
   } else if (req.query.type === 'individual') {
-    query.contractorInfo = { $exists: false }
+    query['contractorInfo.services.0'] = { $exists: false }
   }
 
   if (startDate || endDate) {

@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, CreditCard, MapPin, User } from 'lucide-react'
+import { Calendar, CreditCard, MapPin, User, Loader2, Plus, Minus, Clock, CheckCircle } from 'lucide-react'
 import { GlassPanel } from '../ui/GlassPanel.jsx'
+import { bookingsApi } from '../../api/bookingsApi.js'
 
 const STATUS_STYLES = {
   CREATED: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -25,14 +27,54 @@ export function B2cBookingCard({ booking, isLabour }) {
   const subcategory = typeof booking.subcategoryId === 'object' ? booking.subcategoryId : null
   const isActive = (status !== 'COMPLETED' || !isPaid) && status !== 'CANCELLED'
 
+  const displayStartOtp = booking.assignments?.length > 0 ? booking.assignments[0].startOtp : booking.startOtp;
+  const displayCompletionOtp = booking.assignments?.length > 0 ? booking.assignments[0].completionOtp : booking.completionOtp;
+
+  const [extraHours, setExtraHours] = useState({})
+  const [loadingTime, setLoadingTime] = useState(null)
+  const [confirmModalData, setConfirmModalData] = useState(null)
+  const [successModalOpen, setSuccessModalOpen] = useState(false)
+
+  const handleAddExtraTimeClick = (e, targetLabourId) => {
+    e.stopPropagation()
+    const hours = extraHours[targetLabourId] || 0
+    if (hours <= 0) return
+    setConfirmModalData({ targetLabourId, hours })
+  }
+
+  const confirmAddExtraTime = async () => {
+    if (!confirmModalData) return
+    const { targetLabourId, hours } = confirmModalData
+    setConfirmModalData(null)
+    setLoadingTime(targetLabourId)
+    try {
+      await bookingsApi.addExtraTime(booking._id, {
+        extraHours: hours,
+        assignmentId: targetLabourId !== 'main' ? targetLabourId : undefined
+      })
+      setExtraHours(prev => ({ ...prev, [targetLabourId]: 0 }))
+      if (status === 'COMPLETED' && !isPaid) {
+        navigate(`/app/booking/flow?bookingId=${booking._id}&step=billing`)
+      } else {
+        setSuccessModalOpen(true)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Failed to add extra time')
+    } finally {
+      setLoadingTime(null)
+    }
+  }
+
   return (
+    <>
     <GlassPanel
       className="cursor-pointer overflow-hidden p-0 transition-all hover:shadow-lg border-slate-200/60"
       onClick={() => {
         if (isActive) {
           if (isLabour) {
             navigate(`/app/active-job/${booking._id}`)
-          } else if (!isPaid) {
+          } else if (status === 'COMPLETED' && !isPaid) {
              navigate(`/app/booking/flow?bookingId=${booking._id}&step=billing`)
           } else {
              navigate(`/app/tracking/${booking._id}`)
@@ -48,7 +90,7 @@ export function B2cBookingCard({ booking, isLabour }) {
               <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider shadow-sm ${STATUS_STYLES[displayStatus] || 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                 {displayStatus.replace('_', ' ')}
               </span>
-              {booking.type && (
+              {booking.type && !isPaid && (
                 <>
                   <span className="text-[10px] font-bold text-slate-400">•</span>
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{booking.type}</span>
@@ -117,10 +159,11 @@ export function B2cBookingCard({ booking, isLabour }) {
               </div>
             )
           ) : (
-            (booking.quantity > 1 || (booking.contractorInfo?.services && booking.contractorInfo.services.length > 0)) ? (
+            (booking.quantity > 1 || (booking.contractorInfo?.services && booking.contractorInfo.services.length > 0) || (booking.assignments && booking.assignments.length > 0)) ? (
               <div className="mt-2 pt-3 border-t border-slate-100/80 space-y-3">
-                {Array.from({ length: booking.quantity || 1 }).map((_, idx) => {
+                {Array.from({ length: Math.max(booking.quantity || 1, booking.assignments?.length || 0) }).map((_, idx) => {
                   const assignment = booking.assignments?.[idx];
+                  const profNum = (booking.quantity > 1 || (booking.assignments?.length || 0) > 1) ? ` ${idx + 1}` : '';
                   return (
                     <div key={idx} className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-3 text-sm text-slate-700">
@@ -128,7 +171,7 @@ export function B2cBookingCard({ booking, isLabour }) {
                           <User className="h-4 w-4 text-slate-400" />
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-[10px] uppercase font-bold text-slate-400">Professional {idx + 1}</span>
+                          <span className="text-[10px] uppercase font-bold text-slate-400">Professional{profNum}</span>
                           <span className={`font-bold leading-tight ${assignment ? 'text-slate-800' : 'text-slate-400'}`}>
                             {assignment 
                               ? `${assignment.labourId?.fullName || assignment.labourId?.name || 'Assigned'} ${assignment.labourId?.phone ? `• ${assignment.labourId.phone}` : ''}`
@@ -136,27 +179,59 @@ export function B2cBookingCard({ booking, isLabour }) {
                           </span>
                         </div>
                       </div>
-                      {assignment && (assignment.startOtp || assignment.completionOtp) && (
-                        <div className="flex gap-2">
+                      {(!isLabour) && assignment && (assignment.startOtp || assignment.completionOtp) && (
+                        <div className="flex gap-2 w-full mt-2">
                           {assignment.startOtp && (
-                            <div className="flex flex-col items-center px-2 py-1 bg-blue-50/50 border border-blue-100/50 rounded-lg">
-                              <span className="text-[8px] font-bold text-blue-500/80 uppercase tracking-wider mb-0.5">Start OTP</span>
-                              <span className="text-xs font-black text-blue-700 leading-none">{assignment.startOtp}</span>
+                            <div className="flex flex-col items-center px-2 py-1.5 bg-blue-50/50 border border-blue-100/50 rounded-lg flex-1">
+                              <span className="text-[9px] font-bold text-blue-500/80 uppercase tracking-wider mb-0.5">Start OTP</span>
+                              <span className="text-sm font-black text-blue-700 leading-none">{assignment.startOtp}</span>
                             </div>
                           )}
                           {assignment.completionOtp && (
-                            <div className="flex flex-col items-center px-2 py-1 bg-purple-50/50 border border-purple-100/50 rounded-lg">
-                              <span className="text-[8px] font-bold text-purple-500/80 uppercase tracking-wider mb-0.5">End OTP</span>
-                              <span className="text-xs font-black text-purple-700 leading-none">{assignment.completionOtp}</span>
+                            <div className="flex flex-col items-center px-2 py-1.5 bg-purple-50/50 border border-purple-100/50 rounded-lg flex-1">
+                              <span className="text-[9px] font-bold text-purple-500/80 uppercase tracking-wider mb-0.5">End OTP</span>
+                              <span className="text-sm font-black text-purple-700 leading-none">{assignment.completionOtp}</span>
                             </div>
                           )}
                         </div>
                       )}
+                      {!isLabour && ['ACCEPTED', 'EN_ROUTE', 'STARTED', 'COMPLETED'].includes(status) && !isPaid && assignment && (
+                        <div className="w-full mt-2 flex items-center justify-between bg-white rounded-lg p-2 border border-slate-100" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-slate-400" />
+                            <span className="text-xs font-semibold text-slate-600">Extra Time</span>
+                            {assignment.extraHours > 0 && <span className="text-[10px] font-bold text-brand bg-brand/10 px-1.5 py-0.5 rounded">+{assignment.extraHours}h added</span>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
+                              <button type="button" className="p-1.5 text-slate-500 hover:bg-slate-200 transition" onClick={() => setExtraHours(prev => ({ ...prev, [assignment.labourId?._id]: Math.max(0, (prev[assignment.labourId?._id] || 0) - 1) }))}>
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span className="w-6 text-center text-xs font-bold text-slate-800">{extraHours[assignment.labourId?._id] || 0}h</span>
+                              <button type="button" className="p-1.5 text-slate-500 hover:bg-slate-200 transition" onClick={() => setExtraHours(prev => ({ ...prev, [assignment.labourId?._id]: (prev[assignment.labourId?._id] || 0) + 1 }))}>
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                            {(extraHours[assignment.labourId?._id] || 0) > 0 && (
+                              <button 
+                                type="button"
+                                disabled={loadingTime === assignment.labourId?._id}
+                                onClick={(e) => handleAddExtraTimeClick(e, assignment.labourId?._id)}
+                                className="flex items-center justify-center bg-brand text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-brand-600 transition disabled:opacity-50"
+                              >
+                                {loadingTime === assignment.labourId?._id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                     </div>
                   );
                 })}
               </div>
             ) : booking.laborId ? (
+            <>
               <div className="flex items-center gap-3 text-sm text-slate-700 mt-2 pt-3 border-t border-slate-100/80">
                 <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white shadow-sm border border-slate-100 shrink-0">
                   <User className="h-4 w-4 text-brand" />
@@ -168,6 +243,39 @@ export function B2cBookingCard({ booking, isLabour }) {
                   </span>
                 </div>
               </div>
+              
+              {!isLabour && ['ACCEPTED', 'EN_ROUTE', 'STARTED', 'COMPLETED'].includes(status) && !isPaid && (
+                <div className="w-full mt-2 flex items-center justify-between bg-white rounded-lg p-2 border border-slate-100" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                    <span className="text-xs font-semibold text-slate-600">Extra Time</span>
+                    {booking.extraHours > 0 && <span className="text-[10px] font-bold text-brand bg-brand/10 px-1.5 py-0.5 rounded">+{booking.extraHours}h added</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
+                      <button type="button" className="p-1.5 text-slate-500 hover:bg-slate-200 transition" onClick={() => setExtraHours(prev => ({ ...prev, 'main': Math.max(0, (prev['main'] || 0) - 1) }))}>
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="w-6 text-center text-xs font-bold text-slate-800">{extraHours['main'] || 0}h</span>
+                      <button type="button" className="p-1.5 text-slate-500 hover:bg-slate-200 transition" onClick={() => setExtraHours(prev => ({ ...prev, 'main': (prev['main'] || 0) + 1 }))}>
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                    {(extraHours['main'] || 0) > 0 && (
+                      <button 
+                        type="button"
+                        disabled={loadingTime === 'main'}
+                        onClick={(e) => handleAddExtraTimeClick(e, 'main')}
+                        className="flex items-center justify-center bg-brand text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-brand-600 transition disabled:opacity-50"
+                      >
+                        {loadingTime === 'main' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </>
             ) : null
           )}
         </div>
@@ -192,7 +300,7 @@ export function B2cBookingCard({ booking, isLabour }) {
               </div>
           ) : <div />}
           
-          {(!booking.assignments || booking.assignments.length === 0) && (booking.quantity === 1 || !booking.quantity) && (!booking.contractorInfo?.services || booking.contractorInfo.services.length === 0) && (booking.startOtp || booking.completionOtp) && (
+          {(!booking.assignments || booking.assignments.length === 0) && (booking.quantity === 1 || !booking.quantity) && (!booking.contractorInfo?.services || booking.contractorInfo.services.length === 0) && (booking.startOtp || booking.completionOtp) && !isLabour && (
             <div className="flex gap-2">
               {booking.startOtp && (
                 <div className="flex flex-col items-center px-3 py-1.5 bg-blue-50/50 border border-blue-100/50 rounded-lg">
@@ -211,5 +319,84 @@ export function B2cBookingCard({ booking, isLabour }) {
         </div>
       </div>
     </GlassPanel>
+
+    {/* Confirmation Modal */}
+    {confirmModalData && (
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+        onClick={(e) => {
+          e.stopPropagation()
+          setConfirmModalData(null)
+        }}
+      >
+        <div 
+          className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-900/5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 className="text-lg font-bold text-slate-900">Confirm Extra Time</h3>
+          <p className="mt-2 text-sm text-slate-500">
+            Are you sure you want to add <span className="font-bold text-brand">{confirmModalData.hours} extra hour{confirmModalData.hours > 1 ? 's' : ''}</span>? This will increase your final bill.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3 justify-end">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setConfirmModalData(null)
+              }}
+              className="rounded-lg px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                confirmAddExtraTime()
+              }}
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-600 transition"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Success Modal */}
+    {successModalOpen && (
+      <div 
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+        onClick={(e) => {
+          e.stopPropagation()
+          setSuccessModalOpen(false)
+          window.location.reload()
+        }}
+      >
+        <div 
+          className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-900/5 flex flex-col items-center text-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 mb-4">
+            <CheckCircle className="h-6 w-6 text-emerald-600" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-900">Time Added</h3>
+          <p className="mt-2 text-sm text-slate-500">
+            Extra time has been successfully added to this booking.
+          </p>
+          <div className="mt-6 w-full">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setSuccessModalOpen(false)
+                window.location.reload()
+              }}
+              className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition"
+            >
+              Okay
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

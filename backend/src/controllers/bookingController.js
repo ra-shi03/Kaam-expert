@@ -458,15 +458,16 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
   }
 
   // Calculate top-level booking status based on assignments if it's a bulk booking
-  if (booking.quantity > 1 && booking.assignments && booking.assignments.length > 0) {
+  if (booking.assignments && booking.assignments.length > 0) {
     const allStatuses = booking.assignments.map(a => a.status);
-    if (allStatuses.every(s => s === 'COMPLETED')) {
+    const expectedQuantity = booking.quantity || 1;
+    if (allStatuses.length > 0 && allStatuses.every(s => s === 'COMPLETED')) {
       booking.status = 'COMPLETED';
     } else if (allStatuses.some(s => s === 'STARTED' || s === 'COMPLETED')) {
       booking.status = 'STARTED';
     } else if (allStatuses.some(s => s === 'EN_ROUTE')) {
       booking.status = 'EN_ROUTE';
-    } else if (allStatuses.length === booking.quantity && allStatuses.every(s => s === 'ACCEPTED')) {
+    } else if (allStatuses.length === expectedQuantity && allStatuses.every(s => s === 'ACCEPTED')) {
       booking.status = 'ACCEPTED';
     }
   } else if (!assignment) {
@@ -608,4 +609,109 @@ export const confirmCashPayment = asyncHandler(async (req, res) => {
   }).catch(err => console.error(err))
 
   return sendSuccess(res, { message: 'Cash payment confirmed', data: { booking } })
+})
+
+export const addExtraTime = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const { extraHours, assignmentId } = req.body
+
+  if (extraHours <= 0) {
+    return sendError(res, { message: 'Extra hours must be greater than 0', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  const booking = await Booking.findById(id)
+  if (!booking) {
+    return sendError(res, { message: 'Booking not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+
+  if (booking.userId.toString() !== req.user._id.toString()) {
+    return sendError(res, { message: 'Unauthorized', statusCode: HTTP_STATUS.FORBIDDEN })
+  }
+
+  if (!['ACCEPTED', 'EN_ROUTE', 'STARTED', 'COMPLETED'].includes(booking.status)) {
+    return sendError(res, { message: 'Cannot add extra time at this status', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  if (booking.paymentStatus === 'PAID') {
+    return sendError(res, { message: 'Booking is already paid', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  const totalExtraAmount = (booking.assignments && booking.assignments.length > 0) 
+    ? booking.assignments.reduce((sum, a) => sum + (a.extraAmount || 0), 0) 
+    : (booking.extraAmount || 0)
+  
+  const originalBasePrice = booking.basePrice - totalExtraAmount
+  
+  let totalProfessionals = booking.quantity || 1
+  if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 0) {
+    totalProfessionals = booking.contractorInfo.services.reduce((sum, s) => sum + (s.quantity || 1), 0)
+  }
+  
+  let hourlyRate = originalBasePrice / (booking.hours * totalProfessionals)
+  
+  // If specific assignment is provided, try to find its exact service rate
+  if (assignmentId && booking.assignments && booking.contractorInfo && booking.contractorInfo.services) {
+    const assignment = booking.assignments.find(a => String(a.labourId) === String(assignmentId) || String(a._id) === String(assignmentId))
+    if (assignment && assignment.serviceId) {
+      const serviceInfo = booking.contractorInfo.services.find(s => String(s.serviceId) === String(assignment.serviceId))
+      if (serviceInfo && serviceInfo.price) {
+        hourlyRate = serviceInfo.price
+      }
+    }
+  }
+
+  const addedBasePrice = extraHours * hourlyRate
+
+  let newBasePrice = booking.basePrice + addedBasePrice
+
+  const settings = await SystemSetting.findOne({ configKey: 'master_config' })
+
+  let platformFee = booking.platformFee
+  if (settings?.platformFee?.isActive) {
+    platformFee = settings.platformFee.type === 'fixed' 
+      ? settings.platformFee.value 
+      : (newBasePrice * settings.platformFee.value) / 100
+  }
+  
+  const baseAmount = newBasePrice + platformFee
+  let taxes = 0
+  if (settings?.gstPercentage > 0) {
+    taxes = (baseAmount * settings.gstPercentage) / 100
+  }
+  
+  const newTotalAmount = baseAmount + taxes
+
+  let commissionAmount = booking.commissionAmount
+  if (settings?.commission?.isActive && settings.commission.type === 'global') {
+    commissionAmount = (newBasePrice * settings.commission.globalPercentage) / 100
+  }
+
+  const laborShare = newBasePrice - commissionAmount
+
+  // Update specific assignment or the whole booking
+  if (assignmentId && booking.assignments && booking.assignments.length > 0) {
+    const assignment = booking.assignments.find(a => String(a.labourId) === String(assignmentId) || String(a._id) === String(assignmentId))
+    if (!assignment) return sendError(res, { message: 'Assignment not found', statusCode: HTTP_STATUS.NOT_FOUND })
+    assignment.extraHours = (assignment.extraHours || 0) + extraHours
+    assignment.extraAmount = (assignment.extraAmount || 0) + addedBasePrice
+  } else {
+    booking.extraHours = (booking.extraHours || 0) + extraHours
+    booking.extraAmount = (booking.extraAmount || 0) + addedBasePrice
+  }
+
+  booking.basePrice = newBasePrice
+  booking.platformFee = platformFee
+  booking.taxes = taxes
+  booking.totalAmount = newTotalAmount
+  booking.commissionAmount = commissionAmount
+  booking.laborShare = laborShare
+
+  await booking.save()
+
+  // Notify socket
+  import('../socket.js').then(({ emitToUser }) => {
+    emitToUser(booking.userId, 'BOOKING_UPDATED', { bookingId: booking._id })
+  }).catch(err => console.error(err))
+
+  return sendSuccess(res, { message: 'Extra time added successfully', data: { booking } })
 })

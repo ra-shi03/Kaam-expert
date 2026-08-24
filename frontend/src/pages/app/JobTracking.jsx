@@ -142,10 +142,13 @@ export function JobTracking() {
     )
   }
 
-  const labor = booking.laborId && typeof booking.laborId === 'object' ? booking.laborId : null
+  const labor = booking.laborId || (booking.assignments && booking.assignments[0]?.labourId)
+  
+  const displayStartOtp = booking.assignments?.length > 0 ? booking.assignments[0].startOtp : booking.startOtp
+  const displayCompletionOtp = booking.assignments?.length > 0 ? booking.assignments[0].completionOtp : booking.completionOtp
 
   return (
-    <div className="space-y-4 pb-8">
+    <div className="flex min-h-screen flex-col bg-slate-50 font-sans pb-24">
       <AppStackScreenHeader title="Job Tracking" backTo="/app" />
 
       {/* Status Badge */}
@@ -288,18 +291,48 @@ export function JobTracking() {
       </GlassPanel>
 
       {/* OTP Display for Customer */}
-      {(booking.status === 'EN_ROUTE' && booking.startOtp) ? (
-        <GlassPanel className="border-brand/20 bg-brand/5 p-4 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider text-brand">Start OTP</p>
-          <p className="mt-2 text-3xl font-black tracking-[0.2em] text-slate-900">{booking.startOtp}</p>
-          <p className="mt-1 text-xs font-semibold text-slate-600">Share this with the worker to start the job.</p>
-        </GlassPanel>
-      ) : (booking.status === 'STARTED' && booking.completionOtp) ? (
-        <GlassPanel className="border-blue-600/20 bg-blue-50 p-4 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider text-blue-600">Completion OTP</p>
-          <p className="mt-2 text-3xl font-black tracking-[0.2em] text-slate-900">{booking.completionOtp}</p>
-          <p className="mt-1 text-xs font-semibold text-slate-600">Share this with the worker when the job is done.</p>
-        </GlassPanel>
+      {(booking.status === 'EN_ROUTE' && displayStartOtp) ? (
+        booking.assignments?.length > 1 ? (
+          <GlassPanel className="border-brand/20 bg-brand/5 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-brand text-center mb-3">Start OTPs</p>
+            <div className="grid grid-cols-2 gap-3">
+              {booking.assignments.map(a => (
+                <div key={a.labourId?._id || Math.random()} className="bg-white p-3 rounded-xl border border-brand/10 text-center shadow-sm">
+                  <p className="text-[10px] font-bold text-slate-500 mb-1 truncate">{a.labourId?.fullName || 'Labour'}</p>
+                  <p className="text-xl font-black tracking-widest text-slate-900">{a.startOtp}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs font-semibold text-slate-600 text-center">Share these with the workers to start the job.</p>
+          </GlassPanel>
+        ) : (
+          <GlassPanel className="border-brand/20 bg-brand/5 p-4 text-center">
+            <p className="text-xs font-bold uppercase tracking-wider text-brand">Start OTP</p>
+            <p className="mt-2 text-3xl font-black tracking-[0.2em] text-slate-900">{displayStartOtp}</p>
+            <p className="mt-1 text-xs font-semibold text-slate-600">Share this with the worker to start the job.</p>
+          </GlassPanel>
+        )
+      ) : (booking.status === 'STARTED' && displayCompletionOtp) ? (
+        booking.assignments?.length > 1 ? (
+          <GlassPanel className="border-blue-600/20 bg-blue-50 p-4">
+            <p className="text-xs font-bold uppercase tracking-wider text-blue-600 text-center mb-3">Completion OTPs</p>
+            <div className="grid grid-cols-2 gap-3">
+              {booking.assignments.map(a => (
+                <div key={a.labourId?._id || Math.random()} className="bg-white p-3 rounded-xl border border-blue-600/10 text-center shadow-sm">
+                  <p className="text-[10px] font-bold text-slate-500 mb-1 truncate">{a.labourId?.fullName || 'Labour'}</p>
+                  <p className="text-xl font-black tracking-widest text-slate-900">{a.completionOtp}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs font-semibold text-slate-600 text-center">Share these with the workers when the job is completed.</p>
+          </GlassPanel>
+        ) : (
+          <GlassPanel className="border-blue-600/20 bg-blue-50 p-4 text-center">
+            <p className="text-xs font-bold uppercase tracking-wider text-blue-600">Completion OTP</p>
+            <p className="mt-2 text-3xl font-black tracking-[0.2em] text-slate-900">{displayCompletionOtp}</p>
+            <p className="mt-1 text-xs font-semibold text-slate-600">Share this with the worker when the job is completed.</p>
+          </GlassPanel>
+        )
       ) : null}
 
       {/* Review Modal */}

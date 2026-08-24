@@ -1059,6 +1059,9 @@ export function IndividualBookingFlowPage() {
                   <div className="flex justify-between font-semibold text-black">
                     <span className="flex flex-col">
                       <span>Service fee</span>
+                      {((booking?.extraHours || 0) + (booking?.assignments || []).reduce((acc, a) => acc + (a.extraHours || 0), 0)) > 0 && (
+                        <span className="text-xs text-brand font-medium">Includes {((booking?.extraHours || 0) + (booking?.assignments || []).reduce((acc, a) => acc + (a.extraHours || 0), 0))} extra hour(s)</span>
+                      )}
                     </span>
                     <span>₹{booking?.basePrice?.toLocaleString('en-IN') || 0}</span>
                   </div>
@@ -1116,7 +1119,12 @@ export function IndividualBookingFlowPage() {
             </motion.div>
             <div className="lc-booking-flow-card text-sm lc-booking-flow-body">
               <div className="flex justify-between font-semibold">
-                <span>Subtotal</span>
+                <span className="flex flex-col">
+                  <span>Subtotal</span>
+                  {((booking?.extraHours || 0) + (booking?.assignments || []).reduce((acc, a) => acc + (a.extraHours || 0), 0)) > 0 && (
+                    <span className="text-xs text-brand font-medium">Includes {((booking?.extraHours || 0) + (booking?.assignments || []).reduce((acc, a) => acc + (a.extraHours || 0), 0))} extra hour(s)</span>
+                  )}
+                </span>
                 <span>{formatInr(booking?.basePrice || 0)}</span>
               </div>
               <div className="mt-1 flex justify-between lc-booking-flow-muted">

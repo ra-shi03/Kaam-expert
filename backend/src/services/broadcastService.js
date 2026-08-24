@@ -332,10 +332,10 @@ export async function startBroadcastCycle(bookingId) {
         await currentBooking.save()
         console.log(`Booking ${booking._id} EXPIRED with partial acceptance (${currentBooking.acceptedLabourIds.length}/${currentBooking.quantity || 1}).`)
         
-        import('../socket.js').then(({ emitToUser, getSocketServer }) => {
+        import('../socket.js').then(({ emitToUser, getIo }) => {
           emitToUser(currentBooking.userId, 'BOOKING_ACCEPTED', { bookingId: currentBooking._id, partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
           
-          const io = getSocketServer()
+          const io = getIo()
           if (io) {
             io.emit('BOOKING_EXPIRED', { bookingId: currentBooking._id })
           }

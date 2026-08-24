@@ -140,10 +140,13 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
   const displayStatus = assignment ? assignment.status : activeRawJob?.status
   
   useEffect(() => {
-    if (!socket || !activeRawJob?._id) return
     const handleStatusUpdate = (data) => {
-      if (data.bookingId === activeRawJob._id) {
-        if (data.paymentStatus) {
+      if (data.bookingId === activeRawJob?._id) {
+        if (data.paymentStatus === 'PAID') {
+          setLivePaymentStatus('PAID')
+          setShowPaymentWaiting(true)
+          setCachedRawJob(prev => prev ? { ...prev, paymentStatus: data.paymentStatus } : { ...activeRawJob, paymentStatus: data.paymentStatus })
+        } else if (data.paymentStatus) {
           setLivePaymentStatus(data.paymentStatus)
           setCachedRawJob(prev => prev ? { ...prev, paymentStatus: data.paymentStatus } : { ...activeRawJob, paymentStatus: data.paymentStatus })
         }
@@ -454,16 +457,19 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                     <div className="space-y-4">
                       {(() => {
                         let startedAt = activeRawJob.startedAt;
+                        let myExtraHours = activeRawJob.extraHours || 0;
                         if (activeRawJob.assignments && activeRawJob.assignments.length > 0 && user) {
                           const myAssignment = activeRawJob.assignments.find(a => {
                             const aId = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
                             return String(aId) === String(user._id);
                           });
                           if (myAssignment?.startedAt) startedAt = myAssignment.startedAt;
+                          if (myAssignment?.extraHours) myExtraHours += myAssignment.extraHours;
                         }
                         // Default to now if not available yet but status is started
                         startedAt = startedAt || new Date();
-                        return <JobCountdownTimer startedAt={startedAt} hours={activeRawJob.hours || 1} />;
+                        const totalHours = (activeRawJob.hours || 1) + myExtraHours;
+                        return <JobCountdownTimer startedAt={startedAt} hours={totalHours} />;
                       })()}
                       <div>
                         <p className="text-sm font-bold text-slate-800 mb-2">1. Upload After Work Image</p>

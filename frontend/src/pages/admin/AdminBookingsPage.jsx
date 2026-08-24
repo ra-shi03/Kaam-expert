@@ -31,6 +31,7 @@ const BOOKING_STATUS_FILTERS = [
   { value: 'ALL', label: 'All' },
   { value: 'PENDING', label: 'Pending' },
   { value: 'CREATED', label: 'Created' },
+  { value: 'ACCEPTED', label: 'Accepted' },
   { value: 'ASSIGNED', label: 'Assigned' },
   { value: 'STARTED', label: 'Started' },
   { value: 'COMPLETED', label: 'Completed' },

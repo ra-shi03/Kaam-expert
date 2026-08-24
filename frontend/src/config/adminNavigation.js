@@ -106,6 +106,16 @@ export const ADMIN_NAV_SECTIONS = [
     ],
   },
   {
+    title: 'Policies',
+    items: [
+      { to: '/admin/privacy-policy', label: 'Privacy Policy', icon: ClipboardList },
+      { to: '/admin/terms-conditions', label: 'Terms & Conditions', icon: ClipboardList },
+      { to: '/admin/faqs', label: 'FAQs', icon: ClipboardList },
+      { to: '/admin/cancellation-policy', label: 'Cancellation Policy', icon: ClipboardList },
+      { to: '/admin/refund-policy', label: 'Refund Policy', icon: ClipboardList },
+    ],
+  },
+  {
     title: 'System',
     items: [
       { to: '/admin/profile', label: 'Profile', icon: UserCog },
@@ -129,6 +139,11 @@ const ROUTE_TITLES = [
   { prefix: '/admin/labour-subscriptions', title: 'Labour Subscriptions' },
   { prefix: '/admin/free-trials', title: 'Free Trials' },
   { prefix: '/admin/reviews', title: 'Reviews & Ratings' },
+  { prefix: '/admin/privacy-policy', title: 'Privacy Policy' },
+  { prefix: '/admin/terms-conditions', title: 'Terms & Conditions' },
+  { prefix: '/admin/faqs', title: 'FAQs' },
+  { prefix: '/admin/cancellation-policy', title: 'Cancellation Policy' },
+  { prefix: '/admin/refund-policy', title: 'Refund Policy' },
   { prefix: '/admin/bookings', title: 'Bookings & requests' },
   { prefix: '/admin/services', title: 'Services' },
   { prefix: '/admin/sub-categories', title: 'Sub-Categories' },
