@@ -8,6 +8,7 @@ import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { AppModal } from '../../components/app-ui/feedback/AppModal.jsx'
 import { AppButton } from '../../components/app-ui/buttons/AppButton.jsx'
+import { SearchableSelect } from '../../components/ui/SearchableSelect.jsx'
 
 const inputClass =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20'
@@ -411,14 +412,15 @@ export function AdminSettingsPage() {
 
           <div>
             <label className={labelClass}>Fee Type</label>
-            <select
-              className={inputClass + ' mt-1.5'}
+            <SearchableSelect
+              className="mt-1.5"
               value={feeType}
-              onChange={(e) => setFeeType(e.target.value)}
-            >
-              <option value="percentage">Percentage (%)</option>
-              <option value="fixed">Fixed (₹)</option>
-            </select>
+              onChange={(val) => setFeeType(val)}
+              options={[
+                { label: 'Percentage (%)', value: 'percentage' },
+                { label: 'Fixed (₹)', value: 'fixed' }
+              ]}
+            />
           </div>
           <div>
             <label className={labelClass}>Value</label>
@@ -508,11 +510,12 @@ export function AdminSettingsPage() {
         >
           <div>
             <label className={labelClass}>Select Category</label>
-            <select
-              className={inputClass + ' mt-1.5'}
+            <SearchableSelect
+              className="mt-1.5"
               value={selectedGstCategory}
-              onChange={(e) => {
-                 const val = e.target.value
+              placeholder="-- Choose Category --"
+              options={categories.map(cat => ({ label: cat.name, value: cat._id }))}
+              onChange={(val) => {
                  setSelectedGstCategory(val)
                  const cat = categories.find(c => c._id === val)
                  if (cat) {
@@ -523,12 +526,7 @@ export function AdminSettingsPage() {
                    setIsGstActive(true)
                  }
               }}
-            >
-              <option value="">-- Choose Category --</option>
-              {categories.map(cat => (
-                <option key={cat._id} value={cat._id}>{cat.name}</option>
-              ))}
-            </select>
+            />
           </div>
           <div>
             <label className={labelClass}>GST (%)</label>

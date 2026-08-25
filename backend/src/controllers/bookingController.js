@@ -24,9 +24,12 @@ export const calculateBill = asyncHandler(async (req, res) => {
     const service = await LabourService.findById(sId)
     let hourlyRate = 0
     let name = ''
+    let categoryId = null
     if (service) {
       hourlyRate = service.basePrice
       name = service.name
+      const sub = await LabourSubcategory.findById(service.subcategoryId)
+      if (sub) categoryId = sub.categoryId
       if (matchedZone && service.zones && service.zones.length > 0) {
         const zonePricing = service.zones.find(z => String(z.zone) === String(matchedZone._id))
         if (zonePricing && typeof zonePricing.price === 'number') {
@@ -38,18 +41,20 @@ export const calculateBill = asyncHandler(async (req, res) => {
       if (subcategory) {
         hourlyRate = subcategory.basePrice || 800
         name = subcategory.name
+        categoryId = subcategory.categoryId
       } else {
         const { LabourCategory } = await import('../models/LabourCategory.js')
         const category = await LabourCategory.findById(sId)
         if (category) {
           hourlyRate = 800
           name = category.name
+          categoryId = category._id
         } else {
           return { error: 'Service or Category not found' }
         }
       }
     }
-    return { hourlyRate, name }
+    return { hourlyRate, name, categoryId }
   }
 
   let subTotal = 0
@@ -59,11 +64,14 @@ export const calculateBill = asyncHandler(async (req, res) => {
     ? contractorServices 
     : [{ serviceId, quantity }]
 
+  let primaryCategoryId = null
   for (const item of servicesToCalculate) {
     if (!item.serviceId) continue
-    const { hourlyRate, name, error } = await resolveHourlyRate(item.serviceId)
+    const { hourlyRate, name, categoryId, error } = await resolveHourlyRate(item.serviceId)
     if (error) return sendError(res, { message: error, statusCode: HTTP_STATUS.NOT_FOUND })
     
+    if (!primaryCategoryId && categoryId) primaryCategoryId = categoryId
+
     const itemTotal = hourlyRate * hours * item.quantity
     subTotal += itemTotal
     breakdown.push({
@@ -103,8 +111,20 @@ export const calculateBill = asyncHandler(async (req, res) => {
   const baseAmount = basePrice + platformFee
   let taxes = 0
 
-  if (settings.gstPercentage > 0) {
-    taxes = (baseAmount * settings.gstPercentage) / 100
+  let gstPercentage = 0
+  if (primaryCategoryId) {
+    const { LabourCategory } = await import('../models/LabourCategory.js')
+    const category = await LabourCategory.findById(primaryCategoryId)
+    if (category && category.isGstActive) {
+      gstPercentage = category.gstPercentage || 0
+    }
+  } else if (settings.gstPercentage > 0) {
+    // Fallback to global if for some reason category is not resolved
+    gstPercentage = settings.gstPercentage
+  }
+
+  if (gstPercentage > 0) {
+    taxes = (basePrice * gstPercentage) / 100
   }
 
   const totalAmount = baseAmount + taxes
@@ -206,9 +226,23 @@ export const createBooking = asyncHandler(async (req, res) => {
   
   const baseAmount = basePrice + platformFee
   let taxes = 0
-  if (settings?.gstPercentage > 0) {
-    taxes = (baseAmount * settings.gstPercentage) / 100
+  
+  let gstPercentage = 0
+  const subcategory = await LabourSubcategory.findById(service.subcategoryId)
+  if (subcategory) {
+    const { LabourCategory } = await import('../models/LabourCategory.js')
+    const category = await LabourCategory.findById(subcategory.categoryId)
+    if (category && category.isGstActive) {
+      gstPercentage = category.gstPercentage || 0
+    }
+  } else if (settings?.gstPercentage > 0) {
+    gstPercentage = settings.gstPercentage
   }
+
+  if (gstPercentage > 0) {
+    taxes = (basePrice * gstPercentage) / 100
+  }
+
   
   const totalAmount = baseAmount + taxes
 
@@ -677,9 +711,25 @@ export const addExtraTime = asyncHandler(async (req, res) => {
   
   const baseAmount = newBasePrice + platformFee
   let taxes = 0
-  if (settings?.gstPercentage > 0) {
-    taxes = (baseAmount * settings.gstPercentage) / 100
+
+  let gstPercentage = 0
+  if (booking.subcategoryId) {
+    const subcategory = await LabourSubcategory.findById(booking.subcategoryId)
+    if (subcategory) {
+      const { LabourCategory } = await import('../models/LabourCategory.js')
+      const category = await LabourCategory.findById(subcategory.categoryId)
+      if (category && category.isGstActive) {
+        gstPercentage = category.gstPercentage || 0
+      }
+    }
+  } else if (settings?.gstPercentage > 0) {
+    gstPercentage = settings.gstPercentage
   }
+
+  if (gstPercentage > 0) {
+    taxes = (newBasePrice * gstPercentage) / 100
+  }
+
   
   const newTotalAmount = baseAmount + taxes
 
