@@ -37,7 +37,6 @@ export function AppShell() {
   const isLabourNotifications = user?.role === USER_ROLES.LABOUR && pathname === '/app/notifications'
   const isLabourJobs = user?.role === USER_ROLES.LABOUR && pathname === '/app/jobs'
   const isLabourEarnings = user?.role === USER_ROLES.LABOUR && pathname === '/app/earnings'
-  const isLabourAttendance = user?.role === USER_ROLES.LABOUR && pathname === '/app/attendance'
   const isLabourKyc = user?.role === USER_ROLES.LABOUR && pathname === '/app/kyc'
   const hideShellHeader =
     pathname.startsWith('/app/booking/flow') ||
@@ -53,7 +52,6 @@ export function AppShell() {
     isLabourAppHome ||
     isLabourJobs ||
     isLabourEarnings ||
-    isLabourAttendance ||
     isLabourKyc ||
     isLabourNotifications
   const title = getAppShellTitle(pathname)
@@ -222,7 +220,7 @@ export function AppShell() {
   }, [appLocation, isIndividualAppHome, user?.currentLocation, user?.permanentAddress])
 
   return (
-    <div className="relative min-h-dvh w-full overflow-x-clip text-slate-900">
+    <div className="relative min-h-dvh w-full overflow-x-clip print:overflow-visible text-slate-900">
       <AppAmbientBackground />
 
       <AnimatePresence>
@@ -357,7 +355,7 @@ export function AppShell() {
         {!hideShellHeader ? (
           <header
             ref={headerRef}
-            className={`sticky top-0 z-30 ${isIndividualAppHome ? 'bg-gradient-to-r from-brand to-[#001a38] px-4 pb-1 pt-3' : 'px-3 pt-3'
+            className={`sticky top-0 z-30 hide-on-print ${isIndividualAppHome ? 'bg-gradient-to-r from-brand to-[#001a38] px-4 pb-1 pt-3' : 'px-3 pt-3'
               }`}
           >
             {isIndividualAppHome ? (

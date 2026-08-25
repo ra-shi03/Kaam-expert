@@ -220,10 +220,10 @@ export function AdminLayout() {
         ) : null}
       </AnimatePresence>
 
-      <aside className={sidebarClassName}>{sidebarInner}</aside>
+      <aside className={`${sidebarClassName} hide-on-print`}>{sidebarInner}</aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="relative z-30 flex h-17 shrink-0 items-center gap-3 border-b border-slate-200/70 bg-white/80 px-3 shadow-[0_8px_30px_-18px_rgba(15,23,42,0.12)] backdrop-blur-xl md:gap-4 md:px-6">
+        <header className="hide-on-print relative z-30 flex h-17 shrink-0 items-center gap-3 border-b border-slate-200/70 bg-white/80 px-3 shadow-[0_8px_30px_-18px_rgba(15,23,42,0.12)] backdrop-blur-xl md:gap-4 md:px-6">
           <button
             type="button"
             className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200/70 bg-white text-slate-700 shadow-sm transition hover:border-brand/30 hover:shadow-md md:hidden"

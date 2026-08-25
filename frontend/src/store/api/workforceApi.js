@@ -357,6 +357,7 @@ export const {
 
   useGetAdminRequestsQuery,
   useGetAdminRequestByIdQuery,
+  useLazyGetAdminRequestByIdQuery,
   usePatchRequestStatusMutation,
   useDeleteAdminRequestMutation,
   useCreateAllocationMutation,

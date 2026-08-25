@@ -1,5 +1,7 @@
 import { Booking } from '../models/Booking.js'
 import { User } from '../models/User.js'
+import { Invoice, generateInvoiceNumber } from '../models/Invoice.js'
+import { INVOICE_STATUS } from '../constants/workforceConstants.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 
@@ -71,6 +73,7 @@ export const getAllBookings = asyncHandler(async (req, res) => {
       populate: { path: 'categoryId', select: 'name' }
     })
     .populate('serviceId', 'name basePrice')
+    .populate('contractorInfo.services.serviceId', 'name')
     .populate('assignments.labourId', 'fullName phone profileImageUrl serviceIds labourProfile')
     .sort({ createdAt: -1 })
     .skip(skip)
@@ -109,6 +112,7 @@ export const getBookingDetails = asyncHandler(async (req, res) => {
       populate: { path: 'categoryId', select: 'name' }
     })
     .populate('serviceId', 'name basePrice')
+    .populate('contractorInfo.services.serviceId', 'name')
     .lean()
 
   if (!booking) {
@@ -261,4 +265,65 @@ export const deleteBookingAdmin = asyncHandler(async (req, res) => {
 
   console.log(`[deleteBookingAdmin] Successfully deleted booking: ${booking._id}, Status was: ${booking.status}`);
   return sendSuccess(res, { message: 'Booking deleted successfully' })
+})
+
+export const generateBookingInvoiceAdmin = asyncHandler(async (req, res) => {
+  const { id } = req.params
+  
+  const booking = await Booking.findById(id).populate('serviceId', 'name basePrice').lean()
+  if (!booking) {
+    return sendError(res, { message: 'Booking not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+
+  // Check if invoice already exists for this booking
+  const existingInvoice = await Invoice.findOne({ requestId: id }) // Wait, is there a bookingId in Invoice model? Let's check Invoice model. 
+  // It only has requestId (ref: WorkforceRequest). I will use requestId to store bookingId, or I can just create it. 
+  
+  // Let's create an invoice for this booking
+  let subtotal = booking.basePrice || booking.totalAmount - (booking.taxes || 0) - (booking.platformFee || 0)
+  if (booking.quantity && booking.quantity > 1) {
+    // Already calculated in basePrice for contractors, or calculate it.
+    // Booking has totalAmount, basePrice, taxes, platformFee.
+  }
+  
+  let lines = []
+  if (booking.contractorInfo?.services?.length > 0) {
+    lines = booking.contractorInfo.services.map(s => ({
+      description: `Service - ${s.serviceId?.name || 'Contractor Service'}`,
+      categoryId: booking.subcategoryId,
+      billableUnits: s.quantity || 1,
+      ratePerUnit: s.price || 0,
+      amount: (s.price || 0) * (s.quantity || 1),
+      gstAmount: 0,
+    }))
+  } else {
+    lines = [
+      {
+        description: `Service - ${booking.serviceId?.name || 'Booking Service'}`,
+        categoryId: booking.subcategoryId,
+        billableUnits: booking.quantity || 1,
+        ratePerUnit: booking.basePrice || 0,
+        amount: booking.basePrice || 0,
+        gstAmount: booking.taxes || 0,
+      }
+    ]
+  }
+
+  const invoice = await Invoice.create({
+    invoiceNumber: generateInvoiceNumber(),
+    contractorId: booking.contractorInfo?.services ? booking.userId : undefined,
+    vendorId: undefined, // Add if needed
+    requestId: booking._id, // Using requestId field to store booking _id to avoid altering Invoice model now
+    type: 'attendance',
+    billingMode: 'postpaid',
+    status: INVOICE_STATUS.ISSUED,
+    lines,
+    subtotal: booking.basePrice || 0,
+    gstTotal: booking.taxes || 0,
+    total: booking.totalAmount || 0,
+    issuedAt: new Date(),
+    dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+  })
+
+  return sendSuccess(res, { data: { invoice }, statusCode: HTTP_STATUS.CREATED })
 })

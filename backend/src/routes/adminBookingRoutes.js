@@ -23,4 +23,7 @@ router.route('/:id/status')
 router.route('/:id/assign')
   .patch(adminBookingController.assignLabourerManually)
 
+router.route('/:id/invoice')
+  .post(adminBookingController.generateBookingInvoiceAdmin)
+
 export default router

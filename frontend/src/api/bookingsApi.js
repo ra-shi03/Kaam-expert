@@ -22,6 +22,10 @@ export const bookingsApi = {
   getMyBookings: () => {
     return apiRequest('/bookings/me', { method: 'GET' })
   },
+  
+  generateInvoice: (id) => {
+    return apiRequest(`/bookings/${id}/invoice`, { method: 'POST' })
+  },
 
   updateBookingStatus: (id, payload) => {
     return apiRequest(`/bookings/${id}/status`, {

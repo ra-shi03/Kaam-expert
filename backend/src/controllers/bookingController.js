@@ -5,6 +5,8 @@ import { SystemSetting } from '../models/SystemSetting.js'
 import { Zone } from '../models/Zone.js'
 import { Wallet } from '../models/Wallet.js'
 import { AdminWallet } from '../models/AdminWallet.js'
+import { Invoice } from '../models/Invoice.js'
+import { INVOICE_STATUS } from '../constants/workforceConstants.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import { parseISTDateTime } from '../utils/dateHelper.js'
@@ -714,4 +716,83 @@ export const addExtraTime = asyncHandler(async (req, res) => {
   }).catch(err => console.error(err))
 
   return sendSuccess(res, { message: 'Extra time added successfully', data: { booking } })
+})
+
+function generateInvoiceNumber() {
+  return `INV-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+}
+
+export const generateMyInvoice = asyncHandler(async (req, res) => {
+  const { id } = req.params
+
+  const booking = await Booking.findById(id)
+    .populate('subcategoryId')
+    .populate('serviceId').populate('contractorInfo.services.serviceId')
+    .populate('laborId', 'fullName phone profileImageUrl')
+    .populate('userId', 'fullName phone')
+    .populate('assignments.labourId', 'fullName phone profileImageUrl serviceIds labourProfile')
+    .lean()
+
+  if (!booking) {
+    return sendError(res, { message: 'Booking not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  }
+
+  // Ensure it's the user's booking
+  if (String(booking.userId._id || booking.userId) !== String(req.user._id)) {
+    return sendError(res, { message: 'Unauthorized', statusCode: HTTP_STATUS.FORBIDDEN })
+  }
+
+  let invoice = await Invoice.findOne({ requestId: id }).lean()
+
+  if (!invoice) {
+    let lines = []
+    if (booking.contractorInfo?.services?.length > 0) {
+      lines = booking.contractorInfo.services.map(s => ({
+        description: `Service - ${s.serviceId?.name || 'Contractor Service'}`,
+        categoryId: booking.subcategoryId,
+        billableUnits: s.quantity || 1,
+        ratePerUnit: s.price || 0,
+        amount: (s.price || 0) * (s.quantity || 1),
+        gstAmount: 0,
+      }))
+    } else {
+      lines = [
+        {
+          description: `Service - ${booking.serviceId?.name || 'Booking Service'}`,
+          categoryId: booking.subcategoryId,
+          billableUnits: booking.quantity || 1,
+          ratePerUnit: booking.basePrice || 0,
+          amount: booking.basePrice || 0,
+          gstAmount: booking.taxes || 0,
+        }
+      ]
+    }
+
+    invoice = await Invoice.create({
+      invoiceNumber: generateInvoiceNumber(),
+      contractorId: booking.contractorInfo?.services ? booking.userId._id || booking.userId : undefined,
+      requestId: booking._id,
+      type: 'attendance',
+      billingMode: 'postpaid',
+      status: INVOICE_STATUS.ISSUED,
+      lines,
+      subtotal: booking.basePrice || 0,
+      gstTotal: booking.taxes || 0,
+      total: booking.totalAmount || 0,
+      issuedAt: new Date(),
+      dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+    })
+  }
+
+  // Hide OTPs
+  delete booking.startOtp
+  delete booking.completionOtp
+  if (booking.assignments) {
+    booking.assignments.forEach(a => {
+      delete a.startOtp;
+      delete a.completionOtp;
+    })
+  }
+
+  return sendSuccess(res, { data: { invoice, booking }, statusCode: HTTP_STATUS.CREATED })
 })

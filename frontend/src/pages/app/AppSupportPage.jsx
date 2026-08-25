@@ -44,12 +44,10 @@ const TOPICS_BY_ROLE = {
     { id: 'bulk', label: 'Bulk deployment', desc: 'Headcount, mobilisation, queue' },
     { id: 'billing', label: 'Billing & GST', desc: 'Invoices, milestones, postpaid' },
     { id: 'contract', label: 'Contracts', desc: 'Terms, SLAs, rate cards' },
-    { id: 'attendance', label: 'Attendance data', desc: 'Logs, disputes, exports' },
   ],
   [USER_ROLES.LABOUR]: [
     { id: 'payout', label: 'Payouts & wages', desc: 'Delays, deductions, withdrawals' },
     { id: 'safety', label: 'Site safety', desc: 'Unsafe work, incidents' },
-    { id: 'attendance', label: 'Attendance', desc: 'Check-in errors, missing days' },
     { id: 'kyc', label: 'KYC & profile', desc: 'Verification, skills, documents' },
   ],
 }
@@ -94,7 +92,7 @@ function supportIntro(role) {
   if (role === USER_ROLES.LABOUR) {
     return {
       title: 'Worker support',
-      subtitle: 'Payouts, safety, attendance, and KYC help.',
+      subtitle: 'Payouts, safety, and KYC help.',
       body: 'Same standards as the dedicated Labour channel — we respond by severity.',
     }
   }

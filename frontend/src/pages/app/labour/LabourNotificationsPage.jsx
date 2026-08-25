@@ -52,7 +52,6 @@ const TABS = [
 const KIND_ICON = {
   job_request: Flame,
   kyc: IdCard,
-  attendance: Timer,
   earnings: Wallet,
   assignment: HardHat,
   profile: MapPin,
@@ -62,7 +61,6 @@ const KIND_ICON = {
 const KIND_TONE = {
   job_request: 'from-amber-500/15 to-orange-50 text-amber-800 ring-amber-200/80',
   kyc: 'from-violet-500/15 to-violet-50 text-violet-800 ring-violet-200/80',
-  attendance: 'from-sky-500/15 to-sky-50 text-sky-800 ring-sky-200/80',
   earnings: 'from-blue-600/15 to-blue-50 text-blue-800 ring-blue-200/80',
   assignment: 'from-brand/15 to-blue-50 text-brand ring-brand/25',
   profile: 'from-slate-500/15 to-slate-50 text-slate-800 ring-slate-200/80',
@@ -186,7 +184,7 @@ export function LabourNotificationsPage() {
               <BellRing className="h-5 w-5 text-brand-bright" aria-hidden />
               <h1 className="text-xl font-extrabold tracking-tight">Notifications</h1>
             </div>
-            <p className="mt-1 text-sm text-white/75">Job requests, KYC, pay & attendance alerts</p>
+            <p className="mt-1 text-sm text-white/75">Job requests, KYC & pay alerts</p>
           </div>
           {feed.unreadCount > 0 ? (
             <span className="flex h-8 min-w-8 items-center justify-center rounded-full bg-amber-400 px-2 text-xs font-black text-amber-950">
@@ -238,7 +236,7 @@ export function LabourNotificationsPage() {
             subtitle={
               tab === 'jobs'
                 ? 'New assignment requests will appear when admin or clients post jobs near you.'
-                : 'KYC, attendance, and pay updates show up in this tab.'
+                : 'KYC and pay updates show up in this tab.'
             }
           />
         ) : (

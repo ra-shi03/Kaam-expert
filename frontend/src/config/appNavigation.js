@@ -30,7 +30,7 @@ const byRole = {
     drawerNav: [
       { id: 'home', to: '/app', label: 'Home', icon: Home, end: true },
       { id: 'search', to: '/app/search', label: 'Search skills', icon: Search },
-      { id: 'subscription', to: '/app/subscriptions', label: 'My Subscription', icon: ShieldCheck },
+      { id: 'billing', to: '/app/billing', label: 'Invoice & Billing', icon: FileText },
       { id: 'book', to: '/app/my-bookings', label: 'My bookings', icon: ClipboardList },
       { id: 'support', to: '/app/support', label: 'Support & issues', icon: LifeBuoy },
       { id: 'privacy', to: '/app/privacy-policy', label: 'Privacy Policy', icon: FileText },
@@ -53,7 +53,7 @@ const byRole = {
       { id: 'home', to: '/app', label: 'Home', icon: Home, end: true },
       { id: 'search', to: '/app/search', label: 'Search skills', icon: Search },
       { id: 'book', to: '/app/my-bookings', label: 'Bookings & requests', icon: ClipboardList },
-      { id: 'billing', to: '/app/billing', label: 'Billing & contracts', icon: FileText },
+      { id: 'billing', to: '/app/billing', label: 'Invoice & Billing', icon: FileText },
       { id: 'support', to: '/app/support', label: 'Support & issues', icon: LifeBuoy },
       { id: 'privacy', to: '/app/privacy-policy', label: 'Privacy Policy', icon: FileText },
       { id: 'terms', to: '/app/terms-conditions', label: 'Terms & Conditions', icon: FileText },
@@ -64,7 +64,7 @@ const byRole = {
     ],
   },
   [USER_ROLES.LABOUR]: {
-    headerTagline: 'Jobs, attendance & earnings',
+    headerTagline: 'Jobs & earnings',
     bottomNav: [
       { id: 'home', to: '/app', label: 'Home', icon: Home, end: true },
       { id: 'jobs', to: '/app/jobs', label: 'Jobs', icon: HardHat },
@@ -75,7 +75,6 @@ const byRole = {
       { id: 'home', to: '/app', label: 'Home', icon: Home, end: true },
       { id: 'jobs', to: '/app/jobs', label: 'Assignments', icon: HardHat },
       { id: 'book', to: '/app/my-bookings', label: 'My bookings', icon: CalendarClock },
-      { id: 'attendance', to: '/app/attendance', label: 'Attendance', icon: Clock },
       { id: 'earnings', to: '/app/earnings', label: 'Earnings & payouts', icon: IndianRupee },
       { id: 'kyc', to: '/app/kyc', label: 'Aadhaar KYC', icon: ShieldCheck },
       { id: 'workTypes', to: '/app/work-categories', label: 'Work types', icon: Wrench },
@@ -98,13 +97,13 @@ export function getAppNavigation(role) {
 export function getAppShellTitle(pathname) {
   if (pathname.startsWith('/app/jobs')) return 'Jobs'
   if (pathname.startsWith('/app/earnings')) return 'Earnings'
-  if (pathname.startsWith('/app/attendance')) return 'Attendance'
   if (pathname.startsWith('/app/kyc')) return 'KYC verification'
   if (pathname.startsWith('/app/notifications')) return 'Notifications'
   if (pathname.startsWith('/app/work-categories')) return 'Work types'
   if (pathname.startsWith('/app/booking/flow')) return 'Book labour'
   if (pathname.startsWith('/app/support')) return 'Support'
   if (pathname.startsWith('/app/subscriptions')) return 'Subscription'
+  if (pathname.startsWith('/app/billing')) return 'Invoice & Billing'
   if (pathname.startsWith('/app/profile')) return 'Profile'
   if (pathname.startsWith('/app/bookings')) return 'My bookings'
   if (pathname.startsWith('/app/search')) return 'Search'

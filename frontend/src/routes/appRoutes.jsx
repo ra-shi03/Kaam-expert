@@ -25,6 +25,7 @@ import { AppTermsConditionsPage } from '../pages/app/AppTermsConditionsPage.jsx'
 import { AppFAQsPage } from '../pages/app/AppFAQsPage.jsx'
 import { AppCancellationPolicyPage } from '../pages/app/AppCancellationPolicyPage.jsx'
 import { AppRefundPolicyPage } from '../pages/app/AppRefundPolicyPage.jsx'
+import { AppBillingPage } from '../pages/app/AppBillingPage.jsx'
 import { USER_ROLES } from '../constants/userRoles.js'
 
 
@@ -91,6 +92,14 @@ export const appShellChildRoutes = (
       element={
         <RoleRoute allow={[USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]}>
           <JobTracking />
+        </RoleRoute>
+      }
+    />
+    <Route
+      path="billing"
+      element={
+        <RoleRoute allow={[USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]}>
+          <AppBillingPage />
         </RoleRoute>
       }
     />

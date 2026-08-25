@@ -7,6 +7,7 @@ import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { PipelineTimeline } from '../../components/shared/PipelineTimeline.jsx'
 import {
   useGetAdminRequestsQuery,
+  useLazyGetAdminRequestByIdQuery,
   usePatchRequestStatusMutation,
   useDeleteAdminRequestMutation,
 } from '../../store/api/workforceApi.js'
@@ -74,6 +75,21 @@ function ContractorRequestsTab() {
   const [expandedRows, setExpandedRows] = useState({})
   const [selectedLabour, setSelectedLabour] = useState(null)
   const [selectedViewRequest, setSelectedViewRequest] = useState(null)
+
+  const [fetchRequest] = useLazyGetAdminRequestByIdQuery()
+
+  const handleViewDetails = async (r) => {
+    // Optimistically open the modal with current data
+    setSelectedViewRequest(r)
+    try {
+      const res = await fetchRequest(r._id).unwrap()
+      if (res?.request) {
+        setSelectedViewRequest(res.request)
+      }
+    } catch (err) {
+      console.error('Failed to fetch request details:', err)
+    }
+  }
 
   const handleStatus = async (id, status) => {
     try {
@@ -215,7 +231,7 @@ function ContractorRequestsTab() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               type="button"
-                              onClick={() => setSelectedViewRequest(r)}
+                              onClick={() => handleViewDetails(r)}
                               className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-600 hover:border-brand/40 hover:bg-brand/5 hover:text-brand transition shadow-sm"
                               title="View Details"
                             >
@@ -495,9 +511,19 @@ function BookingDetailsModal({ booking, onClose }) {
         
         <div className="mt-4 space-y-4">
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <p className="text-slate-500 text-xs">Service</p>
-              <p className="font-semibold">{booking.serviceId?.name || 'N/A'}</p>
+              {booking.contractorInfo?.services?.length > 0 ? (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {booking.contractorInfo.services.map((s, idx) => (
+                    <span key={idx} className="font-semibold text-[11px] bg-slate-100 px-2 py-0.5 rounded-md">
+                      {s.serviceId?.name || s.serviceName || 'Unknown'} (x{s.quantity || 1})
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="font-semibold">{booking.serviceId?.name || 'N/A'}</p>
+              )}
             </div>
             <div>
               <p className="text-slate-500 text-xs">Category</p>
@@ -792,7 +818,18 @@ function BookingsListTab({ type }) {
             <GlassPanel className="p-5">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div className="flex-1 min-w-0 space-y-1">
-                  <p className="text-sm font-black text-slate-900 truncate">{b.serviceId?.name || 'Service'} ({b.type})</p>
+                  {b.contractorInfo?.services?.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {b.contractorInfo.services.map((s, idx) => (
+                        <span key={idx} className="text-[11px] font-bold text-brand bg-brand/5 px-2 py-0.5 rounded-md">
+                          {s.serviceId?.name || s.serviceName || 'Unknown'} (x{s.quantity || 1})
+                        </span>
+                      ))}
+                      <span className="text-sm font-black text-slate-900 ml-1">({b.type})</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm font-black text-slate-900 truncate">{b.serviceId?.name || 'Service'} ({b.type})</p>
+                  )}
                   <p className="text-xs text-slate-500 truncate">
                     User: {b.userId?.fullName || 'Unknown'} · {b.userId?.phone}
                   </p>

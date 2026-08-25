@@ -108,4 +108,32 @@ body {
   .font-display {
     font-family: var(--font-display);
   }
+  .print-only {
+    display: none;
+  }
+}
+
+@media print {
+  body, #root {
+    background: white !important;
+    color: black !important;
+    overflow: visible !important;
+    overflow-x: visible !important;
+  }
+  .hide-on-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  @page {
+    size: A4;
+    margin: 0;
+  }
 }

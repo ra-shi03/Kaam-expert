@@ -94,7 +94,6 @@ function formatPunchTime(iso) {
 }
 
 const QUICK_ACTIONS = [
-  { to: '/app/attendance', label: 'Attendance', icon: CalendarClock, bg: 'from-sky-500/15 to-sky-50', iconTone: 'text-sky-700' },
   { to: '/app/earnings', label: 'Earnings', icon: IndianRupee, bg: 'from-blue-600/15 to-blue-50', iconTone: 'text-blue-700' },
   { to: '/app/jobs', label: 'My jobs', icon: HardHat, bg: 'from-amber-500/15 to-amber-50', iconTone: 'text-amber-800' },
   { to: '/app/jobs', label: 'Site details', icon: MapPin, bg: 'from-violet-500/15 to-violet-50', iconTone: 'text-violet-700' },

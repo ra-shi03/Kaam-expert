@@ -69,4 +69,9 @@ router.post(
   booking.addExtraTime,
 )
 
+router.post(
+  '/:id/invoice',
+  booking.generateMyInvoice
+)
+
 export default router
