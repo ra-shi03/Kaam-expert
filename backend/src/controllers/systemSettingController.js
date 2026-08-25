@@ -1,6 +1,7 @@
 import { SystemSetting } from '../models/SystemSetting.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
+import { uploadBufferToCloudinary } from '../services/cloudinaryService.js'
 
 export const getSystemSettings = asyncHandler(async (req, res) => {
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })
@@ -141,4 +142,64 @@ export const updatePaymentModes = asyncHandler(async (req, res) => {
 
   await settings.save()
   return sendSuccess(res, { message: 'Payment modes updated', data: { settings } })
+})
+
+export const uploadBranding = asyncHandler(async (req, res) => {
+  const { type } = req.body // 'logo' or 'favicon'
+  if (!['logo', 'favicon'].includes(type)) {
+    return sendError(res, { message: 'Invalid branding type. Must be logo or favicon.', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  if (!req.file) {
+    return sendError(res, { message: 'No file uploaded', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  const uploadResult = await uploadBufferToCloudinary({
+    buffer: req.file.buffer,
+    mimetype: req.file.mimetype,
+    folder: `kaamexpert/branding/${type}`,
+    userId: req.user?._id,
+    originalName: req.file.originalname,
+  })
+
+  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
+
+  if (!settings.branding) {
+    settings.branding = { logoUrl: null, faviconUrl: null }
+  }
+
+  if (type === 'logo') {
+    settings.branding.logoUrl = uploadResult.url
+  } else {
+    settings.branding.faviconUrl = uploadResult.url
+  }
+
+  await settings.save()
+
+  return sendSuccess(res, { message: `${type} uploaded successfully`, data: { branding: settings.branding } })
+})
+
+export const deleteBranding = asyncHandler(async (req, res) => {
+  const { type } = req.params
+  if (!['logo', 'favicon'].includes(type)) {
+    return sendError(res, { message: 'Invalid branding type. Must be logo or favicon.', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
+
+  if (!settings.branding) {
+    settings.branding = { logoUrl: null, faviconUrl: null }
+  }
+
+  if (type === 'logo') {
+    settings.branding.logoUrl = null
+  } else {
+    settings.branding.faviconUrl = null
+  }
+
+  await settings.save()
+
+  return sendSuccess(res, { message: `${type} deleted successfully`, data: { branding: settings.branding } })
 })

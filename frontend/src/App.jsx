@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthProvider.jsx'
+import { BrandingProvider } from './context/BrandingContext.jsx'
 import { ProtectedRoute } from './components/auth/ProtectedRoute.jsx'
 import { AppShell } from './layouts/AppShell.jsx'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
@@ -47,7 +48,8 @@ import { USER_ROLES } from './constants/userRoles.js'
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
+      <BrandingProvider>
+        <AuthProvider>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           {bootRoutes}
@@ -122,7 +124,8 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <BroadcastPopup />
-      </AuthProvider>
+        </AuthProvider>
+      </BrandingProvider>
     </BrowserRouter>
   )
 }

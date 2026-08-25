@@ -87,6 +87,10 @@ const systemSettingSchema = new mongoose.Schema(
     subscriptionEndHour: { type: Number, default: 20 }, // 8 PM
     maxHourDiscountPercentage: { type: Number, default: 10 },
     isUserSubscriptionEnabled: { type: Boolean, default: false },
+    branding: {
+      logoUrl: { type: String, default: null },
+      faviconUrl: { type: String, default: null },
+    },
     updatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Settings, Percent, IndianRupee, Wallet, Receipt, AlertTriangle, CheckCircle2, Loader2, Clock } from 'lucide-react'
+import { Settings, Percent, IndianRupee, Wallet, Receipt, AlertTriangle, CheckCircle2, Loader2, Clock, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { adminSettingsApi } from '../../api/adminSettingsApi.js'
 import { fetchAdminLabourCategoryTree, updateAdminLabourCategoryGst } from '../../api/adminLabourCategoriesApi.js'
 import { ApiError } from '../../api/http.js'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
+import { AppModal } from '../../components/app-ui/feedback/AppModal.jsx'
+import { AppButton } from '../../components/app-ui/buttons/AppButton.jsx'
 
 const inputClass =
   'w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20'
@@ -57,6 +59,11 @@ export function AdminSettingsPage() {
   const [toast, setToast] = useState({ message: '', variant: 'success' })
 
   const [rawSettings, setRawSettings] = useState(null)
+  const fileInputRef = useRef(null)
+  const [uploadType, setUploadType] = useState('logo')
+  const [brandingLogo, setBrandingLogo] = useState(null)
+  const [brandingFavicon, setBrandingFavicon] = useState(null)
+  const [deleteConfirmType, setDeleteConfirmType] = useState(null)
 
   // Platform Fee
   const [feeType, setFeeType] = useState('percentage')
@@ -140,6 +147,11 @@ export function AdminSettingsPage() {
         const s = res.data?.settings || {}
         setRawSettings(s)
         
+        if (s.branding) {
+          setBrandingLogo(s.branding.logoUrl)
+          setBrandingFavicon(s.branding.faviconUrl)
+        }
+        
         // Payment Modes
         if (s.paymentModes) {
           if (s.paymentModes.cashEnabled != null) setCashEnabled(s.paymentModes.cashEnabled)
@@ -191,6 +203,63 @@ export function AdminSettingsPage() {
     }
   }
 
+  const handleBrandingFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      setSaving(`Branding ${uploadType}`)
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', uploadType)
+      
+      const res = await adminSettingsApi.uploadBranding(formData)
+      if (uploadType === 'logo') {
+        setBrandingLogo(res.data.branding.logoUrl)
+      } else {
+        setBrandingFavicon(res.data.branding.faviconUrl)
+        let link = document.querySelector("link[rel~='icon']")
+        if (!link) {
+          link = document.createElement('link')
+          link.rel = 'icon'
+          document.head.appendChild(link)
+        }
+        link.removeAttribute('type')
+        link.href = res.data.branding.faviconUrl
+      }
+      showToast(`${uploadType} uploaded successfully`)
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : `Failed to upload ${uploadType}`, 'error')
+    } finally {
+      setSaving('')
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const handleDeleteBranding = async (type) => {
+    setSaving(`Deleting ${type}`)
+    try {
+      await adminSettingsApi.deleteBranding(type)
+      if (type === 'logo') {
+        setBrandingLogo(null)
+      } else {
+        setBrandingFavicon(null)
+        let link = document.querySelector("link[rel~='icon']")
+        if (link) {
+          link.href = '/favicon.svg' // Revert to default
+        }
+      }
+      showToast(`${type} deleted successfully`)
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : `Failed to delete ${type}`, 'error')
+    } finally {
+      setSaving('')
+      setDeleteConfirmType(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -202,6 +271,37 @@ export function AdminSettingsPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <Toast message={toast.message} variant={toast.variant} />
+
+      <AppModal
+        open={!!deleteConfirmType}
+        onClose={() => setDeleteConfirmType(null)}
+        title="Delete Branding"
+        description={`Are you sure you want to delete the uploaded ${deleteConfirmType}?`}
+        footer={
+          <div className="flex justify-end gap-3">
+            <AppButton variant="secondary" onClick={() => setDeleteConfirmType(null)}>Cancel</AppButton>
+            <AppButton 
+              variant="danger" 
+              loading={saving.startsWith('Deleting')}
+              onClick={() => handleDeleteBranding(deleteConfirmType)}
+            >
+              Delete
+            </AppButton>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          This action cannot be undone. The system will revert to using the default {deleteConfirmType}.
+        </p>
+      </AppModal>
+
+      <input 
+        type="file" 
+        accept="image/*" 
+        className="hidden" 
+        ref={fileInputRef}
+        onChange={handleBrandingFileChange}
+      />
 
       <motion.div
         initial={reduce ? false : { opacity: 0, y: 8 }}
@@ -219,6 +319,89 @@ export function AdminSettingsPage() {
       </motion.div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Branding */}
+        <SettingsSection
+          icon={ImageIcon}
+          title="Branding"
+          description="Update application logo and favicon"
+        >
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-6 gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 overflow-hidden relative">
+                  {brandingLogo ? (
+                    <img src={brandingLogo} alt="Logo" className="h-full w-full object-contain p-2" />
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">No Logo</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-800">Logo</p>
+                  <p className="text-xs text-slate-500 mt-0.5 max-w-[200px]">Appears on auth and layout headers</p>
+                </div>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto shrink-0">
+                <AppPrimaryButton 
+                  type="button" 
+                  className="w-full sm:w-auto px-6 py-2.5 text-sm"
+                  loading={saving === 'Branding logo'} 
+                  onClick={() => { setUploadType('logo'); fileInputRef.current?.click(); }}
+                >
+                  Upload Logo
+                </AppPrimaryButton>
+                {brandingLogo && (
+                  <button
+                    type="button"
+                    title="Delete Logo"
+                    disabled={!!saving}
+                    onClick={() => setDeleteConfirmType('logo')}
+                    className="flex shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 overflow-hidden relative">
+                  {brandingFavicon ? (
+                    <img src={brandingFavicon} alt="Favicon" className="h-full w-full object-contain p-2" />
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">No<br/>Favicon</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-800">Favicon</p>
+                  <p className="text-xs text-slate-500 mt-0.5 max-w-[200px]">Appears in the browser tab</p>
+                </div>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto shrink-0">
+                <AppPrimaryButton 
+                  type="button" 
+                  className="w-full sm:w-auto px-6 py-2.5 text-sm"
+                  loading={saving === 'Branding favicon'} 
+                  onClick={() => { setUploadType('favicon'); fileInputRef.current?.click(); }}
+                >
+                  Upload Favicon
+                </AppPrimaryButton>
+                {brandingFavicon && (
+                  <button
+                    type="button"
+                    title="Delete Favicon"
+                    disabled={!!saving}
+                    onClick={() => setDeleteConfirmType('favicon')}
+                    className="flex shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </SettingsSection>
+
         {/* Platform Fee */}
         <SettingsSection
           icon={Percent}

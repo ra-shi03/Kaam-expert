@@ -12,6 +12,12 @@ router.use(protect)
 // Both LABOUR and ADMIN can view wallets, but we restrict endpoints accordingly
 router.get('/me', restrictTo(USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR), wallet.getMyWallet)
 
+router.get(
+  '/earnings-summary',
+  restrictTo(USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR),
+  wallet.getEarningsSummary,
+)
+
 router.post(
   '/clear',
   restrictTo(USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR),

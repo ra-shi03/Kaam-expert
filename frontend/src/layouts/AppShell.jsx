@@ -246,17 +246,19 @@ export function AppShell() {
               transition={reduce ? { duration: 0.2 } : appSpring}
               aria-hidden={!drawerOpen}
             >
-              <div className="relative border-b border-slate-200/70 bg-linear-to-b from-slate-50/90 to-white px-4 pb-4 pt-4">
+              <div className="relative border-b border-slate-200/70 bg-linear-to-b from-slate-50/90 to-white px-4 pb-6 pt-5">
                 <div className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-linear-to-r from-brand/30 via-slate-200/50 to-transparent" aria-hidden />
-                <div className="relative flex items-start justify-between gap-3">
+
+                <div className="relative flex items-center justify-between gap-3">
                   <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-brand-bright to-brand text-xs font-black text-white shadow-[0_8px_22px_-8px_rgba(0,43,92,0.45)] ring-2 ring-white">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-brand-bright to-brand text-sm font-black text-white shadow-md ring-2 ring-white">
                       {drawerInitials}
                     </span>
                     <div className="min-w-0">
-                      <img src="/logo-transparent.png" alt="KaamExpert" className="h-4 w-auto mb-1" />
-                      <p className="truncate text-sm font-extrabold text-slate-900">Menu</p>
-                      <p className="mt-0.5 truncate text-xs font-medium text-slate-500">
+                      <p className="truncate text-base font-extrabold text-slate-900">
+                        {user?.fullName || 'Menu'}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] font-bold uppercase tracking-wider text-slate-500">
                         {ROLE_LABELS[user?.role] || 'Account'}
                       </p>
                     </div>
@@ -264,10 +266,10 @@ export function AppShell() {
                   <button
                     type="button"
                     onClick={() => setDrawerOpen(false)}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-600 shadow-sm transition hover:border-brand/30 hover:text-slate-900"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-500 shadow-sm transition hover:border-brand/30 hover:bg-slate-50 hover:text-slate-900"
                     aria-label="Close menu"
                   >
-                    <X className="h-5 w-5" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
                 {headerBadge ? (

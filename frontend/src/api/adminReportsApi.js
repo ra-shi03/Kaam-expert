@@ -1,10 +1,10 @@
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: '/api/v1/admin/reports',
-  withCredentials: true,
-});
+import { apiRequest } from './http.js';
 
 export const getDashboardStats = async () => {
-  return api.get('/stats');
+  return apiRequest('/admin/reports/stats');
+};
+
+export const getReportsData = async (params) => {
+  const qs = new URLSearchParams(params).toString();
+  return apiRequest(`/admin/reports/data?${qs}`);
 };

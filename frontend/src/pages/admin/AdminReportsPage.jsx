@@ -1,28 +1,94 @@
 import { useState, useEffect } from 'react'
-import { Users, FileText, CheckCircle, Clock, XCircle, Loader2, IndianRupee, AlertCircle } from 'lucide-react'
+import { Users, FileText, CheckCircle, Clock, XCircle, Loader2, IndianRupee, AlertCircle, Download } from 'lucide-react'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
-import { getDashboardStats } from '../../api/adminReportsApi.js'
+import { getDashboardStats, getReportsData } from '../../api/adminReportsApi.js'
+import { format, subDays } from 'date-fns'
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, Legend
+} from 'recharts'
 
 export function AdminReportsPage() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
+  const [reportType, setReportType] = useState('bookings') // 'users', 'bookings', 'revenue'
+  const [dateRange, setDateRange] = useState({
+    startDate: '2020-01-01',
+    endDate: new Date().toISOString().split('T')[0]
+  })
+
+  const [reportsData, setReportsData] = useState({ rows: [], chartData: [], pagination: {} })
+  const [loadingReports, setLoadingReports] = useState(false)
+  const [page, setPage] = useState(1)
+
   useEffect(() => {
     loadStats()
   }, [])
+
+  useEffect(() => {
+    loadReportsData()
+  }, [reportType, dateRange.startDate, dateRange.endDate, page])
 
   const loadStats = async () => {
     try {
       setLoading(true)
       const res = await getDashboardStats()
-      setStats(res.data?.stats)
+      setStats(res.stats)
       setError('')
     } catch (err) {
       setError('Failed to load dashboard statistics')
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadReportsData = async () => {
+    try {
+      setLoadingReports(true)
+      const res = await getReportsData({
+        type: reportType,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        page,
+        limit: 10
+      })
+      setReportsData(res.data || { rows: [], chartData: [], pagination: {} })
+    } catch (err) {
+      console.error('Failed to load detailed reports', err)
+      setReportsData({ rows: [], chartData: [], pagination: {} })
+    } finally {
+      setLoadingReports(false)
+    }
+  }
+
+  const handleExportCSV = () => {
+    if (!reportsData.rows || reportsData.rows.length === 0) return;
+    
+    // Convert to CSV
+    let csvContent = "data:text/csv;charset=utf-8,";
+    const headers = Object.keys(reportsData.rows[0]).filter(key => typeof reportsData.rows[0][key] !== 'object');
+    csvContent += headers.join(",") + "\n";
+
+    reportsData.rows.forEach(row => {
+      const rowData = headers.map(header => {
+        let val = row[header];
+        if (typeof val === 'string') {
+          val = val.replace(/"/g, '""');
+          return `"${val}"`;
+        }
+        return val;
+      });
+      csvContent += rowData.join(",") + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `report_${reportType}_${dateRange.startDate}_to_${dateRange.endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   if (loading) {
@@ -149,8 +215,8 @@ export function AdminReportsPage() {
               <p className="text-2xl font-bold text-gray-900">{stats?.users?.contractor || 0}</p>
             </div>
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 text-center">
-              <p className="text-sm text-gray-500 mb-1">Vendors</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.users?.vendor || 0}</p>
+              <p className="text-sm text-gray-500 mb-1">Admins</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.users?.admin || 0}</p>
             </div>
           </div>
           
@@ -184,6 +250,160 @@ export function AdminReportsPage() {
           </div>
         </GlassPanel>
       </div>
+
+      {/* Detailed Reports Section */}
+      <div className="mt-8 space-y-6">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <h2 className="text-xl font-bold text-gray-900">Detailed Reports</h2>
+          
+          <div className="flex flex-wrap gap-4 items-center">
+            <select
+              value={reportType}
+              onChange={(e) => { setReportType(e.target.value); setPage(1); }}
+              className="px-4 py-2 border border-gray-200 rounded-lg bg-white text-sm"
+            >
+              <option value="bookings">Bookings</option>
+              <option value="revenue">Revenue</option>
+              <option value="users">Users</option>
+            </select>
+            
+            <input
+              type="date"
+              value={dateRange.startDate}
+              onChange={(e) => { setDateRange(prev => ({ ...prev, startDate: e.target.value })); setPage(1); }}
+              className="px-4 py-2 border border-gray-200 rounded-lg bg-white text-sm"
+            />
+            <span className="text-gray-500 text-sm">to</span>
+            <input
+              type="date"
+              value={dateRange.endDate}
+              onChange={(e) => { setDateRange(prev => ({ ...prev, endDate: e.target.value })); setPage(1); }}
+              className="px-4 py-2 border border-gray-200 rounded-lg bg-white text-sm"
+            />
+
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-brand text-white text-sm rounded-lg hover:bg-brand/90 transition"
+            >
+              <Download className="w-4 h-4" /> Export CSV
+            </button>
+          </div>
+        </div>
+
+        {/* Charts */}
+        <GlassPanel className="p-6 h-[400px]">
+          {loadingReports ? (
+            <div className="flex h-full items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-brand" /></div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              {reportType === 'revenue' ? (
+                <BarChart data={reportsData.chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="date" tick={{fontSize: 12, fill: '#6b7280'}} axisLine={false} tickLine={false} />
+                  <YAxis tick={{fontSize: 12, fill: '#6b7280'}} axisLine={false} tickLine={false} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Bar dataKey="value" fill="#3b82f6" name="Revenue (₹)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              ) : (
+                <AreaChart data={reportsData.chartData}>
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="date" tick={{fontSize: 12, fill: '#6b7280'}} axisLine={false} tickLine={false} />
+                  <YAxis tick={{fontSize: 12, fill: '#6b7280'}} axisLine={false} tickLine={false} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorValue)" name={reportType === 'users' ? 'New Users' : 'Bookings'} />
+                </AreaChart>
+              )}
+            </ResponsiveContainer>
+          )}
+        </GlassPanel>
+        
+        {/* Detailed Data Table */}
+        <GlassPanel className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-gray-500">
+              <thead className="bg-gray-50 text-gray-700">
+                <tr>
+                  <th className="px-6 py-4 font-medium">Date</th>
+                  {reportType === 'users' && <th className="px-6 py-4 font-medium">Phone / Role</th>}
+                  {reportType === 'bookings' && <th className="px-6 py-4 font-medium">Status</th>}
+                  {reportType === 'revenue' && <th className="px-6 py-4 font-medium">Amount</th>}
+                  {reportType === 'revenue' && <th className="px-6 py-4 font-medium">Status</th>}
+                  <th className="px-6 py-4 font-medium text-right">ID</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {reportsData.rows?.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50/50">
+                    <td className="px-6 py-4">{format(new Date(row.createdAt), 'dd MMM yyyy')}</td>
+                    {reportType === 'users' && (
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-gray-900">{row.phone}</div>
+                        <div className="text-xs uppercase">{row.role}</div>
+                      </td>
+                    )}
+                    {reportType === 'bookings' && (
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          row.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                          row.status === 'CANCELLED' ? 'bg-red-100 text-red-700' :
+                          'bg-orange-100 text-orange-700'
+                        }`}>
+                          {row.status}
+                        </span>
+                      </td>
+                    )}
+                    {reportType === 'revenue' && (
+                      <td className="px-6 py-4 font-medium text-gray-900">₹{row.amount}</td>
+                    )}
+                    {reportType === 'revenue' && (
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          row.status === 'CAPTURED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {row.status}
+                        </span>
+                      </td>
+                    )}
+                    <td className="px-6 py-4 text-right text-gray-400 font-mono text-xs">{row._id}</td>
+                  </tr>
+                ))}
+                {(!reportsData.rows || reportsData.rows.length === 0) && !loadingReports && (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-8 text-center text-gray-500">No data found for the selected period.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {/* Pagination */}
+          {reportsData.pagination?.pages > 1 && (
+             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+               <span className="text-sm text-gray-500">
+                 Page {reportsData.pagination.page} of {reportsData.pagination.pages}
+               </span>
+               <div className="flex gap-2">
+                 <button 
+                   disabled={page === 1}
+                   onClick={() => setPage(p => p - 1)}
+                   className="px-3 py-1 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition"
+                 >Previous</button>
+                 <button 
+                   disabled={page === reportsData.pagination.pages}
+                   onClick={() => setPage(p => p + 1)}
+                   className="px-3 py-1 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition"
+                 >Next</button>
+               </div>
+             </div>
+          )}
+        </GlassPanel>
+      </div>
+
     </div>
   )
 }

@@ -94,15 +94,15 @@ export function AdminLayout() {
   const sidebarInner = (
     <>
       <div
-        className={`relative flex h-17 shrink-0 items-center border-b border-slate-200/70 bg-linear-to-b from-slate-50/90 to-white px-3 ${collapsed ? 'md:justify-center' : 'justify-between gap-2'}`}
+        className={`relative flex h-17 shrink-0 items-center border-b border-white/15 bg-transparent px-3 ${collapsed ? 'md:justify-center' : 'justify-between gap-2'}`}
       >
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-brand/25 via-slate-200/60 to-transparent" aria-hidden />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-white/0 via-white/20 to-white/0" aria-hidden />
         <Link
           to="/admin"
-          className={`relative z-10 flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1.5 font-extrabold tracking-tight text-slate-900 transition hover:bg-white/80 hover:shadow-sm ${collapsed ? 'md:justify-center' : ''}`}
+          className={`relative z-10 flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1.5 font-extrabold tracking-tight text-white transition hover:bg-white/10 hover:shadow-sm active:scale-95 ${collapsed ? 'md:justify-center' : ''}`}
           title="Dashboard"
         >
-          <img src="/logo-transparent.png" alt="KaamExpert" className="h-8 w-auto" />
+          <img src="/logo-transparent.png" alt="KaamExpert" className="h-8 w-auto brightness-0 invert" />
           <span className={`min-w-0 truncate ${collapsed ? 'md:sr-only' : ''}`}>
             <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
               Control panel
@@ -112,7 +112,7 @@ export function AdminLayout() {
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          className="relative z-10 hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200/90 bg-white text-slate-500 shadow-sm transition hover:border-brand/35 hover:text-brand md:flex"
+          className="relative z-10 hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white shadow-sm transition hover:bg-white/20 active:scale-95 md:flex"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
@@ -131,8 +131,8 @@ export function AdminLayout() {
           >
             {section.title ? (
               <div className={`mb-2.5 flex items-center gap-2 px-3 ${collapsed ? 'md:hidden' : ''}`}>
-                <span className="h-px w-4 shrink-0 rounded-full bg-brand/40" aria-hidden />
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{section.title}</p>
+                <span className="h-px w-4 shrink-0 rounded-full bg-white/30" aria-hidden />
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-100">{section.title}</p>
               </div>
             ) : null}
             <ul className="space-y-1">
@@ -143,20 +143,20 @@ export function AdminLayout() {
                     end={Boolean(end)}
                     title={label}
                     className={({ isActive }) =>
-                      `group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-semibold transition duration-200 md:px-2 ${collapsed ? 'md:justify-center md:px-0' : 'px-3'
+                      `group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98] md:px-2 ${collapsed ? 'md:justify-center md:px-0' : 'px-3'
                       } ${isActive
-                        ? 'bg-linear-to-r from-brand/12 to-blue-50/50 text-slate-900 shadow-[inset_0_0_0_1px_rgba(0,43,92,0.12)]'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                      } ${!collapsed && isActive ? 'before:absolute before:left-0 before:top-1/2 before:h-8 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-brand before:shadow-[2px_0_12px_-2px_rgba(0,43,92,0.5)]' : ''} ${collapsed && isActive ? 'md:ring-2 md:ring-brand/25 md:ring-offset-2 md:ring-offset-white' : ''
+                        ? 'bg-white text-brand shadow-md'
+                        : 'text-blue-100 hover:bg-white/15 hover:text-white'
+                      } ${collapsed && isActive ? 'md:ring-2 md:ring-white/50 md:ring-offset-2 md:ring-offset-brand' : ''
                       }`
                     }
                   >
                     {({ isActive }) => (
                       <>
                         <span
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm ring-1 transition ${isActive
-                              ? 'bg-white text-brand ring-brand/25 shadow-[0_4px_14px_-8px_rgba(0,43,92,0.35)]'
-                              : 'bg-white text-slate-500 ring-slate-200/85 group-hover:text-brand group-hover:ring-brand/20'
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-200 ${isActive
+                              ? 'bg-brand/10 text-brand'
+                              : 'bg-white/10 text-blue-100 group-hover:text-white group-hover:bg-white/20'
                             }`}
                         >
                           <Icon className="h-[18px] w-[18px]" aria-hidden />
@@ -164,7 +164,7 @@ export function AdminLayout() {
                         <span className={`min-w-0 flex-1 truncate ${collapsed ? 'md:sr-only' : ''}`}>{label}</span>
                         {!collapsed ? (
                           <ChevronRight
-                            className={`h-4 w-4 shrink-0 transition ${isActive ? 'translate-x-0 text-brand opacity-100' : 'text-slate-300 opacity-0 group-hover:translate-x-0.5 group-hover:opacity-100'}`}
+                            className={`h-4 w-4 shrink-0 transition-all duration-200 ${isActive ? 'translate-x-0 text-brand opacity-100' : 'text-blue-200 opacity-0 group-hover:translate-x-0.5 group-hover:opacity-100'}`}
                             aria-hidden
                           />
                         ) : null}
@@ -179,14 +179,14 @@ export function AdminLayout() {
       </nav>
 
       <div
-        className={`relative shrink-0 border-t border-slate-200/80 bg-linear-to-t from-slate-50/40 to-white p-2 ${collapsed ? 'md:px-1.5' : ''}`}
+        className={`relative shrink-0 border-t border-white/15 bg-transparent p-2 ${collapsed ? 'md:px-1.5' : ''}`}
       >
         <a
           href="/"
-          className={`flex items-center gap-3 rounded-xl py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-slate-900 hover:shadow-sm ${collapsed ? 'md:justify-center' : 'px-3'}`}
+          className={`flex items-center gap-3 rounded-xl py-2.5 text-sm font-semibold text-blue-100 transition-all duration-200 hover:bg-white/15 hover:text-white active:scale-95 ${collapsed ? 'md:justify-center' : 'px-3'}`}
           title="Public site"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm ring-1 ring-slate-200/90 transition group-hover:text-brand">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-blue-100 transition-colors duration-200 group-hover:text-white group-hover:bg-white/20">
             <ExternalLink className="h-4 w-4" aria-hidden />
           </span>
           <span className={`${collapsed ? 'md:sr-only' : ''}`}>Public site</span>
@@ -196,7 +196,7 @@ export function AdminLayout() {
   )
 
   const sidebarClassName = `
-    flex h-dvh max-h-dvh shrink-0 flex-col overflow-hidden border-r border-slate-200/80 bg-white shadow-[6px_0_32px_-12px_rgba(15,23,42,0.1)] transition-[transform,width] duration-300 ease-out
+    flex h-dvh max-h-dvh shrink-0 flex-col overflow-hidden border-r border-blue-800/50 bg-gradient-to-b from-[#001a38] to-brand shadow-[6px_0_32px_-12px_rgba(37,99,235,0.3)] transition-[transform,width] duration-300 ease-out
     w-[min(18rem,88vw)] max-md:max-w-[18rem]
     ${collapsed ? 'md:w-19' : 'md:w-64'}
     fixed inset-y-0 left-0 z-50 md:relative md:z-20

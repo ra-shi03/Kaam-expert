@@ -127,7 +127,14 @@ export function LabourHomeScreen({ user }) {
   const [jobs, setJobs] = useState({ offers: [], active: [], history: [] }) // legacy fallback if needed
   const { liveOffers, removeOfferLocal } = useLabourSocket()
   const [activeBookings, setActiveBookings] = useState([])
-  const [withdrawals, setWithdrawals] = useState([])
+  const [earnings, setEarnings] = useState({
+    earnedPaise: 0,
+    todayPaise: 0,
+    weekPaise: 0,
+    monthPaise: 0,
+    availablePaise: 0,
+    pendingPaise: 0
+  })
   const [freeTrialMessage, setFreeTrialMessage] = useState('')
 
   const loadBookings = useCallback(() => {
@@ -139,8 +146,11 @@ export function LabourHomeScreen({ user }) {
         console.error('Failed to load bookings:', err)
       }
     })
-    withdrawalsApi.getWithdrawals().then(res => {
-      setWithdrawals(res.data?.requests || res.requests || [])
+    
+    withdrawalsApi.getEarningsSummary().then(res => {
+      if (res.data?.earnings) {
+        setEarnings(res.data.earnings)
+      }
     }).catch(console.error)
   }, [user])
 
@@ -280,49 +290,7 @@ export function LabourHomeScreen({ user }) {
 
 
 
-  const earnings = useMemo(() => {
-    let earnedPaise = 0
-    let todayPaise = 0
-    let weekPaise = 0
-    
-    const now = new Date()
-    const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
-    
-    const weekAgo = new Date(now)
-    weekAgo.setDate(now.getDate() - 7)
-    
-    activeBookings.forEach(b => {
-      if (['COMPLETED', 'ACCEPTED', 'ASSIGNED', 'STARTED'].includes(b.status)) {
-        const share = b.laborShare || b.basePrice || 0
-        if (b.paymentMethod !== 'CASH') {
-           earnedPaise += share * 100
-           
-           const bookingDate = new Date(b.scheduledAt || b.createdAt)
-           const bDateStr = new Date(bookingDate.getTime() - bookingDate.getTimezoneOffset() * 60000).toISOString().split('T')[0]
-           
-           if (bDateStr === todayStr) {
-             todayPaise += share * 100
-           }
-           if (bookingDate >= weekAgo) {
-             weekPaise += share * 100
-           }
-        }
-      }
-    })
-    
-    const paidInr = withdrawals.filter(w => w.status === 'APPROVED').reduce((acc, curr) => acc + (curr.amount || 0), 0)
-    const pendingInr = withdrawals.filter(w => w.status === 'PENDING').reduce((acc, curr) => acc + (curr.amount || 0), 0)
-    
-    const availableInr = Math.floor(earnedPaise / 100) - paidInr - pendingInr
-    const availablePaise = Math.max(0, availableInr * 100)
-    
-    return {
-      earnedPaise,
-      todayPaise,
-      weekPaise,
-      availablePaise
-    }
-  }, [activeBookings, withdrawals])
+  const earningsObj = earnings
 
   const notifications = useMemo(
     () => buildLabourNotifications(user, jobs, earnings),

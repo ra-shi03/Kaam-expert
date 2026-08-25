@@ -33,9 +33,14 @@ async function validateLabourBookingAccess(labour) {
 
   // 4. Check today's subscription
   const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-  const subscription = await UserSubscription.findOne({ labour: labour._id, date: todayIST })
+  const subscription = await UserSubscription.findOne({ 
+    labour: labour._id, 
+    status: 'active',
+    date: { $lte: todayIST },
+    endDate: { $gte: todayIST }
+  })
 
-  if (!subscription || subscription.status !== 'active') {
+  if (!subscription) {
     return {
       allowed: false,
       code: 'SUBSCRIPTION_REQUIRED',
@@ -209,7 +214,12 @@ export const rejectBroadcast = asyncHandler(async (req, res) => {
       if (!inTrial) {
         const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
         await UserSubscription.findOneAndUpdate(
-          { labour: labour._id, date: todayIST, status: 'active' },
+          { 
+            labour: labour._id, 
+            status: 'active',
+            date: { $lte: todayIST },
+            endDate: { $gte: todayIST }
+          },
           { $inc: { bookingOpportunitiesOffered: 1 } }
         )
       }

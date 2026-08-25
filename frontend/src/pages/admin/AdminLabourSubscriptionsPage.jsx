@@ -314,7 +314,7 @@ export function AdminLabourSubscriptionsPage() {
   const LIMIT = 30
 
   // Filters
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }))
+  const [selectedDate, setSelectedDate] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [refundStatusFilter, setRefundStatusFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -334,7 +334,7 @@ export function AdminLabourSubscriptionsPage() {
   const fetchStats = useCallback(async () => {
     try {
       const [res, settingsRes] = await Promise.all([
-        adminLabourSubscriptionsApi.getStats({ date: selectedDate !== new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) ? selectedDate : undefined }),
+        adminLabourSubscriptionsApi.getStats({ date: selectedDate || undefined }),
         adminSettingsApi.getSettings()
       ])
       setStats(res?.data || null)
@@ -362,7 +362,7 @@ export function AdminLabourSubscriptionsPage() {
         const res = await adminLabourSubscriptionsApi.getRefundEligible({ date: selectedDate })
         setRefundEligible(res?.data?.subscriptions || [])
       } else if (activeTab === 'history') {
-        const res = await adminLabourSubscriptionsApi.getRefundHistory({ date: selectedDate !== new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) ? selectedDate : undefined, page })
+        const res = await adminLabourSubscriptionsApi.getRefundHistory({ date: selectedDate || undefined, page })
         setHistory(res?.data?.subscriptions || [])
         setTotal(res?.data?.total || 0)
       } else if (activeTab === 'plans') {
@@ -451,8 +451,8 @@ export function AdminLabourSubscriptionsPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-        <StatCard icon={Users} label="Total Today" value={stats?.totalToday ?? '—'} loading={!stats} accent="brand" />
-        <StatCard icon={Shield} label="Active" value={stats?.activeToday ?? '—'} loading={!stats} accent="emerald" />
+        <StatCard icon={Users} label={selectedDate ? "Total on Date" : "Total Subscriptions"} value={stats?.totalToday ?? '—'} loading={!stats} accent="brand" />
+        <StatCard icon={Shield} label={selectedDate ? "Active on Date" : "Active Today"} value={stats?.activeToday ?? '—'} loading={!stats} accent="emerald" />
         <StatCard icon={IndianRupee} label="Revenue" value={stats ? `₹${stats.totalRevenue}` : '—'} loading={!stats} accent="brand" />
         <StatCard icon={RotateCcw} label="Refunded" value={stats?.refundedToday ?? '—'} sub={stats ? `₹${stats.totalRefunded}` : ''} loading={!stats} accent="amber" />
         <StatCard icon={BadgeIndianRupee} label="Net Revenue" value={stats ? `₹${stats.netRevenue}` : '—'} loading={!stats} accent="emerald" />
@@ -565,7 +565,7 @@ export function AdminLabourSubscriptionsPage() {
           {refundEligible.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center">
               <CheckCircle2 className="h-12 w-12 text-emerald-300" />
-              <p className="font-semibold text-slate-700">No pending refunds for {selectedDate}</p>
+              <p className="font-semibold text-slate-700">No pending refunds for {selectedDate || 'all dates'}</p>
               <p className="text-sm text-slate-500">All subscriptions have been settled.</p>
             </div>
           ) : (
@@ -649,7 +649,25 @@ export function AdminLabourSubscriptionsPage() {
                           <p className="font-bold text-slate-900">{sub.labour?.fullName || '—'}</p>
                           <p className="text-xs text-slate-500">+91 {sub.labour?.phone || '—'}</p>
                         </td>
-                        <td className="px-5 py-3 text-xs font-mono text-slate-600">{sub.date}</td>
+                        <td className="px-5 py-3 text-xs font-mono text-slate-600">
+                          {(() => {
+                            if (sub.durationDays > 1) {
+                              const targetStr = selectedDate || new Date().toISOString().split('T')[0]
+                              const start = new Date(sub.date)
+                              const current = new Date(targetStr)
+                              const diffTime = current - start
+                              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+                              const progress = Math.min(Math.max(1, diffDays), sub.durationDays)
+                              return (
+                                <div>
+                                  <span className="font-bold text-brand bg-brand/10 px-2 py-0.5 rounded">{progress}/{sub.durationDays} Days</span>
+                                  <p className="mt-1 text-[10px] text-slate-400">Start: {sub.date}</p>
+                                </div>
+                              )
+                            }
+                            return sub.date
+                          })()}
+                        </td>
                         <td className="px-5 py-3 text-xs font-mono text-slate-500">
                           {sub.transactionId ? (
                             <span className="rounded bg-slate-100 px-1.5 py-0.5">{sub.transactionId}</span>

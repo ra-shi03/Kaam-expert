@@ -16,6 +16,79 @@ export const getMyWallet = asyncHandler(async (req, res) => {
   return sendSuccess(res, { data: { wallet } })
 })
 
+export const getEarningsSummary = asyncHandler(async (req, res) => {
+  const userId = req.user._id
+  
+  // 1. Calculate Earnings from Bookings
+  const now = new Date()
+  const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+  
+  const weekAgo = new Date(now)
+  weekAgo.setDate(now.getDate() - 7)
+  
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  
+  const BookingsModel = mongoose.model('Booking')
+  const completedBookings = await BookingsModel.find({
+    laborId: userId,
+    status: { $in: ['COMPLETED', 'ACCEPTED', 'ASSIGNED', 'STARTED'] }
+  })
+  
+  let earnedPaise = 0
+  let todayPaise = 0
+  let weekPaise = 0
+  let monthPaise = 0
+  
+  completedBookings.forEach(b => {
+    const share = b.laborShare || b.basePrice || 0
+    if (b.paymentMethod !== 'CASH') {
+      earnedPaise += share * 100
+      const bookingDate = new Date(b.scheduledAt || b.createdAt)
+      const bDateStr = new Date(bookingDate.getTime() - bookingDate.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+      
+      if (bDateStr === todayStr) {
+        todayPaise += share * 100
+      }
+      if (bookingDate >= weekAgo) {
+        weekPaise += share * 100
+      }
+      if (bookingDate >= monthStart) {
+        monthPaise += share * 100
+      }
+    }
+  })
+  
+  // 2. Calculate Pending / Paid Withdrawals
+  const pendingRequests = await WithdrawalRequest.aggregate([
+    { $match: { userId, status: 'PENDING' } },
+    { $group: { _id: null, total: { $sum: '$amount' } } }
+  ])
+  const pendingInr = pendingRequests.length > 0 ? pendingRequests[0].total : 0
+  
+  const paidRequests = await WithdrawalRequest.aggregate([
+    { $match: { userId, status: 'APPROVED' } },
+    { $group: { _id: null, total: { $sum: '$amount' } } }
+  ])
+  const paidInr = paidRequests.length > 0 ? paidRequests[0].total : 0
+  
+  const availableInr = Math.floor(earnedPaise / 100) - paidInr - pendingInr
+  const availablePaise = Math.max(0, availableInr * 100)
+  const pendingPaise = pendingInr * 100
+  
+  return sendSuccess(res, {
+    data: {
+      earnings: {
+        earnedPaise,
+        todayPaise,
+        weekPaise,
+        monthPaise,
+        availablePaise,
+        pendingPaise
+      }
+    }
+  })
+})
+
 export const clearAdminDues = asyncHandler(async (req, res) => {
   const { amount } = req.body
   const numAmount = Number(amount)

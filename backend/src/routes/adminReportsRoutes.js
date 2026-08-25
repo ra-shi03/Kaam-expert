@@ -11,4 +11,7 @@ router.use(protect, restrictTo(USER_ROLES.ADMIN))
 // GET /api/v1/admin/reports/stats
 router.get('/stats', adminReports.getDashboardStats)
 
+// GET /api/v1/admin/reports/data
+router.get('/data', adminReports.getReportsData)
+
 export default router

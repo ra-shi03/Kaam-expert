@@ -20,11 +20,13 @@ export const getLabourSubscriptions = asyncHandler(async (req, res) => {
     limit = 30,
   } = req.query
 
-  const query = {}
+  const query = { labour: { $exists: true } }
 
-  // Date filter — default to today
-  const targetDate = date || new Date().toISOString().split('T')[0]
-  query.date = targetDate
+  // Date filter
+  if (date) {
+    query.date = { $lte: date }
+    query.endDate = { $gte: date }
+  }
 
   if (status && status !== 'all') {
     query.status = status
@@ -60,7 +62,7 @@ export const getLabourSubscriptions = asyncHandler(async (req, res) => {
   const total = await UserSubscription.countDocuments(query)
 
   return sendSuccess(res, {
-    data: { subscriptions, total, page: Number(page), limit: Number(limit), date: targetDate },
+    data: { subscriptions, total, page: Number(page), limit: Number(limit), date },
   })
 })
 
@@ -73,7 +75,9 @@ export const getRefundEligible = asyncHandler(async (req, res) => {
   const targetDate = date || new Date().toISOString().split('T')[0]
 
   const subscriptions = await UserSubscription.find({
-    date: targetDate,
+    labour: { $exists: true },
+    date: { $lte: targetDate },
+    endDate: { $gte: targetDate },
     refundEligibility: true,
     refundStatus: { $in: ['pending', 'processing', 'failed'] },
   })
@@ -92,29 +96,54 @@ export const getRefundEligible = asyncHandler(async (req, res) => {
  */
 export const getSubscriptionStats = asyncHandler(async (req, res) => {
   const { date } = req.query
-  const targetDate = date || new Date().toISOString().split('T')[0]
+  
+  const baseQuery = { labour: { $exists: true } }
+  let targetDate = null
+
+  if (date) {
+    targetDate = date
+    baseQuery.date = { $lte: targetDate }
+    baseQuery.endDate = { $gte: targetDate }
+  } else {
+    // If no date selected, show active right now for 'active' stats
+    const today = new Date().toISOString().split('T')[0]
+    baseQuery.date = { $lte: today }
+    baseQuery.endDate = { $gte: today }
+  }
+
+  // To count "Total" and "Refunded" over all time when no date is selected, we need separate queries
+  const allTimeQuery = { labour: { $exists: true } }
+  if (date) {
+    allTimeQuery.date = { $lte: targetDate }
+    allTimeQuery.endDate = { $gte: targetDate }
+  }
 
   const [
-    totalToday,
-    activeToday,
-    refundedToday,
+    totalCount,
+    activeCount,
+    refundedCount,
     pendingRefund,
     rejectedRefund,
   ] = await Promise.all([
-    UserSubscription.countDocuments({ date: targetDate }),
-    UserSubscription.countDocuments({ date: targetDate, status: 'active' }),
-    UserSubscription.countDocuments({ date: targetDate, status: 'refunded' }),
+    UserSubscription.countDocuments(allTimeQuery),
+    UserSubscription.countDocuments({ ...baseQuery, status: 'active' }),
+    UserSubscription.countDocuments({ ...allTimeQuery, status: 'refunded' }),
     UserSubscription.countDocuments({
-      date: targetDate,
+      ...allTimeQuery,
       refundEligibility: true,
       refundStatus: { $in: ['pending', 'processing'] },
     }),
-    UserSubscription.countDocuments({ date: targetDate, refundStatus: 'manually_rejected' }),
+    UserSubscription.countDocuments({ ...allTimeQuery, refundStatus: 'manually_rejected' }),
   ])
 
-  // Revenue for the day
+  // Revenue aggregation
+  const matchStage = { labour: { $exists: true } }
+  if (date) {
+    matchStage.date = targetDate
+  }
+
   const revenueAgg = await UserSubscription.aggregate([
-    { $match: { date: targetDate } },
+    { $match: matchStage },
     {
       $group: {
         _id: null,
@@ -134,16 +163,16 @@ export const getSubscriptionStats = asyncHandler(async (req, res) => {
     const d = new Date()
     d.setDate(d.getDate() - i)
     const dayStr = d.toISOString().split('T')[0]
-    const count = await UserSubscription.countDocuments({ date: dayStr })
+    const count = await UserSubscription.countDocuments({ date: { $lte: dayStr }, endDate: { $gte: dayStr }, status: 'active' })
     last7.push({ date: dayStr, count })
   }
 
   return sendSuccess(res, {
     data: {
       date: targetDate,
-      totalToday,
-      activeToday,
-      refundedToday,
+      totalToday: totalCount,
+      activeToday: activeCount,
+      refundedToday: refundedCount,
       pendingRefund,
       rejectedRefund,
       totalRevenue: rev.totalRevenue,
@@ -270,9 +299,13 @@ export const processAdminRefund = asyncHandler(async (req, res) => {
 export const getRefundHistory = asyncHandler(async (req, res) => {
   const { page = 1, limit = 30, date } = req.query
   const query = {
+    labour: { $exists: true },
     refundStatus: { $in: ['refunded', 'manually_rejected', 'manually_approved'] },
   }
-  if (date) query.date = date
+  if (date) {
+    query.date = { $lte: date }
+    query.endDate = { $gte: date }
+  }
 
   const skip = (Number(page) - 1) * Number(limit)
   const [subscriptions, total] = await Promise.all([

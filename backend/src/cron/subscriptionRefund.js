@@ -28,10 +28,11 @@ export function initSubscriptionRefundCron() {
       console.log(`[CRON] Operational window ended (${endHour}:00 IST). Running daily subscription settlement...`)
       const today = nowIST.toISOString().split('T')[0]
 
-      // Find all active subscriptions for today that haven't been settled yet
+      // Find all active subscriptions that overlap with today and haven't been settled yet
       const subscriptions = await UserSubscription.find({
-        date: today,
         status: 'active',
+        date: { $lte: today },
+        endDate: { $gte: today },
         refundStatus: 'pending',
       }).populate('labour')
 
@@ -48,51 +49,64 @@ export function initSubscriptionRefundCron() {
         const hasBookingActivity = (sub.bookingsReceived > 0) || (sub.bookingOpportunitiesOffered > 0)
 
         if (!hasBookingActivity) {
-          // ---- REFUND ELIGIBLE ----
-          sub.refundEligibility = true
-          sub.refundAmount = sub.amountPaid
-          sub.refundStatus = 'pending'   // Admin sees this in their panel
-          sub.refundReason = 'Zero bookings received during operational window'
-          // Don't auto-expire yet — let admin process or auto-process below
+          // Only auto-refund 1-day subscriptions. Multi-day plans don't get daily auto-refunds.
+          if (sub.durationDays === 1) {
+            // ---- REFUND ELIGIBLE ----
+            sub.refundEligibility = true
+            sub.refundAmount = sub.amountPaid
+            sub.refundStatus = 'pending'   // Admin sees this in their panel
+            sub.refundReason = 'Zero bookings received during operational window'
+            // Don't auto-expire yet — let admin process or auto-process below
 
-          // Auto-process refund to wallet (configurable — right now we auto-process)
-          try {
-            let wallet = await Wallet.findOne({ user: sub.labour._id })
-            if (!wallet) {
-              wallet = await Wallet.create({ user: sub.labour._id, balance: 0 })
+            // Auto-process refund to wallet
+            try {
+              let wallet = await Wallet.findOne({ user: sub.labour._id })
+              if (!wallet) {
+                wallet = await Wallet.create({ user: sub.labour._id, balance: 0 })
+              }
+
+              wallet.balance = (wallet.balance || 0) + sub.amountPaid
+              await wallet.save()
+
+              await WalletTransaction.create({
+                wallet: wallet._id,
+                type: 'credit',
+                amount: sub.amountPaid,
+                description: `Auto-refund for daily subscription (${today}) — 0 bookings received`,
+                referenceModel: 'UserSubscription',
+                referenceId: sub._id,
+                status: 'completed',
+              })
+
+              sub.status = 'refunded'
+              sub.refundStatus = 'refunded'
+              sub.refundTimestamp = new Date()
+              sub.refundProcessedAt = new Date()
+              sub.refundTransactionId = `AUTO-${Date.now()}-${sub._id}`
+              zeroBookingCount++
+            } catch (walletErr) {
+              console.error(`[CRON] Failed to process refund for sub ${sub._id}:`, walletErr)
+              sub.refundStatus = 'failed'
+              sub.refundReason = `Auto-refund failed: ${walletErr.message}`
             }
-
-            wallet.balance = (wallet.balance || 0) + sub.amountPaid
-            await wallet.save()
-
-            await WalletTransaction.create({
-              wallet: wallet._id,
-              type: 'credit',
-              amount: sub.amountPaid,
-              description: `Auto-refund for daily subscription (${today}) — 0 bookings received`,
-              referenceModel: 'UserSubscription',
-              referenceId: sub._id,
-              status: 'completed',
-            })
-
-            sub.status = 'refunded'
-            sub.refundStatus = 'refunded'
-            sub.refundTimestamp = new Date()
-            sub.refundProcessedAt = new Date()
-            sub.refundTransactionId = `AUTO-${Date.now()}-${sub._id}`
-            zeroBookingCount++
-          } catch (walletErr) {
-            console.error(`[CRON] Failed to process refund for sub ${sub._id}:`, walletErr)
-            sub.refundStatus = 'failed'
-            sub.refundReason = `Auto-refund failed: ${walletErr.message}`
+          } else {
+            // Multi-day plan with 0 bookings today -> just expire if endDate matches today
+            if (sub.endDate <= today) {
+              sub.status = 'expired'
+            }
           }
         } else {
           // ---- NOT ELIGIBLE ----
-          sub.refundEligibility = false
-          sub.refundStatus = 'not_eligible'
-          sub.refundReason = `Received ${sub.bookingsReceived} booking(s) / ${sub.bookingOpportunitiesOffered} offer(s)`
-          sub.status = 'expired'
-          withBookingCount++
+          if (sub.durationDays === 1) {
+            sub.refundEligibility = false
+            sub.refundStatus = 'not_eligible'
+            sub.refundReason = `Received ${sub.bookingsReceived} booking(s) / ${sub.bookingOpportunitiesOffered} offer(s)`
+          }
+          
+          if (sub.endDate <= today) {
+            sub.status = 'expired'
+            withBookingCount++
+          }
         }
 
         await sub.save()

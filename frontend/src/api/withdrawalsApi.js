@@ -6,6 +6,10 @@ export const withdrawalsApi = {
     return apiRequest('/wallets/withdrawals', { method: 'GET' })
   },
   
+  getEarningsSummary: () => {
+    return apiRequest('/wallets/earnings-summary', { method: 'GET' })
+  },
+  
   // POST
   createWithdrawal: (payload) => {
     return apiRequest('/wallets/withdraw', {

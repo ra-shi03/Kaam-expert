@@ -571,30 +571,28 @@ export function AppSupportPage() {
       <section>
         <AppSectionHeader title="Other ways to reach us" className="mb-3 px-0.5" />
         <div className="grid gap-3 sm:grid-cols-2">
-          <GlassPanel className="border-slate-200/90 p-4 ring-1 ring-slate-100/90">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
-              <Phone className="h-5 w-5" aria-hidden />
-            </div>
-            <p className="mt-3 text-sm font-extrabold text-slate-900">Phone helpline</p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              Regional numbers and hours will be listed here.
-            </p>
-            <span className="mt-3 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">
-              Coming soon
-            </span>
-          </GlassPanel>
-          <GlassPanel className="border-slate-200/90 p-4 ring-1 ring-slate-100/90">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-700 ring-1 ring-violet-100">
-              <Mail className="h-5 w-5" aria-hidden />
-            </div>
-            <p className="mt-3 text-sm font-extrabold text-slate-900">Email support</p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              Contractors: use your registered domain where possible.
-            </p>
-            <span className="mt-3 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">
-              Coming soon
-            </span>
-          </GlassPanel>
+          <a href="tel:+917610125193" className="block transition hover:scale-[1.02] active:scale-[0.98]">
+            <GlassPanel className="h-full border-slate-200/90 p-4 ring-1 ring-slate-100/90">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
+                <Phone className="h-5 w-5" aria-hidden />
+              </div>
+              <p className="mt-3 text-sm font-extrabold text-slate-900">Phone helpline</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                Tap to call our customer support directly.
+              </p>
+            </GlassPanel>
+          </a>
+          <a href="mailto:rahulbairwa7610@gmail.com" className="block transition hover:scale-[1.02] active:scale-[0.98]">
+            <GlassPanel className="h-full border-slate-200/90 p-4 ring-1 ring-slate-100/90">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+                <Mail className="h-5 w-5" aria-hidden />
+              </div>
+              <p className="mt-3 text-sm font-extrabold text-slate-900">Email support</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                Tap to email our dedicated support team.
+              </p>
+            </GlassPanel>
+          </a>
         </div>
       </section>
 

@@ -3,6 +3,7 @@ import { body } from 'express-validator'
 import { protect, restrictTo } from '../middleware/auth.js'
 import { validateRequest } from '../middleware/validateRequest.js'
 import { USER_ROLES } from '../constants/roles.js'
+import { uploadMediaMulter } from '../middleware/uploadMiddleware.js'
 import * as settings from '../controllers/systemSettingController.js'
 
 const router = Router()
@@ -16,7 +17,8 @@ router.get('/public', async (req, res) => {
     const timeSlots = settings?.timeSlots || ['08:00 AM', '10:00 AM', '12:00 PM', '02:00 PM', '04:00 PM', '06:00 PM']
     const freeTrialMessage = settings?.freeTrialMessage || 'Welcome! Enjoy your free trial period.'
     const paymentModes = settings?.paymentModes || { cashEnabled: true, onlineEnabled: true }
-    return sendSuccess(res, { data: { timeSlots, freeTrialMessage, paymentModes } })
+    const branding = settings?.branding || { logoUrl: null, faviconUrl: null }
+    return sendSuccess(res, { data: { timeSlots, freeTrialMessage, paymentModes, branding } })
   } catch (e) {
     res.status(500).json({ success: false, message: 'Could not load public settings' })
   }
@@ -127,6 +129,21 @@ router.patch(
   ],
   validateRequest,
   settings.updatePaymentModes,
+)
+
+router.post(
+  '/branding',
+  uploadMediaMulter,
+  [
+    body('type').isIn(['logo', 'favicon']).withMessage('type must be logo or favicon'),
+  ],
+  validateRequest,
+  settings.uploadBranding
+)
+
+router.delete(
+  '/branding/:type',
+  settings.deleteBranding
 )
 
 export default router

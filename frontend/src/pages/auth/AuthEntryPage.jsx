@@ -20,6 +20,7 @@ import { ROLE_LABELS, USER_ROLES } from '../../constants/userRoles.js'
 import { getRoleHomePath } from '../../lib/roleHomePath.js'
 import { requestLoginOtp, requestRegisterOtp, verifyLogin, verifyRegister } from '../../api/authApi.js'
 import { useAuth } from '../../hooks/useAuth.js'
+import { useBranding } from '../../context/BrandingContext.jsx'
 import { ApiError } from '../../api/http.js'
 
 const ROLE_OPTIONS = [
@@ -83,6 +84,7 @@ export function AuthEntryPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { applySession } = useAuth()
+  const { logoUrl } = useBranding()
   const reduce = useReducedMotion()
   const otpInputRefs = useRef([])
 
@@ -293,7 +295,7 @@ export function AuthEntryPage() {
 
         <div className="mt-4 flex flex-col items-center relative z-10">
           <div className="flex justify-center mb-0">
-             <img src="/logo-transparent.png" alt="KaamExpert" className="h-24 sm:h-28 w-auto brightness-0 invert drop-shadow-sm" />
+             <img src={logoUrl} alt="KaamExpert" className="h-32 sm:h-36 w-auto drop-shadow-sm object-contain" />
           </div>
         </div>
       </div>

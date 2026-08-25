@@ -33,7 +33,12 @@ function getCurrentISTHour() {
  */
 export const getMySubscription = asyncHandler(async (req, res) => {
   const today = getTodayIST()
-  const subscription = await UserSubscription.findOne({ labour: req.user.id, date: today })
+  const subscription = await UserSubscription.findOne({ 
+    labour: req.user.id, 
+    status: 'active',
+    date: { $lte: today },
+    endDate: { $gte: today }
+  }).populate('planId')
 
   // Also return system settings for the labour to display window info
   const settings = await SystemSetting.findOne({ configKey: 'master_config' })
@@ -57,6 +62,7 @@ export const getMySubscription = asyncHandler(async (req, res) => {
  * Create Razorpay order for daily subscription
  */
 export const createRazorpayOrder = asyncHandler(async (req, res) => {
+  const { planId } = req.body
   const labour = req.user
   const today = getTodayIST()
 
@@ -69,8 +75,13 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
   }
 
   // Check if already subscribed today
-  const existing = await UserSubscription.findOne({ labour: labour.id, date: today })
-  if (existing && existing.status === 'active') {
+  const existing = await UserSubscription.findOne({ 
+    labour: labour.id, 
+    status: 'active',
+    date: { $lte: today },
+    endDate: { $gte: today }
+  })
+  if (existing) {
     return sendError(res, {
       message: 'You already have an active subscription for today',
       statusCode: HTTP_STATUS.CONFLICT,
@@ -78,7 +89,19 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
   }
 
   const settings = await SystemSetting.findOne({ configKey: 'master_config' })
-  const price = settings?.dailySubscriptionPrice || 19
+  
+  let price = settings?.dailySubscriptionPrice || 19
+  let durationDays = 1
+
+  if (planId) {
+    const plan = await SubscriptionPlan.findById(planId)
+    if (!plan || !plan.isActive) {
+      return sendError(res, { message: 'Invalid or inactive subscription plan', statusCode: HTTP_STATUS.BAD_REQUEST })
+    }
+    price = plan.price
+    durationDays = plan.durationDays
+  }
+
   const startHour = settings?.subscriptionStartHour ?? 8
   const endHour = settings?.subscriptionEndHour ?? 20
   const currentHour = getCurrentISTHour()
@@ -117,9 +140,8 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
       order,
       keyId: process.env.RAZORPAY_KEY_ID,
       price,
-      startHour,
-      endHour,
-      date: today,
+      durationDays,
+      planId
     },
   })
 })
@@ -129,7 +151,8 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
  * Verify Razorpay payment and activate subscription
  */
 export const verifyRazorpayPayment = asyncHandler(async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planId } = req.body
+  const today = getTodayIST()
 
   const generatedSignature = crypto
     .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -140,30 +163,51 @@ export const verifyRazorpayPayment = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'Payment verification failed', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
-  const settings = await SystemSetting.findOne({ configKey: 'master_config' })
-  const price = settings?.dailySubscriptionPrice || 19
-  const startHour = settings?.subscriptionStartHour ?? 8
-  const endHour = settings?.subscriptionEndHour ?? 20
-  const today = getTodayIST()
+  let durationDays = 1
+  let price = 19
+  if (planId) {
+    const plan = await SubscriptionPlan.findById(planId)
+    if (plan) {
+      durationDays = plan.durationDays
+      price = plan.price
+    }
+  } else {
+    const settings = await SystemSetting.findOne({ configKey: 'master_config' })
+    price = settings?.dailySubscriptionPrice || 19
+  }
 
-  let subscription = await UserSubscription.findOne({ labour: req.user.id, date: today })
+  const endDate = new Date()
+  endDate.setDate(endDate.getDate() + (durationDays - 1))
+  const endDateStr = endDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
+  // Find or create subscription document
+  let subscription = await UserSubscription.findOne({ 
+    labour: req.user.id, 
+    status: 'active',
+    date: { $lte: today },
+    endDate: { $gte: today }
+  })
+
   if (subscription) {
     subscription.status = 'active'
     subscription.transactionId = razorpay_payment_id
     subscription.amountPaid = price
-    subscription.subscriptionStartHour = startHour
-    subscription.subscriptionEndHour = endHour
+    subscription.planId = planId || undefined
+    subscription.durationDays = durationDays
+    subscription.endDate = endDateStr
     await subscription.save()
   } else {
     subscription = await UserSubscription.create({
       labour: req.user.id,
       date: today,
+      endDate: endDateStr,
+      durationDays,
+      planId: planId || undefined,
       amountPaid: price,
       status: 'active',
       transactionId: razorpay_payment_id,
-      bookingsReceived: 0,
-      subscriptionStartHour: startHour,
-      subscriptionEndHour: endHour,
+      subscriptionStartHour: 8,
+      subscriptionEndHour: 20,
     })
   }
 
@@ -223,9 +267,14 @@ export const checkLabourAccess = asyncHandler(async (req, res) => {
 
   // 4. Check today's subscription
   const today = getTodayIST()
-  const subscription = await UserSubscription.findOne({ labour: labour.id, date: today })
+  const subscription = await UserSubscription.findOne({ 
+    labour: labour.id, 
+    status: 'active',
+    date: { $lte: today },
+    endDate: { $gte: today }
+  })
 
-  if (subscription && subscription.status === 'active') {
+  if (subscription) {
     const withinWindow = currentHour >= startHour && currentHour < endHour
     return sendSuccess(res, {
       data: {

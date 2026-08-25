@@ -79,6 +79,19 @@ export const adminSettingsApi = {
       body: payload,
     })
   },
+
+  uploadBranding: (formData) => {
+    return apiRequest('/admin/settings/branding', {
+      method: 'POST',
+      body: formData,
+    })
+  },
+
+  deleteBranding: (type) => {
+    return apiRequest(`/admin/settings/branding/${type}`, {
+      method: 'DELETE',
+    })
+  },
 }
 
 // Public endpoint (no admin auth) — used in Checkout to fetch time slots
