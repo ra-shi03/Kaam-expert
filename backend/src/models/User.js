@@ -161,6 +161,14 @@ const userSchema = new mongoose.Schema(
     city: { type: String, trim: true },
     state: { type: String, trim: true },
     country: { type: String, trim: true },
+    fcmTokens: {
+      type: [String],
+      default: []
+    },
+    fcmTokenMobile: {
+      type: [String],
+      default: []
+    },
     labourProfile: labourProfileSchema,
     contractorProfile: contractorProfileSchema,
   },

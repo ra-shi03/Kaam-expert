@@ -44,7 +44,7 @@ import { writeBookingDraft, readBookingDraft } from '../../../lib/individualBook
 import { fetchDiscoverLabour, fetchDiscoverLabours } from '../../../api/discoverLaboursApi.js'
 import { bookingsApi } from '../../../api/bookingsApi.js'
 import { fetchActiveBanners } from '../../../api/bannersApi.js'
-import { ApiError } from '../../../api/http.js'
+import { ApiError, apiRequest } from '../../../api/http.js'
 import { LabourPublicDetailSheet } from '../labour/LabourPublicDetailSheet.jsx'
 import { enrichDiscoverLabourUi, DEMO_LABOUR_ROWS } from '../../../lib/discoverLabourDummyUi.js'
 import { displayBookingsList, loadIndividualBookings } from '../../../lib/individualBookings.js'
@@ -121,12 +121,7 @@ export function IndividualHomeScreen({ user }) {
   }, [ongoingBookings, sortedBookings])
 
   useEffect(() => {
-    if (!quickBookTypeOpen && !quickBookModeOpen) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-    }
+    document.body.style.overflow = quickBookTypeOpen || quickBookModeOpen ? 'hidden' : 'unset'
   }, [quickBookTypeOpen, quickBookModeOpen])
 
   const goSearch = useCallback(() => {

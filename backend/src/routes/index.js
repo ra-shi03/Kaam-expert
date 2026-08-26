@@ -27,7 +27,7 @@ import adminReportsRoutes from './adminReportsRoutes.js'
 import adminBookingRoutes from './adminBookingRoutes.js'
 import adminSubscriptionRoutes from './adminSubscriptionRoutes.js'
 import policyRoutes from './policyRoutes.js'
-
+import fcmTokenRoutes from './fcmTokenRoutes.js'
 
 const router = Router()
 
@@ -46,6 +46,7 @@ router.use('/complaints', complaintRoutes)
 router.use('/banners', bannerRoutes)
 router.use('/user-subscriptions', userSubscriptionRoutes)
 router.use('/policies', policyRoutes)
+router.use('/fcm-tokens', fcmTokenRoutes)
 
 router.use('/admin/settings', systemSettingRoutes)
 router.use('/admin/zones', adminZoneRoutes)

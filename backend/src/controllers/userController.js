@@ -812,6 +812,38 @@ export const updateLabourSchedule = asyncHandler(async (req, res) => {
   })
 })
 
+/** POST /users/test-notification — Send a test Firebase push notification */
+export const testNotification = asyncHandler(async (req, res) => {
+  const { token, title, body } = req.body;
+  if (!token) {
+    return sendError(res, { message: 'Device token is required', statusCode: HTTP_STATUS.BAD_REQUEST, code: 'MISSING_TOKEN' });
+  }
+
+  const { getFirebaseAdmin } = await import('../config/firebase.js');
+  const admin = getFirebaseAdmin();
+  if (!admin) {
+    return sendError(res, { message: 'Firebase Admin not configured', statusCode: HTTP_STATUS.SERVICE_UNAVAILABLE, code: 'FIREBASE_NOT_CONFIGURED' });
+  }
+
+  try {
+    const response = await admin.messaging().send({
+      token,
+      notification: {
+        title: title || 'Test Notification',
+        body: body || 'This is a test notification from KaamExpert backend.',
+      },
+    });
+    return sendSuccess(res, { message: 'Notification sent successfully', data: { messageId: response } });
+  } catch (error) {
+    console.error('Error sending test notification:', error);
+    return sendError(res, { 
+      message: error.message || 'Failed to send notification', 
+      statusCode: HTTP_STATUS.SERVER_ERROR, 
+      code: error.code || 'NOTIFICATION_FAILED' 
+    });
+  }
+});
+
 export const deleteUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id)
   if (!user) {

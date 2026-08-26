@@ -42,10 +42,26 @@ import { AdminRefundPolicyPage } from './pages/admin/AdminRefundPolicyPage.jsx'
 
 import { BroadcastPopup } from './components/app/BroadcastPopup.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
+import { useEffect } from 'react'
 import { APP_B2C_ROLES } from './constants/panelRoles.js'
 import { USER_ROLES } from './constants/userRoles.js'
+import { initializePushNotifications, setupForegroundNotificationHandler } from './services/pushNotificationService.js'
 
 function App() {
+  useEffect(() => {
+    initializePushNotifications();
+    setupForegroundNotificationHandler((payload) => {
+      // You can replace this with a custom toast notification library like react-hot-toast if desired
+      if (payload?.notification) {
+        alert(`New Notification: ${payload.notification.title}\n${payload.notification.body}`);
+      }
+      if (payload.data?.link) {
+        // Optional navigation handling based on data payload
+        console.log('Navigating to', payload.data.link);
+      }
+    });
+  }, []);
+
   return (
     <BrowserRouter>
       <BrandingProvider>

@@ -26,6 +26,8 @@ router.get(
   user.getDiscoverLabour,
 )
 
+router.post('/test-notification', user.testNotification)
+
 router.use(protect)
 
 router.get('/me', user.getProfile)

@@ -29,6 +29,15 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     try {
+      // Clean up FCM token from backend
+      const fcmToken = localStorage.getItem('fcm_token_web')
+      if (fcmToken) {
+        await apiRequest('/fcm-tokens/remove', {
+          method: 'DELETE',
+          body: { token: fcmToken, platform: 'web' }
+        })
+        localStorage.removeItem('fcm_token_web')
+      }
       await apiRequest('/auth/logout', { method: 'POST' })
     } catch (e) {
       // Ignore network errors on logout
@@ -48,6 +57,13 @@ export function useAuth() {
       clearBootRole()
       setBootRoleState(null)
       dispatch(setCredentials({ accessToken, user: nextUser }))
+      
+      // Register FCM token after session is set
+      import('../services/pushNotificationService.js').then(({ registerFCMToken }) => {
+        // We delay it slightly to ensure Redux state is updated first, 
+        // since registerFCMToken checks the store for auth token.
+        setTimeout(() => registerFCMToken(true).catch(console.error), 500)
+      }).catch(console.error)
     },
     [dispatch],
   )
