@@ -574,6 +574,7 @@ export function AdminLabourSubscriptionsPage() {
                 <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Labour</th>
+                    <th className="px-5 py-3">Plan</th>
                     <th className="px-5 py-3">Amount</th>
                     <th className="px-5 py-3">Bookings</th>
                     <th className="px-5 py-3">Window</th>
@@ -587,6 +588,9 @@ export function AdminLabourSubscriptionsPage() {
                       <td className="px-5 py-3">
                         <p className="font-bold text-slate-900">{sub.labour?.fullName || '—'}</p>
                         <p className="text-xs text-slate-500">+91 {sub.labour?.phone || '—'}</p>
+                      </td>
+                      <td className="px-5 py-3 text-xs font-bold text-slate-700">
+                        {sub.planId?.name || (sub.durationDays === 1 ? '1 Day Plan' : 'Custom Plan')}
                       </td>
                       <td className="px-5 py-3 font-black text-brand">₹{sub.amountPaid}</td>
                       <td className="px-5 py-3">
@@ -629,6 +633,7 @@ export function AdminLabourSubscriptionsPage() {
                 <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Labour</th>
+                    <th className="px-5 py-3">Plan</th>
                     <th className="px-5 py-3">Date</th>
                     <th className="px-5 py-3">Transaction ID</th>
                     <th className="px-5 py-3">Amount</th>
@@ -641,13 +646,16 @@ export function AdminLabourSubscriptionsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {(activeTab === 'subscriptions' ? subscriptions : history).map((sub) => {
-                    const canManage = sub.refundEligibility &&
+                    const canManage = sub.durationDays === 1 && sub.refundEligibility &&
                       ['pending', 'processing', 'failed', 'manually_approved'].includes(sub.refundStatus)
                     return (
                       <tr key={sub._id} className="transition hover:bg-slate-50/60">
                         <td className="px-5 py-3">
                           <p className="font-bold text-slate-900">{sub.labour?.fullName || '—'}</p>
                           <p className="text-xs text-slate-500">+91 {sub.labour?.phone || '—'}</p>
+                        </td>
+                        <td className="px-5 py-3 text-xs font-bold text-slate-700">
+                          {sub.planId?.name || (sub.durationDays === 1 ? '1 Day Plan' : 'Custom Plan')}
                         </td>
                         <td className="px-5 py-3 text-xs font-mono text-slate-600">
                           {(() => {
@@ -689,7 +697,9 @@ export function AdminLabourSubscriptionsPage() {
                             {sub.status?.toUpperCase()}
                           </span>
                         </td>
-                        <td className="px-5 py-3"><RefundBadge status={sub.refundStatus} /></td>
+                        <td className="px-5 py-3">
+                          {sub.durationDays === 1 ? <RefundBadge status={sub.refundStatus} /> : <span className="text-slate-400">—</span>}
+                        </td>
                         {activeTab === 'history' && (
                           <td className="px-5 py-3 text-xs text-slate-600">{sub.adminActionBy?.fullName || 'System'}</td>
                         )}

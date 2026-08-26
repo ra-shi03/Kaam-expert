@@ -82,6 +82,8 @@ export function AppSubscriptionPage() {
   }
 
   const [plans, setPlans] = useState([])
+  const [recentRejectedRefund, setRecentRejectedRefund] = useState(null)
+  const [hideRejectedRefund, setHideRejectedRefund] = useState(false)
 
   const loadData = async () => {
     try {
@@ -91,6 +93,7 @@ export function AppSubscriptionPage() {
         userSubscriptionApi.getPlans()
       ])
       setActiveSubscription(res?.data?.subscription || null)
+      setRecentRejectedRefund(res?.data?.recentRejectedRefund || null)
       if (res?.data?.settings) {
         setSettings(res.data.settings)
       }
@@ -239,6 +242,41 @@ export function AppSubscriptionPage() {
             Your daily gateway to job opportunities
           </p>
         </motion.div>
+
+        {/* ── REJECTED REFUND ALERT ── */}
+        {recentRejectedRefund && !hideRejectedRefund && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative overflow-hidden rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-sm"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
+              <div className="flex-1 pr-6">
+                <p className="text-sm font-bold text-rose-900">
+                  Refund Rejected (₹{recentRejectedRefund.amountPaid})
+                </p>
+                <p className="mt-1 text-xs text-rose-800 leading-relaxed">
+                  Your refund request for the subscription on <strong>{recentRejectedRefund.date}</strong> was rejected by the admin.
+                </p>
+                {recentRejectedRefund.adminActionNote && (
+                  <div className="mt-2 rounded-xl bg-white/60 p-2.5 text-xs font-semibold text-rose-900 border border-rose-100">
+                    "{recentRejectedRefund.adminActionNote}"
+                  </div>
+                )}
+                <p className="mt-2 text-[10px] text-rose-500 font-medium">
+                  Processed on {new Date(recentRejectedRefund.refundProcessedAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setHideRejectedRefund(true)}
+              className="absolute top-2 right-2 rounded-full p-1.5 text-rose-400 hover:bg-rose-100 hover:text-rose-600"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </motion.div>
+        )}
 
         {/* ── TRIAL ACTIVE ── */}
         {trialActive && (

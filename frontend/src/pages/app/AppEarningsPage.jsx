@@ -27,6 +27,7 @@ export function AppEarningsPage() {
   const user = useSelector((state) => state.auth.user)
   const [totalEarnings, setTotalEarnings] = useState(0)
   const [totalCashEarnings, setTotalCashEarnings] = useState(0)
+  const [totalRefunds, setTotalRefunds] = useState(0)
   const [totalPaid, setTotalPaid] = useState(0)
   const [dueAmount, setDueAmount] = useState(0)
   const [maxWithdrawable, setMaxWithdrawable] = useState(0)
@@ -114,6 +115,16 @@ export function AppEarningsPage() {
           }
         }
       })
+
+      // Add Refunds from Wallet Summary
+      let refundAmountPaise = 0
+      const summaryRes = await walletsApi.getEarningsSummary().catch(() => null)
+      if (summaryRes?.data?.earnings?.refundsPaise) {
+        refundAmountPaise = summaryRes.data.earnings.refundsPaise
+        onlineSum += refundAmountPaise
+      }
+
+      setTotalRefunds(refundAmountPaise)
       setTotalEarnings(onlineSum)
       setTotalCashEarnings(cashSum)
 
@@ -328,41 +339,52 @@ export function AppEarningsPage() {
               </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-3 gap-3 divide-x divide-white/20 rounded-2xl bg-black/20 p-4 backdrop-blur-md border border-white/10">
+            <div className="mt-8 grid grid-cols-4 gap-2 divide-x divide-white/20 rounded-2xl bg-black/20 p-4 backdrop-blur-md border border-white/10">
               <div className="flex flex-col items-center">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">Online Earning</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200 text-center">Online<br/>Earning</p>
                 {loading ? (
-                  <div className="mt-1 h-6 w-16 animate-pulse rounded bg-white/10"></div>
+                  <div className="mt-1 h-6 w-12 animate-pulse rounded bg-white/10"></div>
                 ) : (
-                  <p className="mt-1 font-mono text-lg font-black tracking-tight text-white">
+                  <p className="mt-1 font-mono text-base font-black tracking-tight text-white">
                     {formatInrFromPaise(totalEarnings)}
                   </p>
                 )}
               </div>
               
-              <div className="flex flex-col items-center px-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">Total Paid</p>
+              <div className="flex flex-col items-center px-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200 text-center">Total<br/>Paid</p>
                 {loading ? (
-                  <div className="mt-1 h-6 w-16 animate-pulse rounded bg-white/10"></div>
+                  <div className="mt-1 h-6 w-12 animate-pulse rounded bg-white/10"></div>
                 ) : (
-                  <p className="mt-1 font-mono text-lg font-black tracking-tight text-blue-400">
+                  <p className="mt-1 font-mono text-base font-black tracking-tight text-blue-400">
                     ₹{totalPaid.toLocaleString('en-IN')}
                   </p>
                 )}
               </div>
               
-              <div className="flex flex-col items-center">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">Due Amount</p>
+              <div className="flex flex-col items-center px-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200 text-center">Refund<br/>Amount</p>
                 {loading ? (
-                  <div className="mt-1 h-6 w-16 animate-pulse rounded bg-white/10"></div>
+                  <div className="mt-1 h-6 w-12 animate-pulse rounded bg-white/10"></div>
                 ) : (
-                  <p className="mt-1 font-mono text-lg font-black tracking-tight text-amber-400">
+                  <p className="mt-1 font-mono text-base font-black tracking-tight text-purple-300">
+                    ₹{Math.floor(totalRefunds / 100).toLocaleString('en-IN')}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col items-center">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200 text-center">Due<br/>Amount</p>
+                {loading ? (
+                  <div className="mt-1 h-6 w-12 animate-pulse rounded bg-white/10"></div>
+                ) : (
+                  <p className="mt-1 font-mono text-base font-black tracking-tight text-amber-400">
                     ₹{dueAmount.toLocaleString('en-IN')}
                   </p>
                 )}
               </div>
             </div>
-
+            
             {/* Cash Earnings Section */}
             <div className="mt-4 rounded-2xl bg-black/20 p-4 border border-white/10 backdrop-blur-md">
               <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-4">
@@ -377,6 +399,31 @@ export function AppEarningsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Stats Row */}
+              <div className="mt-8 grid grid-cols-2 gap-4 border-t border-white/10 pt-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200">Total Earned</p>
+                  {loading ? (
+                    <div className="mt-1 h-6 w-20 animate-pulse rounded bg-white/10"></div>
+                  ) : (
+                    <p className="mt-1 font-mono text-lg font-black tracking-tight text-white">
+                      ₹{Math.floor(totalEarnings / 100).toLocaleString('en-IN')}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-200">Withdrawn</p>
+                  {loading ? (
+                    <div className="mt-1 h-6 w-16 animate-pulse rounded bg-white/10"></div>
+                  ) : (
+                    <p className="mt-1 font-mono text-lg font-black tracking-tight text-emerald-400">
+                      ₹{totalPaid.toLocaleString('en-IN')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
               
               {(adminDues > 0 || !loading) && (
                 <div className="flex items-center justify-between gap-4 rounded-xl bg-linear-to-br from-rose-500/10 to-rose-900/20 p-5 border border-rose-500/20 shadow-inner mt-2">
@@ -403,9 +450,8 @@ export function AppEarningsPage() {
                 </div>
               )}
             </div>
-          </div>
-        </motion.div>
-      </section>
+          </motion.div>
+        </section>
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}

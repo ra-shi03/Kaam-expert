@@ -40,12 +40,19 @@ export const getMySubscription = asyncHandler(async (req, res) => {
     endDate: { $gte: today }
   }).populate('planId')
 
+  // Find the most recent rejected refund
+  const recentRejectedRefund = await UserSubscription.findOne({
+    labour: req.user.id,
+    refundStatus: 'manually_rejected'
+  }).sort({ refundProcessedAt: -1 }).select('date amountPaid adminActionNote refundProcessedAt')
+
   // Also return system settings for the labour to display window info
   const settings = await SystemSetting.findOne({ configKey: 'master_config' })
 
   return sendSuccess(res, {
     data: {
       subscription,
+      recentRejectedRefund,
       settings: {
         dailySubscriptionPrice: settings?.dailySubscriptionPrice || 19,
         subscriptionStartHour: settings?.subscriptionStartHour ?? 8,

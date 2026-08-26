@@ -44,12 +44,15 @@ export const getLabourSubscriptions = asyncHandler(async (req, res) => {
       select: 'fullName phone email city labourProfile.kycStatus',
     })
     .populate({ path: 'adminActionBy', select: 'fullName email' })
+    .populate('planId', 'name')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(Number(limit))
     .lean()
 
-  // Apply search filter on populated fields
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
+  // Apply search filter on populated fields and dynamic expiration
   if (search) {
     const s = search.toLowerCase()
     subscriptions = subscriptions.filter((sub) => {
@@ -58,6 +61,25 @@ export const getLabourSubscriptions = asyncHandler(async (req, res) => {
       return name.includes(s) || phone.includes(s)
     })
   }
+
+  const settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  const endHour = settings?.subscriptionEndHour ?? 20
+  const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+  const currentHour = nowIST.getHours()
+
+  subscriptions = subscriptions.map(sub => {
+    if (sub.status === 'active' && sub.endDate < todayStr) {
+      sub.status = 'expired'
+    }
+
+    if (!sub.refundEligibility && sub.durationDays === 1 && (sub.bookingsReceived || 0) === 0 && (sub.bookingOpportunitiesOffered || 0) === 0) {
+      if (sub.date < todayStr || (sub.date === todayStr && currentHour >= endHour)) {
+        sub.refundEligibility = true
+      }
+    }
+    
+    return sub
+  })
 
   const total = await UserSubscription.countDocuments(query)
 
@@ -72,21 +94,53 @@ export const getLabourSubscriptions = asyncHandler(async (req, res) => {
  */
 export const getRefundEligible = asyncHandler(async (req, res) => {
   const { date } = req.query
-  const targetDate = date || new Date().toISOString().split('T')[0]
 
-  const subscriptions = await UserSubscription.find({
+  const settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  const endHour = settings?.subscriptionEndHour ?? 20
+  const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+  const currentHour = nowIST.getHours()
+  const todayStr = nowIST.toISOString().split('T')[0]
+
+  // We want subscriptions that are either explicitly marked as refundEligible=true,
+  // OR missed by cron but logically eligible (1-day plan, 0 bookings, window ended).
+  // Window ended means either date < today, or (date == today AND currentHour >= endHour).
+  
+  const baseQuery = {
     labour: { $exists: true },
-    date: { $lte: targetDate },
-    endDate: { $gte: targetDate },
-    refundEligibility: true,
     refundStatus: { $in: ['pending', 'processing', 'failed'] },
-  })
+  }
+
+  if (date) {
+    baseQuery.date = { $lte: date }
+    baseQuery.endDate = { $gte: date }
+  }
+
+  const allPending = await UserSubscription.find(baseQuery)
     .populate({ path: 'labour', select: 'fullName phone email city' })
+    .populate('planId', 'name')
     .sort({ createdAt: -1 })
     .lean()
 
+  const subscriptions = allPending.filter(sub => {
+    // If explicitly marked eligible, include it
+    if (sub.refundEligibility) return true
+
+    // If not explicitly marked, check if it SHOULD be eligible (missed by cron)
+    if (sub.durationDays === 1 && (sub.bookingsReceived || 0) === 0 && (sub.bookingOpportunitiesOffered || 0) === 0) {
+      if (sub.date < todayStr) return true
+      if (sub.date === todayStr && currentHour >= endHour) return true
+    }
+    return false
+  })
+
+  // Ensure they have refundEligibility=true in the response so frontend logic works
+  const mappedSubscriptions = subscriptions.map(sub => {
+    sub.refundEligibility = true
+    return sub
+  })
+
   return sendSuccess(res, {
-    data: { subscriptions, count: subscriptions.length, date: targetDate },
+    data: { subscriptions: mappedSubscriptions, count: mappedSubscriptions.length, date: date || null },
   })
 })
 
@@ -257,23 +311,23 @@ export const processAdminRefund = asyncHandler(async (req, res) => {
     await sub.save()
 
     // Process actual refund to Labour wallet
-    let wallet = await Wallet.findOne({ user: sub.labour._id })
+    let wallet = await Wallet.findOne({ userId: sub.labour._id })
     if (!wallet) {
-      wallet = await Wallet.create({ user: sub.labour._id, balance: 0 })
+      wallet = await Wallet.create({ userId: sub.labour._id, selfBalance: 0 })
     }
 
     const refundAmt = sub.refundAmount || sub.amountPaid
-    wallet.balance = (wallet.balance || 0) + refundAmt
+    wallet.selfBalance = (wallet.selfBalance || 0) + refundAmt
     await wallet.save()
 
     await WalletTransaction.create({
-      wallet: wallet._id,
-      type: 'credit',
+      walletId: wallet._id,
+      type: 'CREDIT',
+      targetWallet: 'SELF',
+      context: 'REFUND',
       amount: refundAmt,
       description: `Daily subscription refund (${sub.date}) - Admin processed`,
-      referenceModel: 'UserSubscription',
       referenceId: sub._id,
-      status: 'completed',
     })
 
     sub.status = 'refunded'
@@ -312,6 +366,7 @@ export const getRefundHistory = asyncHandler(async (req, res) => {
     UserSubscription.find(query)
       .populate({ path: 'labour', select: 'fullName phone email city' })
       .populate({ path: 'adminActionBy', select: 'fullName email' })
+      .populate('planId', 'name')
       .sort({ refundProcessedAt: -1, updatedAt: -1 })
       .skip(skip)
       .limit(Number(limit))

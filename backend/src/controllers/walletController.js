@@ -38,6 +38,35 @@ export const getEarningsSummary = asyncHandler(async (req, res) => {
   let todayPaise = 0
   let weekPaise = 0
   let monthPaise = 0
+  // 1.5 Calculate Earnings from Refunds
+  let refundsPaise = 0
+  const wallet = await Wallet.findOne({ userId })
+  if (wallet) {
+    const refundTransactions = await WalletTransaction.find({
+      walletId: wallet._id,
+      type: 'CREDIT',
+      context: 'REFUND'
+    })
+
+    console.log("REFUND TXS FOUND FOR WALLET", wallet._id, ":", refundTransactions.length)
+
+    refundTransactions.forEach(t => {
+      earnedPaise += t.amount * 100
+      refundsPaise += t.amount * 100
+      const tDateStr = new Date(t.createdAt.getTime() - t.createdAt.getTimezoneOffset() * 60000).toISOString().split('T')[0]
+      if (tDateStr === todayStr) {
+        todayPaise += t.amount * 100
+      }
+      if (t.createdAt >= weekAgo) {
+        weekPaise += t.amount * 100
+      }
+      if (t.createdAt >= monthStart) {
+        monthPaise += t.amount * 100
+      }
+    })
+  } else {
+    console.log("NO WALLET FOUND FOR USERID:", userId)
+  }
   
   completedBookings.forEach(b => {
     const share = b.laborShare || b.basePrice || 0
@@ -83,7 +112,8 @@ export const getEarningsSummary = asyncHandler(async (req, res) => {
         weekPaise,
         monthPaise,
         availablePaise,
-        pendingPaise
+        pendingPaise,
+        refundsPaise
       }
     }
   })

@@ -60,22 +60,22 @@ export function initSubscriptionRefundCron() {
 
             // Auto-process refund to wallet
             try {
-              let wallet = await Wallet.findOne({ user: sub.labour._id })
+              let wallet = await Wallet.findOne({ userId: sub.labour._id })
               if (!wallet) {
-                wallet = await Wallet.create({ user: sub.labour._id, balance: 0 })
+                wallet = await Wallet.create({ userId: sub.labour._id, selfBalance: 0 })
               }
 
-              wallet.balance = (wallet.balance || 0) + sub.amountPaid
+              wallet.selfBalance = (wallet.selfBalance || 0) + sub.amountPaid
               await wallet.save()
 
               await WalletTransaction.create({
-                wallet: wallet._id,
-                type: 'credit',
+                walletId: wallet._id,
+                type: 'CREDIT',
+                targetWallet: 'SELF',
+                context: 'REFUND',
                 amount: sub.amountPaid,
                 description: `Auto-refund for daily subscription (${today}) — 0 bookings received`,
-                referenceModel: 'UserSubscription',
                 referenceId: sub._id,
-                status: 'completed',
               })
 
               sub.status = 'refunded'

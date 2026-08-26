@@ -11,4 +11,8 @@ export const walletsApi = {
       body: payload,
     })
   },
+
+  getEarningsSummary: () => {
+    return apiRequest('/wallets/earnings-summary', { method: 'GET' })
+  },
 }
