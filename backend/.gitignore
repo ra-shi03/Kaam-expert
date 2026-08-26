@@ -138,3 +138,5 @@ branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat
 src/config/firebase-service-account.json
+src/config/firebase.js
+
