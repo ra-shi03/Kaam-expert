@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import { Calendar, CreditCard, MapPin, User, Loader2, Plus, Minus, Clock, CheckCircle } from 'lucide-react'
 import { GlassPanel } from '../ui/GlassPanel.jsx'
 import { bookingsApi } from '../../api/bookingsApi.js'
+import { getLabourBookingShare } from '../../lib/bookingLabourShare.js'
 
 const STATUS_STYLES = {
   CREATED: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -16,6 +18,7 @@ const STATUS_STYLES = {
 
 export function B2cBookingCard({ booking, isLabour }) {
   const navigate = useNavigate()
+  const authUser = useSelector((state) => state.auth.user)
   const status = (booking.status || 'CREATED').toUpperCase()
   const isPaid = (booking.paymentStatus || '').toUpperCase() === 'PAID'
   
@@ -109,14 +112,16 @@ export function B2cBookingCard({ booking, isLabour }) {
             )}
           </div>
           <div className="flex flex-col items-end shrink-0 pl-2">
-            {booking.totalAmount && (
-              <div className="text-right">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Amount</p>
-                <span className="text-lg font-black text-brand">
-                  ₹{isLabour ? (booking.laborShare || (booking.totalAmount - (booking.commissionAmount || 0))).toFixed(0) : booking.totalAmount}
-                </span>
-              </div>
-            )}
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                {isLabour ? 'Your Share' : 'Amount'}
+              </p>
+              <span className="text-lg font-black text-brand">
+                ₹{isLabour
+                  ? Math.round(getLabourBookingShare(booking, authUser?._id)).toLocaleString('en-IN')
+                  : (Number(booking.totalAmount) || 0).toLocaleString('en-IN')}
+              </span>
+            </div>
           </div>
         </div>
 

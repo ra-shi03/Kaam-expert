@@ -302,7 +302,7 @@ export function IndividualHomeScreen({ user }) {
       aria-label={user?.fullName ? `Home for ${user.fullName}` : 'Discover workers home'}
     >
       <div 
-        className="sticky z-20 bg-gradient-to-r from-brand to-[#001a38] px-4 pb-3"
+        className="sticky z-20 bg-transparent px-4 pb-3"
         style={{ top: 'var(--individual-home-sticky-top, 3.5rem)' }}
       >
         <IndividualHomeCategoryRail

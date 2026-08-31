@@ -71,6 +71,7 @@ import {
   markNotificationRead,
   subscribeLabourNotifications,
 } from '../../../lib/labourNotifications.js'
+import { getLabourBookingShare } from '../../../lib/bookingLabourShare.js'
 
 function getTimeGreeting() {
   const h = new Date().getHours()
@@ -264,7 +265,7 @@ export function LabourHomeScreen({ user }) {
         role: todayBooking.subcategoryId?.name || 'Worker',
         location: todayBooking.address?.locationText || '',
         shiftLabel: todayBooking.durationKind === 'full_day' ? 'Full day shift' : 'Job',
-        rateLabel: `${formatInrFromPaise(todayBooking.laborShare * 100)} payout`,
+        rateLabel: `${formatInrFromPaise(Math.round(getLabourBookingShare(todayBooking, user?._id) * 100))} payout`,
         contractor: todayBooking.userId?.name || 'Customer',
         mapQuery: `${todayBooking.address?.coordinates?.coordinates[1]},${todayBooking.address?.coordinates?.coordinates[0]}`,
         facilities: ['Water', 'Rest area'],

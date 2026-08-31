@@ -347,9 +347,14 @@ export function AppShell() {
       </AnimatePresence>
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-lg flex-col">
-        {!isIndividualAppHome && (isLabourAppHome || isLabourNotifications) ? (
+        {isIndividualAppHome ? (
           <div
-            className="pointer-events-none absolute left-1/2 top-0 z-0 h-[min(52vh,26rem)] w-full max-w-lg -translate-x-1/2 rounded-b-[2rem] bg-gradient-to-r from-brand to-[#001a38]"
+            className="pointer-events-none absolute left-1/2 top-0 z-0 h-[12.5rem] w-full max-w-lg -translate-x-1/2 bg-gradient-to-b from-[#001a38] to-brand"
+            aria-hidden
+          />
+        ) : (isLabourAppHome || isLabourNotifications) ? (
+          <div
+            className="pointer-events-none absolute left-1/2 top-0 z-0 h-[min(52vh,26rem)] w-full max-w-lg -translate-x-1/2 rounded-b-[2rem] bg-gradient-to-b from-[#001a38] via-[#002b5c] to-brand"
             aria-hidden
           />
         ) : null}
@@ -357,7 +362,7 @@ export function AppShell() {
         {!hideShellHeader ? (
           <header
             ref={headerRef}
-            className={`sticky top-0 z-30 hide-on-print ${isIndividualAppHome ? 'bg-gradient-to-r from-brand to-[#001a38] px-4 pb-1 pt-3' : 'px-3 pt-3'
+            className={`sticky top-0 z-30 hide-on-print ${isIndividualAppHome ? 'bg-transparent px-4 pb-1 pt-3' : 'px-3 pt-3'
               }`}
           >
             {isIndividualAppHome ? (
