@@ -295,10 +295,33 @@ export const processAdminRefund = asyncHandler(async (req, res) => {
   }
 
   if (action === 'process') {
-    // Check if eligible or manually approved
-    const canProcess = sub.refundEligibility && 
-      ['pending', 'processing', 'manually_approved', 'failed'].includes(sub.refundStatus)
-    
+    if (sub.status === 'refunded' || sub.refundStatus === 'refunded') {
+      return sendError(res, {
+        message: 'This subscription has already been refunded.',
+        statusCode: HTTP_STATUS.BAD_REQUEST,
+      })
+    }
+
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+    const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }))
+    const currentHour = nowIST.getHours()
+    const settings = await SystemSetting.findOne({ configKey: 'master_config' })
+    const endHour = settings?.subscriptionEndHour ?? 20
+
+    // Check dynamic eligibility (1-day plan with 0 bookings after window ends or past date)
+    const isLogicallyEligible =
+      sub.refundEligibility ||
+      sub.refundStatus === 'manually_approved' ||
+      (sub.durationDays === 1 &&
+        (sub.bookingsReceived || 0) === 0 &&
+        (sub.bookingOpportunitiesOffered || 0) === 0 &&
+        (sub.date < todayStr || (sub.date === todayStr && currentHour >= endHour)))
+
+    const canProcess =
+      isLogicallyEligible ||
+      ['pending', 'processing', 'manually_approved', 'failed'].includes(sub.refundStatus) ||
+      sub.durationDays === 1
+
     if (!canProcess) {
       return sendError(res, {
         message: 'Subscription is not eligible for refund processing',
@@ -306,6 +329,7 @@ export const processAdminRefund = asyncHandler(async (req, res) => {
       })
     }
 
+    sub.refundEligibility = true
     sub.refundStatus = 'processing'
     sub.refundAttemptCount = (sub.refundAttemptCount || 0) + 1
     await sub.save()
