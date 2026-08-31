@@ -13,6 +13,10 @@ export async function populateLabourCategories(user) {
     {
       path: 'labourProfile.subcategoryIds',
       select: 'name slug description isActive categoryId',
+    },
+    {
+      path: 'labourProfile.serviceIds',
+      select: 'name slug hourlyPrice subcategoryId isActive',
     }
   ])
   return user
