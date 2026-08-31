@@ -20,7 +20,7 @@ export async function requestNotificationPermission() {
   return false;
 }
 
-// Register service worker explicitly (optional but recommended in SOP)
+// Register service worker explicitly
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
@@ -32,7 +32,7 @@ async function registerServiceWorker() {
       throw error;
     }
   } else {
-    throw new Error('Service Workers are not supported');
+    throw new Error('Service Workers are not supported in this browser');
   }
 }
 
@@ -45,7 +45,6 @@ export async function getFCMToken() {
   try {
     const registration = await registerServiceWorker();
     
-    // update() is optional, but ensures we have the latest SW
     try {
       await registration.update();
     } catch (e) {
@@ -53,7 +52,7 @@ export async function getFCMToken() {
     }
 
     const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY, // Uses VAPID_KEY if provided in env, otherwise works without it in some setups
+      vapidKey: VAPID_KEY || undefined,
       serviceWorkerRegistration: registration
     });
 
@@ -73,14 +72,12 @@ export async function getFCMToken() {
 // Register FCM token with backend
 export async function registerFCMToken(forceUpdate = false) {
   try {
-    // Check if user is logged in
     const state = store.getState();
-    if (!state.auth.token) {
+    if (!state?.auth?.token) {
       console.log('User not authenticated, skipping FCM registration');
       return null;
     }
 
-    // Check if already registered
     const savedToken = localStorage.getItem('fcm_token_web');
     if (savedToken && !forceUpdate) {
       console.log('FCM token already registered locally');
@@ -89,32 +86,42 @@ export async function registerFCMToken(forceUpdate = false) {
 
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) {
-      throw new Error('Notification permission not granted');
+      throw new Error('Notification permission was not granted by the browser.');
     }
 
     const token = await getFCMToken();
     if (!token) {
-      throw new Error('Failed to get FCM token');
+      throw new Error('Failed to retrieve FCM token from Firebase.');
     }
 
-    // Save to backend
     const response = await apiRequest('/fcm-tokens/save', {
       method: 'POST',
       body: { token, platform: 'web' }
     });
 
-    if (response.success) {
+    if (response?.success) {
       localStorage.setItem('fcm_token_web', token);
       console.log('FCM token registered with backend');
       return token;
     } else {
-      throw new Error('Failed to register token with backend');
+      throw new Error(response?.message || 'Failed to register token with backend');
     }
   } catch (error) {
     console.error('Error registering FCM token:', error);
-    // We don't want to break the app if push notifications fail
-    return null;
+    throw error;
   }
+}
+
+// Send test push notification to the logged-in user
+export async function sendTestNotification() {
+  // Ensure token is registered with backend
+  await registerFCMToken(true);
+
+  // Trigger backend test notification
+  const response = await apiRequest('/fcm-tokens/test', {
+    method: 'POST',
+  });
+  return response;
 }
 
 // Setup foreground notification handler
@@ -123,14 +130,16 @@ export function setupForegroundNotificationHandler(handler) {
   onMessage(messaging, (payload) => {
     console.log('Foreground message received:', payload);
     
-    // Optional: Show browser notification if we are in the foreground
-    // but typically we let the custom handler (like a toast or alert) deal with it
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(payload.notification.title, {
-        body: payload.notification.body,
-        icon: payload.notification.icon || '/favicon.png',
-        data: payload.data
-      });
+      try {
+        new Notification(payload?.notification?.title || 'KaamExpert Notification', {
+          body: payload?.notification?.body || '',
+          icon: payload?.notification?.icon || '/favicon.ico',
+          data: payload?.data
+        });
+      } catch (e) {
+        console.warn('Could not show system notification in foreground:', e);
+      }
     }
 
     if (handler) {
@@ -143,8 +152,6 @@ export function setupForegroundNotificationHandler(handler) {
 export async function initializePushNotifications() {
   try {
     await registerServiceWorker();
-    // The actual token generation and registration will happen on login
-    // or when the user explicitly requests it.
   } catch (error) {
     console.error('Error initializing push notifications:', error);
   }
