@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Crown,
   Gift,
   IndianRupee,
   Info,
@@ -58,6 +59,7 @@ export function AppSubscriptionPage() {
   })
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
+  const [showBuyAnotherPlan, setShowBuyAnotherPlan] = useState(false)
   const [currentHour, setCurrentHour] = useState(getCurrentISTHour())
   const [toast, setToast] = useState({ message: '', variant: 'success' })
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
@@ -138,7 +140,6 @@ export function AppSubscriptionPage() {
         return
       }
 
-      // TODO: Pass planId to backend once backend supports dynamic plans checkout
       const orderRes = await userSubscriptionApi.createOrder(planId ? { planId } : {})
       const { order, keyId, price } = orderRes.data
 
@@ -147,7 +148,7 @@ export function AppSubscriptionPage() {
         amount: order.amount,
         currency: order.currency,
         name: 'KaamExpert',
-        description: `Daily Marketplace Access (₹${price})`,
+        description: planId ? `Marketplace Subscription Access (₹${price})` : `Daily Marketplace Access (₹${price})`,
         order_id: order.id,
         handler: async (response) => {
           try {
@@ -155,6 +156,7 @@ export function AppSubscriptionPage() {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
+              planId: planId || undefined,
             })
             setShowSuccessPopup(true)
             setTimeout(() => {
@@ -331,6 +333,15 @@ export function AppSubscriptionPage() {
                   )}
                 </div>
               )}
+
+              <button
+                type="button"
+                onClick={() => setShowBuyAnotherPlan((prev) => !prev)}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 py-3 text-sm font-bold text-white shadow-md shadow-emerald-600/20 transition hover:brightness-105 active:scale-[0.99]"
+              >
+                <Crown className="h-4 w-4" />
+                {showBuyAnotherPlan ? 'Hide Available Plans' : 'Buy a Plan / Upgrade'}
+              </button>
             </div>
           </motion.div>
         )}
@@ -379,13 +390,29 @@ export function AppSubscriptionPage() {
                   If you receive <strong>zero bookings</strong> today, your ₹{activeSubscription.amountPaid} will be automatically refunded to your wallet after {formatHour(subscriptionEndHour)}.
                 </p>
               </div>
+
+              {/* Buy Another Plan Action */}
+              <button
+                type="button"
+                onClick={() => setShowBuyAnotherPlan((prev) => !prev)}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-blue-800 py-3 text-sm font-bold text-white shadow-md shadow-brand/20 transition hover:brightness-105 active:scale-[0.99]"
+              >
+                <Crown className="h-4 w-4" />
+                {showBuyAnotherPlan ? 'Hide Available Plans' : 'Buy Another Plan / Extend Access'}
+              </button>
             </div>
           </motion.div>
         )}
 
-        {/* ── NEED TO SUBSCRIBE ── */}
-        {!trialActive && !isSubscribedToday && (
+        {/* ── PLANS & PACKAGES LIST ── */}
+        {((!trialActive && !isSubscribedToday) || showBuyAnotherPlan) && (
           <div className="space-y-8">
+            {showBuyAnotherPlan && (
+              <div className="text-center">
+                <h3 className="text-lg font-black text-slate-900">Choose a Plan to Extend</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Your new plan will activate after your current subscription.</p>
+              </div>
+            )}
             {settings.isUserSubscriptionEnabled && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}

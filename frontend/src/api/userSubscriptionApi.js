@@ -9,10 +9,10 @@ export const userSubscriptionApi = {
   /** Get today's subscription + system settings */
   getMySubscription: () => apiRequest('/user-subscriptions/my-subscription'),
 
-  /** Create a Razorpay order for daily subscription */
-  createOrder: () => apiRequest('/user-subscriptions/order', {
+  /** Create a Razorpay order for daily or package subscription */
+  createOrder: (data = {}) => apiRequest('/user-subscriptions/order', {
     method: 'POST',
-    body: {},
+    body: data,
   }),
 
   /** Verify Razorpay payment and activate subscription */

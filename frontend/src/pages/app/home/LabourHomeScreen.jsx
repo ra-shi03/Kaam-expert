@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  Crown,
   Droplets,
   Flame,
   GraduationCap,
@@ -95,8 +96,9 @@ function formatPunchTime(iso) {
 }
 
 const QUICK_ACTIONS = [
+  { to: '/app/subscription', label: 'Subscription', icon: Crown, bg: 'from-amber-500/15 to-amber-50', iconTone: 'text-amber-700' },
   { to: '/app/earnings', label: 'Earnings', icon: IndianRupee, bg: 'from-blue-600/15 to-blue-50', iconTone: 'text-blue-700' },
-  { to: '/app/jobs', label: 'My jobs', icon: HardHat, bg: 'from-amber-500/15 to-amber-50', iconTone: 'text-amber-800' },
+  { to: '/app/jobs', label: 'My jobs', icon: HardHat, bg: 'from-emerald-500/15 to-emerald-50', iconTone: 'text-emerald-800' },
   { to: '/app/jobs', label: 'Site details', icon: MapPin, bg: 'from-violet-500/15 to-violet-50', iconTone: 'text-violet-700' },
   { to: '/app/work-categories', label: 'Skills', icon: Wrench, bg: 'from-orange-500/15 to-orange-50', iconTone: 'text-orange-800' },
   { to: '/app/support', label: 'Support', icon: LifeBuoy, bg: 'from-rose-500/15 to-rose-50', iconTone: 'text-rose-700' },
@@ -763,6 +765,39 @@ export function LabourHomeScreen({ user }) {
             ))}
           </div>
         </section>
+
+        {/* Subscription Banner (Below Quick Actions with Home Theme) */}
+        <motion.section
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          aria-label="Subscription plans"
+        >
+          <Link
+            to="/app/subscription"
+            className="group relative flex items-center justify-between overflow-hidden rounded-2xl border border-blue-400/30 bg-gradient-to-r from-[#001a38] via-[#002b5c] to-brand p-3.5 text-white shadow-lg shadow-blue-950/25 transition hover:brightness-110 active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 backdrop-blur-md shadow-inner text-white">
+                <Crown className="h-5 w-5 text-amber-300" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs font-black tracking-tight text-white">Labour Subscription</p>
+                  <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-blue-100">
+                    Plans
+                  </span>
+                </div>
+                <p className="text-[11px] text-blue-100/90 font-medium line-clamp-1">
+                  View plans, buy another plan & unlock jobs
+                </p>
+              </div>
+            </div>
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition group-hover:translate-x-0.5 group-hover:bg-white/25">
+              <ChevronRight className="h-3.5 w-3.5" />
+            </div>
+          </Link>
+        </motion.section>
 
         {/* 5. Earnings breakdown */}
         <motion.section

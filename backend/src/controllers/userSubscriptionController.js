@@ -88,11 +88,12 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
     date: { $lte: today },
     endDate: { $gte: today }
   })
-  if (existing) {
-    return sendError(res, {
-      message: 'You already have an active subscription for today',
-      statusCode: HTTP_STATUS.CONFLICT,
-    })
+
+  let targetStartDate = today
+  if (existing && existing.endDate && existing.endDate >= today) {
+    const nextDay = new Date(existing.endDate)
+    nextDay.setDate(nextDay.getDate() + 1)
+    targetStartDate = nextDay.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
   }
 
   const settings = await SystemSetting.findOne({ configKey: 'master_config' })
@@ -113,18 +114,20 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
   const endHour = settings?.subscriptionEndHour ?? 20
   const currentHour = getCurrentISTHour()
 
-  // Validate subscription window
-  if (currentHour < startHour) {
-    return sendError(res, {
-      message: `Subscription can only be purchased from ${startHour}:00 AM onwards`,
-      statusCode: HTTP_STATUS.BAD_REQUEST,
-    })
-  }
-  if (currentHour >= endHour) {
-    return sendError(res, {
-      message: `Subscription window has closed for today. It was valid until ${endHour}:00 PM`,
-      statusCode: HTTP_STATUS.BAD_REQUEST,
-    })
+  // Validate subscription window only if starting today
+  if (targetStartDate === today) {
+    if (currentHour < startHour) {
+      return sendError(res, {
+        message: `Subscription can only be purchased from ${startHour}:00 AM onwards`,
+        statusCode: HTTP_STATUS.BAD_REQUEST,
+      })
+    }
+    if (currentHour >= endHour) {
+      return sendError(res, {
+        message: `Subscription window has closed for today. It was valid until ${endHour}:00 PM`,
+        statusCode: HTTP_STATUS.BAD_REQUEST,
+      })
+    }
   }
 
   const amountInPaise = price * 100
@@ -135,8 +138,8 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
     receipt: `receipt_sub_${Date.now()}`,
     notes: {
       userId: labour.id.toString(),
-      type: 'daily_subscription',
-      date: today,
+      type: 'labour_subscription',
+      date: targetStartDate,
     },
   }
 
@@ -148,7 +151,8 @@ export const createRazorpayOrder = asyncHandler(async (req, res) => {
       keyId: process.env.RAZORPAY_KEY_ID,
       price,
       durationDays,
-      planId
+      planId,
+      startDate: targetStartDate
     },
   })
 })
@@ -183,40 +187,37 @@ export const verifyRazorpayPayment = asyncHandler(async (req, res) => {
     price = settings?.dailySubscriptionPrice || 19
   }
 
-  const endDate = new Date()
-  endDate.setDate(endDate.getDate() + (durationDays - 1))
-  const endDateStr = endDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-
-  // Find or create subscription document
-  let subscription = await UserSubscription.findOne({ 
+  // Find if there is an active subscription
+  const existing = await UserSubscription.findOne({ 
     labour: req.user.id, 
     status: 'active',
-    date: { $lte: today },
     endDate: { $gte: today }
-  })
+  }).sort({ endDate: -1 })
 
-  if (subscription) {
-    subscription.status = 'active'
-    subscription.transactionId = razorpay_payment_id
-    subscription.amountPaid = price
-    subscription.planId = planId || undefined
-    subscription.durationDays = durationDays
-    subscription.endDate = endDateStr
-    await subscription.save()
-  } else {
-    subscription = await UserSubscription.create({
-      labour: req.user.id,
-      date: today,
-      endDate: endDateStr,
-      durationDays,
-      planId: planId || undefined,
-      amountPaid: price,
-      status: 'active',
-      transactionId: razorpay_payment_id,
-      subscriptionStartHour: 8,
-      subscriptionEndHour: 20,
-    })
+  let startDateStr = today
+  if (existing && existing.endDate && existing.endDate >= today) {
+    const nextDay = new Date(existing.endDate)
+    nextDay.setDate(nextDay.getDate() + 1)
+    startDateStr = nextDay.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
   }
+
+  const startD = new Date(startDateStr)
+  const endD = new Date(startD)
+  endD.setDate(startD.getDate() + (durationDays - 1))
+  const endDateStr = endD.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+
+  const subscription = await UserSubscription.create({
+    labour: req.user.id,
+    date: startDateStr,
+    endDate: endDateStr,
+    durationDays,
+    planId: planId || undefined,
+    amountPaid: price,
+    status: 'active',
+    transactionId: razorpay_payment_id,
+    subscriptionStartHour: 8,
+    subscriptionEndHour: 20,
+  })
 
   return sendSuccess(res, { message: 'Subscription purchased successfully', data: { subscription } })
 })
