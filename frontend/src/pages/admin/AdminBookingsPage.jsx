@@ -5,6 +5,7 @@ import { AdminLabourDetailsModal } from './components/AdminLabourDetailsModal.js
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { PipelineTimeline } from '../../components/shared/PipelineTimeline.jsx'
+import { calculateCompletedBookingBill } from '../../lib/completedBillingHelper.js'
 import {
   useGetAdminRequestsQuery,
   useLazyGetAdminRequestByIdQuery,
@@ -499,6 +500,8 @@ function ContractorRequestsTab() {
 function BookingDetailsModal({ booking, onClose }) {
   if (!booking) return null
 
+  const completedBill = calculateCompletedBookingBill(booking)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
@@ -567,58 +570,52 @@ function BookingDetailsModal({ booking, onClose }) {
               <p className="text-slate-500 text-xs mb-2">Assigned Labour Crew</p>
               <div className="grid grid-cols-1 gap-4">
                 {(() => {
-                  // Calculate shares based on services if bulk booking
-                  let availableServices = [];
-                  if (booking.contractorInfo?.services?.length > 0) {
-                    let subTotal = 0;
-                    booking.contractorInfo.services.forEach(s => {
-                      subTotal += (s.price || 0) * (booking.hours || 1) * (s.quantity || 1);
-                    });
-                    const ratio = subTotal > 0 ? booking.laborShare / subTotal : 0;
-                    booking.contractorInfo.services.forEach(s => {
-                      const share = (s.price || 0) * (booking.hours || 1) * ratio;
-                      for (let i = 0; i < (s.quantity || 1); i++) {
-                        availableServices.push({ serviceId: String(s.serviceId?._id || s.serviceId), share, assigned: false });
-                      }
-                    });
-                  }
-
-                  // Assign specific services to labourers
-                  if (booking.assignments && booking.assignments.length > 0 && availableServices.length > 0) {
-                    booking.assignments.forEach(a => {
-                      const labour = a.labourId;
-                      if (!labour) return;
-                      const labServiceIds = [
-                        ...(labour.serviceIds || []),
-                        ...(labour.labourProfile?.serviceIds || [])
-                      ].map(id => String(id));
-                      let matchedService = availableServices.find(as => !as.assigned && labServiceIds.includes(as.serviceId));
-                      if (!matchedService) matchedService = availableServices.find(as => !as.assigned);
-                      if (matchedService) {
-                        matchedService.assigned = true;
-                        matchedService.labourIdStr = String(labour._id || labour);
-                      }
-                    });
-                  }
-
                   return booking.assignments.map((a, idx) => {
+                    // Use stored labourShare from assignment if available (set at acceptance time)
+                    // Fall back to proportional calculation for old bookings without stored share
                     let share = 0;
-                    if (availableServices.length > 0) {
-                      const myService = availableServices.find(as => as.labourIdStr === String(a.labourId?._id || a.labourId));
-                      if (myService) {
-                        share = myService.share;
+                    if (a.labourShare && a.labourShare > 0) {
+                      share = a.labourShare;
+                    } else if (booking.contractorInfo?.services?.length > 0) {
+                      // Derive from the matched service in contractorInfo
+                      const aServiceId = String(a.serviceId?._id || a.serviceId || '');
+                      const matchedSvc = booking.contractorInfo.services.find(s => String(s.serviceId?._id || s.serviceId) === aServiceId);
+                      if (matchedSvc && matchedSvc.price) {
+                        const hours = booking.duration || booking.hours || 1;
+                        share = Math.round(matchedSvc.price * hours * 0.90);
                       } else {
                         share = booking.laborShare / booking.assignments.length;
                       }
                     } else {
                       share = booking.laborShare / booking.assignments.length;
                     }
+                    // Service name resolution priority:
+                    // 1. Stored snapshot (a.serviceName) — set for new bookings at acceptance time
+                    // 2. Populated a.serviceId.name — set by API populate('assignments.serviceId','name')
+                    // 3. Match from contractorInfo (fallback for very old data without serviceId)
+                    const assignedServiceName =
+                      a.serviceName ||
+                      a.serviceId?.name ||
+                      (() => {
+                        const aServiceId = String(a.serviceId?._id || a.serviceId || '');
+                        if (!aServiceId) return 'N/A';
+                        const matched = booking.contractorInfo?.services?.find(
+                          s => String(s.serviceId?._id || s.serviceId) === aServiceId
+                        );
+                        return matched?.serviceId?.name || 'N/A';
+                      })()
+
+
                     return (
-                      <div key={a._id} className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex flex-col gap-3">
+                      <div key={a._id || idx} className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex flex-col gap-3">
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="font-bold text-sm text-slate-900">{a.labourId?.fullName || 'Pending Linking'}</p>
                             <p className="text-xs text-slate-600">{a.labourId?.phone || 'Awaiting Worker'}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Service: <span className="font-semibold text-slate-700">{assignedServiceName}</span>
+                              {a.pricePerHour > 0 && <span className="ml-1 text-slate-400">· ₹{a.pricePerHour}/hr</span>}
+                            </p>
                             <p className="text-xs font-semibold text-brand mt-1 uppercase">{a.status}</p>
                           </div>
                           <div className="text-right">
@@ -713,29 +710,49 @@ function BookingDetailsModal({ booking, onClose }) {
 
           <div className="border-t border-slate-100 pt-4 bg-slate-50 p-3 rounded-lg">
             <p className="font-extrabold text-sm mb-2">Financial Breakdown</p>
+            {completedBill.isContractorBooking && completedBill.deductedBasePrice > 0 ? (
+              <div className="mb-2 rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-800">
+                <span className="font-bold">Adjusted for Completed Work:</span> {completedBill.totalCompletedLabours} of {completedBill.totalRequestedLabours} labours completed. Unfulfilled service amount (-₹{completedBill.deductedBasePrice}) deducted.
+              </div>
+            ) : null}
             <div className="flex justify-between text-xs text-slate-600 py-1">
               <span>Base Price:</span>
-              <span className="font-semibold text-slate-900">₹{booking.basePrice}</span>
+              <span className="font-semibold text-slate-900">
+                ₹{completedBill.completedBasePrice}
+                {completedBill.isContractorBooking && completedBill.deductedBasePrice > 0 && (
+                  <span className="text-[11px] text-slate-400 line-through ml-1.5">₹{completedBill.originalBasePrice}</span>
+                )}
+              </span>
             </div>
+            {completedBill.isContractorBooking && completedBill.deductedBasePrice > 0 && (
+              <div className="flex justify-between text-xs text-emerald-600 py-1 font-medium">
+                <span>Deductions (Unfulfilled / Pending):</span>
+                <span>-₹{completedBill.deductedBasePrice}</span>
+              </div>
+            )}
             <div className="flex justify-between text-xs text-slate-600 py-1">
               <span>Platform Fee:</span>
-              <span className="font-semibold text-slate-900">₹{booking.platformFee}</span>
+              <span className="font-semibold text-slate-900">₹{completedBill.completedPlatformFee}</span>
             </div>
             <div className="flex justify-between text-xs text-slate-600 py-1">
               <span>Taxes:</span>
-              <span className="font-semibold text-slate-900">₹{booking.taxes}</span>
+              <span className="font-semibold text-slate-900">₹{completedBill.completedTaxes}</span>
             </div>
             <div className="flex justify-between text-sm text-slate-900 py-1 font-bold border-t border-slate-200 mt-1 pt-2">
               <span>Total Amount:</span>
-              <span>₹{booking.totalAmount}</span>
+              <span className="text-base text-brand font-extrabold">₹{completedBill.completedTotalAmount}</span>
             </div>
             <div className="flex justify-between text-xs text-slate-600 py-1 mt-2">
               <span>Commission (Admin):</span>
-              <span className="font-semibold text-brand">₹{booking.commissionAmount}</span>
+              <span className="font-semibold text-brand">
+                ₹{completedBill.isContractorBooking ? Math.round(completedBill.completedBasePrice * 0.10) : booking.commissionAmount}
+              </span>
             </div>
             <div className="flex justify-between text-xs text-slate-600 py-1">
               <span>Labour Share:</span>
-              <span className="font-semibold text-green-600">₹{booking.laborShare}</span>
+              <span className="font-semibold text-green-600">
+                ₹{completedBill.isContractorBooking ? Math.round(completedBill.completedBasePrice * 0.90) : booking.laborShare}
+              </span>
             </div>
           </div>
         </div>
@@ -839,9 +856,18 @@ function BookingsListTab({ type }) {
                   <p className="text-xs text-slate-500">
                     Date: {new Date(b.createdAt).toLocaleDateString()}
                   </p>
-                  <div className="pt-2">
+                  <div className="pt-2 flex flex-wrap gap-1.5 items-center">
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getStatusBadgeStyle(b.status)}`}>
-                      {b.status?.replace('_', ' ')}
+                      {b.status?.replace(/_/g, ' ')}
+                    </span>
+                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                      b.paymentStatus === 'PAID'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : b.paymentStatus === 'REFUNDED'
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {b.paymentStatus === 'PAID' ? '✓ Paid' : b.paymentStatus === 'REFUNDED' ? 'Refunded' : '⚠ Payment Pending'}
                     </span>
                   </div>
                 </div>

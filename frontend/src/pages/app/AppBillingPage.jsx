@@ -6,6 +6,7 @@ import { bookingsApi } from '../../api/bookingsApi.js'
 import { ApiError } from '../../api/http.js'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import InvoicePrintView from '../../components/admin/InvoicePrintView.jsx'
+import { calculateCompletedBookingBill } from '../../lib/completedBillingHelper.js'
 
 export function AppBillingPage() {
   const navigate = useNavigate()
@@ -105,10 +106,23 @@ export function AppBillingPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <div className="flex items-center justify-end font-bold text-slate-900">
-                        <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
-                        {(booking.totalAmount || 0).toLocaleString()}
-                      </div>
+                      {(() => {
+                        const bill = calculateCompletedBookingBill(booking)
+                        const amount = bill.isContractorBooking ? bill.completedTotalAmount : (booking.totalAmount || 0)
+                        return (
+                          <>
+                            <div className="flex items-center justify-end font-bold text-slate-900">
+                              <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
+                              {amount.toLocaleString('en-IN')}
+                            </div>
+                            {bill.isContractorBooking && bill.deductedBasePrice > 0 && (
+                              <p className="text-[10px] font-semibold text-rose-600">
+                                -₹{bill.deductedBasePrice.toLocaleString('en-IN')} cut
+                              </p>
+                            )}
+                          </>
+                        )
+                      })()}
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase mt-1 inline-block ${
                         isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                       }`}>

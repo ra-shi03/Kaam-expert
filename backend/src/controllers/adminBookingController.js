@@ -75,6 +75,7 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     .populate('serviceId', 'name basePrice')
     .populate('contractorInfo.services.serviceId', 'name')
     .populate('assignments.labourId', 'fullName phone profileImageUrl serviceIds labourProfile')
+    .populate('assignments.serviceId', 'name basePrice')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(Number(limit))
@@ -113,6 +114,8 @@ export const getBookingDetails = asyncHandler(async (req, res) => {
     })
     .populate('serviceId', 'name basePrice')
     .populate('contractorInfo.services.serviceId', 'name')
+    .populate('assignments.labourId', 'fullName phone profileImageUrl serviceIds labourProfile')
+    .populate('assignments.serviceId', 'name basePrice')
     .lean()
 
   if (!booking) {

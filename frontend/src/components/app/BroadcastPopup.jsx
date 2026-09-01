@@ -19,6 +19,7 @@ export function BroadcastPopup() {
   const [timeLeft, setTimeLeft] = useState(30)
   const [responding, setResponding] = useState(false)
   const [error, setError] = useState('')
+  const [selectedServiceId, setSelectedServiceId] = useState(null)
 
   // Only render for labour users
   const isLabour = user?.role === USER_ROLES.LABOUR || user?.role === 'labour'
@@ -33,6 +34,7 @@ export function BroadcastPopup() {
       setTimeLeft(timeout)
       setError('')
       setResponding(false)
+      setSelectedServiceId(null)
     }
 
     socket.on('BOOKING_RECEIVED', handleBroadcast)
@@ -54,7 +56,6 @@ export function BroadcastPopup() {
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          // Auto-reject on timeout
           clearInterval(timerRef.current)
           if (incoming?.bookingId) broadcastsApi.rejectBroadcast(incoming.bookingId).catch(() => {})
           setIncoming(null)
@@ -71,10 +72,18 @@ export function BroadcastPopup() {
 
   const handleAccept = useCallback(async () => {
     if (!incoming) return
+
+    // If multi-service and no selection yet, prompt
+    if (incoming.requiresServiceSelection && !selectedServiceId) {
+      setError('Please choose which service you want to accept.')
+      return
+    }
+
     setResponding(true)
     setError('')
     try {
-      await broadcastsApi.acceptBroadcast(incoming.bookingId)
+      const payload = selectedServiceId ? { serviceId: selectedServiceId } : {}
+      await broadcastsApi.acceptBroadcast(incoming.bookingId, payload)
       if (timerRef.current) clearInterval(timerRef.current)
       const bookingId = incoming.bookingId
       setIncoming(null)
@@ -83,7 +92,7 @@ export function BroadcastPopup() {
       setError(err instanceof ApiError ? err.message : 'Failed to accept')
       setResponding(false)
     }
-  }, [incoming, navigate])
+  }, [incoming, navigate, selectedServiceId])
 
   const handleReject = useCallback(async () => {
     if (!incoming) return
@@ -100,6 +109,10 @@ export function BroadcastPopup() {
   }, [incoming])
 
   if (!isLabour) return null
+
+  const services = incoming?.services || []
+  const requiresSelection = incoming?.requiresServiceSelection && services.length > 1
+  const selectedService = services.find(s => s.serviceId === selectedServiceId)
 
   return (
     <AnimatePresence>
@@ -119,7 +132,7 @@ export function BroadcastPopup() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduce ? undefined : { opacity: 0, y: 40, scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed inset-x-4 bottom-6 z-[301] mx-auto max-w-md rounded-3xl bg-white shadow-2xl"
+            className="fixed inset-x-4 bottom-6 z-[301] mx-auto max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden"
           >
             {/* Timer Bar */}
             <div className="relative h-1.5 overflow-hidden rounded-t-3xl bg-slate-100">
@@ -131,7 +144,7 @@ export function BroadcastPopup() {
               />
             </div>
 
-            <div className="p-5">
+            <div className="p-5 max-h-[82vh] overflow-y-auto">
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -156,7 +169,7 @@ export function BroadcastPopup() {
                     <p className="text-xs font-semibold text-brand/80">Customer</p>
                     <p className="text-sm font-bold text-slate-900">{incoming.customerName || incoming.customer?.fullName || incoming.customer?.name}</p>
                   </div>
-                  {incoming.serviceName && (
+                  {!requiresSelection && incoming.serviceName && (
                     <div className="text-right">
                       <p className="text-xs font-semibold text-brand/80">Service</p>
                       <p className="text-sm font-bold text-slate-900 line-clamp-1">{incoming.serviceName}</p>
@@ -165,14 +178,63 @@ export function BroadcastPopup() {
                 </div>
               )}
 
-              {/* Details */}
+              {/* Service Selection for multi-service contractor bookings */}
+              {requiresSelection && (
+                <div className="mt-4">
+                  <p className="text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">
+                    Choose your service:
+                  </p>
+                  <div className="space-y-2">
+                    {services.map((svc) => {
+                      const isSelected = selectedServiceId === svc.serviceId
+                      return (
+                        <button
+                          key={svc.serviceId}
+                          type="button"
+                          onClick={() => setSelectedServiceId(svc.serviceId)}
+                          className={`w-full flex items-center justify-between rounded-2xl border-2 px-4 py-3 text-left transition ${
+                            isSelected
+                              ? 'border-brand bg-brand/5 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-brand/40'
+                          }`}
+                        >
+                          <div>
+                            <p className="font-bold text-sm text-slate-900">{svc.name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              ₹{svc.pricePerHour}/hr · {incoming.duration || 1} hr{(incoming.duration || 1) > 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-right">
+                              <p className="text-[10px] text-slate-400">You earn</p>
+                              <p className="font-extrabold text-blue-700 text-base">₹{svc.estimatedEarnings}</p>
+                            </div>
+                            <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition ${
+                              isSelected ? 'border-brand bg-brand' : 'border-slate-300'
+                            }`}>
+                              {isSelected && <Check className="h-3 w-3 text-white" />}
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Single-service or selected-service earnings */}
               <div className="mt-4 space-y-2 rounded-2xl bg-slate-50 p-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1.5 text-slate-500">
                     <IndianRupee className="h-3.5 w-3.5" aria-hidden />
-                    Estimated Earnings
+                    {requiresSelection ? 'Selected Earnings' : 'Estimated Earnings'}
                   </span>
-                  <span className="text-lg font-extrabold text-blue-700">₹{incoming.estimatedEarnings || incoming.laborShare || incoming.basePrice}</span>
+                  <span className="text-lg font-extrabold text-blue-700">
+                    {requiresSelection
+                      ? selectedService ? `₹${selectedService.estimatedEarnings}` : '—'
+                      : `₹${incoming.estimatedEarnings || incoming.laborShare || incoming.basePrice}`
+                    }
+                  </span>
                 </div>
                 {(incoming.date || incoming.time) && (
                   <div className="flex items-center justify-between text-sm">
@@ -200,7 +262,7 @@ export function BroadcastPopup() {
                   <div className="flex items-center justify-between text-sm mt-1">
                     <span className="text-slate-500">Distance</span>
                     <span className="font-bold text-slate-800">
-                      {incoming.approximateDistance < 1 
+                      {incoming.approximateDistance < 1
                         ? `${(incoming.approximateDistance * 1000).toFixed(0)} m`
                         : `${incoming.approximateDistance.toFixed(1)} km`
                       }
@@ -228,7 +290,7 @@ export function BroadcastPopup() {
                 </button>
                 <button
                   type="button"
-                  disabled={responding}
+                  disabled={responding || (requiresSelection && !selectedServiceId)}
                   onClick={handleAccept}
                   className="flex items-center justify-center gap-2 rounded-2xl bg-brand px-4 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-brand/25 transition hover:bg-brand/90 active:scale-[0.97] disabled:opacity-50"
                 >
@@ -237,7 +299,7 @@ export function BroadcastPopup() {
                   ) : (
                     <>
                       <Check className="h-4 w-4" aria-hidden />
-                      Accept
+                      {requiresSelection && !selectedServiceId ? 'Pick Service' : 'Accept'}
                     </>
                   )}
                 </button>

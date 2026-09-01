@@ -117,6 +117,78 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'You have already accepted this booking', statusCode: HTTP_STATUS.CONFLICT })
   }
 
+  // === Service Assignment Logic ===
+  let assignedServiceId = booking.serviceId
+  let assignedPricePerHour = 0
+  let assignedServiceName = ''
+  let assignedLabourShare = 0
+
+  const isContractorBooking = booking.contractorInfo?.services?.length > 0
+
+  if (isContractorBooking) {
+    const currentAssignments = booking.assignments || []
+    const { LabourService } = await import('../models/LabourService.js')
+
+    // Labour's registered service IDs
+    const fullLabour = await (await import('../models/User.js')).User.findById(labour._id).lean()
+    const labourServiceIds = (fullLabour?.labourProfile?.serviceIds || []).map(id => String(id))
+
+    // The serviceId explicitly chosen by the labour from the popup (if multi-match)
+    const chosenServiceId = req.body?.serviceId ? String(req.body.serviceId) : null
+
+    // Build open slot map for contractor services
+    const openServices = booking.contractorInfo.services.filter(s => {
+      const filled = currentAssignments.filter(a => String(a.serviceId) === String(s.serviceId)).length
+      return filled < (s.quantity || 1)
+    })
+
+    if (openServices.length === 0) {
+      return sendError(res, { message: 'All service slots are already filled', statusCode: HTTP_STATUS.CONFLICT })
+    }
+
+    // Find matching open services for this labourer
+    const matchingOpen = openServices.filter(s => labourServiceIds.includes(String(s.serviceId)))
+
+    let chosenService = null
+    if (chosenServiceId) {
+      // Labourer explicitly chose a service
+      chosenService = openServices.find(s => String(s.serviceId) === chosenServiceId)
+      if (!chosenService) {
+        return sendError(res, { message: 'Chosen service is not available or already full', statusCode: HTTP_STATUS.BAD_REQUEST })
+      }
+    } else if (matchingOpen.length === 1) {
+      // Only one matching service — auto-assign
+      chosenService = matchingOpen[0]
+    } else if (matchingOpen.length > 1) {
+      // Multiple matching services and no explicit choice — require front-end to send serviceId
+      return sendError(res, {
+        message: 'Multiple matching services. Please choose a service to accept.',
+        code: 'SERVICE_SELECTION_REQUIRED',
+        data: { services: matchingOpen.map(s => ({ serviceId: s.serviceId, price: s.price })) },
+        statusCode: 400
+      })
+    } else {
+      // Labour has no matching service, fall back to first open slot
+      chosenService = openServices[0]
+    }
+
+    assignedServiceId = chosenService.serviceId
+    assignedPricePerHour = chosenService.price || 0
+
+    // Fetch service name
+    const svcDoc = await LabourService.findById(assignedServiceId).lean()
+    assignedServiceName = svcDoc?.name || ''
+
+    // Labour share = price × hours × 90% (platform takes 10%)
+    const bookingHours = booking.duration || booking.hours || 1
+    assignedLabourShare = Math.round(assignedPricePerHour * bookingHours * 0.90)
+  } else {
+    // Simple single-service booking
+    const bookingHours = booking.duration || booking.hours || 1
+    assignedLabourShare = booking.laborShare || 0
+    assignedPricePerHour = booking.basePrice ? Math.round(booking.basePrice / bookingHours) : 0
+  }
+
   // Push to accepted lists
   booking.acceptedLabourIds = booking.acceptedLabourIds || []
   booking.acceptedLabourIds.push(labour._id)
@@ -124,22 +196,13 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
   const startOtp = Math.floor(1000 + Math.random() * 9000).toString()
   const completionOtp = Math.floor(1000 + Math.random() * 9000).toString()
 
-  let assignedServiceId = booking.serviceId;
-  if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 0) {
-    const currentAssignments = booking.assignments || [];
-    for (const service of booking.contractorInfo.services) {
-      const currentCount = currentAssignments.filter(a => String(a.serviceId) === String(service.serviceId)).length;
-      if (currentCount < (service.quantity || 1)) {
-        assignedServiceId = service.serviceId;
-        break;
-      }
-    }
-  }
-
   booking.assignments = booking.assignments || []
   booking.assignments.push({
     labourId: labour._id,
     serviceId: assignedServiceId,
+    serviceName: assignedServiceName,
+    pricePerHour: assignedPricePerHour,
+    labourShare: assignedLabourShare,
     status: 'ACCEPTED',
     startOtp,
     completionOtp
@@ -149,7 +212,12 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
   booking.acceptedLabourId = labour._id
   booking.laborId = labour._id
   
-  if (booking.acceptedLabourIds.length >= (booking.quantity || 1)) {
+  // Determine total expected assignments to decide if fully ACCEPTED
+  const totalRequested = isContractorBooking
+    ? booking.contractorInfo.services.reduce((acc, s) => acc + (s.quantity || 1), 0)
+    : (booking.quantity || 1)
+
+  if (booking.assignments.length >= totalRequested) {
     booking.status = 'ACCEPTED'
   }
 
@@ -177,7 +245,7 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
       if (booking.status === 'ACCEPTED') {
         const io = getIo()
         if (io) {
-          io.emit('BOOKING_EXPIRED', { bookingId: booking._id, winnerId: labour._id }) // Tells others it's fully booked
+          io.emit('BOOKING_EXPIRED', { bookingId: booking._id, winnerId: labour._id })
         }
       }
     })

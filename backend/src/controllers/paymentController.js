@@ -73,24 +73,56 @@ export const verifyPayment = asyncHandler(async (req, res) => {
       // In Phase 4, Online Payment commission handling:
       // Since platform receives the money, the labor's selfWallet is credited the laborShare
       if (booking.status === 'COMPLETED') {
-         let wallet = await Wallet.findOne({ userId: booking.laborId })
-         if (!wallet) wallet = new Wallet({ userId: booking.laborId })
-         wallet.selfBalance += booking.laborShare
-         await wallet.save()
+         if (booking.assignments && booking.assignments.length > 0) {
+           for (const a of booking.assignments) {
+             if (a.status === 'COMPLETED' && a.labourId) {
+               const lid = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
+               let workerShare = a.labourShare || (booking.laborShare ? Math.round(booking.laborShare / (booking.quantity || 1)) : 0)
+               if (booking.contractorInfo?.services?.length > 0) {
+                 const s = booking.contractorInfo.services.find(svc => String(svc.serviceId?._id || svc.serviceId) === String(a.serviceId?._id || a.serviceId))
+                 if (s && s.price) {
+                   const hrs = (booking.duration || booking.hours || 1) + (a.extraHours || 0)
+                   workerShare = (s.price * hrs) * 0.9
+                 }
+               }
+               if (workerShare > 0) {
+                 let wallet = await Wallet.findOne({ userId: lid })
+                 if (!wallet) wallet = new Wallet({ userId: lid })
+                 wallet.selfBalance += workerShare
+                 await wallet.save()
 
-         await WalletTransaction.create({
-            walletId: wallet._id,
-            amount: booking.laborShare,
-            type: 'CREDIT',
-            targetWallet: 'SELF',
-            context: 'PAYOUT',
-            referenceId: booking._id,
-            description: 'Online Payment Payout for Booking'
-         })
+                 await WalletTransaction.create({
+                   walletId: wallet._id,
+                   amount: workerShare,
+                   type: 'CREDIT',
+                   targetWallet: 'SELF',
+                   context: 'PAYOUT',
+                   referenceId: booking._id,
+                   description: 'Online Payment Payout for Completed Assignment'
+                 })
+               }
+             }
+           }
+         } else if (booking.laborId) {
+           let wallet = await Wallet.findOne({ userId: booking.laborId })
+           if (!wallet) wallet = new Wallet({ userId: booking.laborId })
+           wallet.selfBalance += booking.laborShare
+           await wallet.save()
+
+           await WalletTransaction.create({
+              walletId: wallet._id,
+              amount: booking.laborShare,
+              type: 'CREDIT',
+              targetWallet: 'SELF',
+              context: 'PAYOUT',
+              referenceId: booking._id,
+              description: 'Online Payment Payout for Booking'
+           })
+         }
          
          // Notify both labour and client
          import('../socket.js').then(({ emitToUser }) => {
-           emitToUser(booking.laborId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
+           if (booking.laborId) emitToUser(booking.laborId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
            emitToUser(booking.clientId, 'BOOKING_STATUS_UPDATE', { bookingId: booking._id, status: booking.status, paymentStatus: 'PAID' })
            if (booking.assignments && booking.assignments.length > 0) {
              booking.assignments.forEach(a => {

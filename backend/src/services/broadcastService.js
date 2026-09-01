@@ -259,51 +259,106 @@ export async function startBroadcastCycle(bookingId) {
     const laborUpdates = []
 
     import('../models/LabourService.js').then(async ({ LabourService }) => {
-      let serviceName = 'Requested Service'
-      if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 1) {
-        serviceName = 'Multiple Services'
+      // Pre-fetch service names for all contractor services
+      let serviceNameMap = {}
+      let singleServiceName = 'Requested Service'
+
+      if (booking.contractorInfo?.services?.length > 0) {
+        const svcDocs = await LabourService.find({
+          _id: { $in: booking.contractorInfo.services.map(s => s.serviceId) }
+        }).select('_id name').lean()
+        svcDocs.forEach(s => { serviceNameMap[String(s._id)] = s.name })
       } else {
-        const service = await LabourService.findById(booking.serviceId)
-        if (service) serviceName = service.name
+        const service = await LabourService.findById(booking.serviceId).select('name').lean()
+        if (service) singleServiceName = service.name
+      }
+
+      // Count current open slots per service
+      const currentAssignments = booking.assignments || []
+      const openSlotsMap = {}
+      if (booking.contractorInfo?.services?.length > 0) {
+        booking.contractorInfo.services.forEach(s => {
+          const filled = currentAssignments.filter(a => String(a.serviceId) === String(s.serviceId)).length
+          openSlotsMap[String(s.serviceId)] = Math.max(0, (s.quantity || 1) - filled)
+        })
       }
 
       eligibleLaborers.forEach(labor => {
-        let singleShare = booking.laborShare || booking.basePrice
-        let matchedServiceName = serviceName
+        const laborServiceIds = labor.labourProfile?.serviceIds?.map(id => String(id)) || []
+        const bookingHours = booking.duration || booking.hours || 1
 
-        if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 0) {
-          // Find which service this labourer is matched for
-          const laborServiceIds = labor.labourProfile?.serviceIds?.map(id => String(id)) || []
-          const matchedService = booking.contractorInfo.services.find(s => laborServiceIds.includes(String(s.serviceId)))
-          
-          if (matchedService) {
-            // They matched this specific service. Calculate their single unit share.
-            const unitSubTotal = (matchedService.price || 0) * (booking.hours || 1)
-            // Apply the same ratio of deductions (commission, discounts) that the total laborShare has
-            const ratio = (booking.basePrice && booking.basePrice > 0) ? (booking.laborShare / booking.basePrice) : 1
-            singleShare = Math.round(unitSubTotal * ratio)
-            
-            // Wait, also fetch the name of their specific service!
-            // But we can't await inside a forEach sync loop easily, so we just stick with 'Multiple Services' or use a map if we pre-fetched.
-          } else if (booking.quantity > 1) {
-            singleShare = Math.round(singleShare / booking.quantity)
-          }
-        } else if (booking.quantity > 1) {
-          singleShare = Math.round(singleShare / booking.quantity)
+        if (booking.contractorInfo?.services?.length > 0) {
+          // Find open services that match this labourer's skills
+          const matchingOpenServices = booking.contractorInfo.services
+            .filter(s => {
+              const isOpen = openSlotsMap[String(s.serviceId)] > 0
+              const hasSkill = laborServiceIds.includes(String(s.serviceId))
+              return isOpen && hasSkill
+            })
+            .map(s => {
+              const sId = String(s.serviceId)
+              const labourShare = Math.round((s.price || 0) * bookingHours * 0.90)
+              return {
+                serviceId: sId,
+                name: serviceNameMap[sId] || 'Service',
+                pricePerHour: s.price || 0,
+                estimatedEarnings: labourShare,
+                openSlots: openSlotsMap[sId] || 0
+              }
+            })
+
+          // Fall back to all open services if no skill match
+          const servicesPayload = matchingOpenServices.length > 0
+            ? matchingOpenServices
+            : booking.contractorInfo.services
+                .filter(s => openSlotsMap[String(s.serviceId)] > 0)
+                .map(s => {
+                  const sId = String(s.serviceId)
+                  return {
+                    serviceId: sId,
+                    name: serviceNameMap[sId] || 'Service',
+                    pricePerHour: s.price || 0,
+                    estimatedEarnings: Math.round((s.price || 0) * bookingHours * 0.90),
+                    openSlots: openSlotsMap[sId] || 0
+                  }
+                })
+
+          // Show highest earning as the headline earnings figure
+          const bestEarning = servicesPayload.reduce((max, s) => Math.max(max, s.estimatedEarnings), 0)
+
+          emitToUser(labor._id, 'BOOKING_RECEIVED', {
+            bookingId: booking._id,
+            customerName: booking.userId?.fullName || 'Customer',
+            serviceName: servicesPayload.length === 1 ? servicesPayload[0].name : 'Multiple Services',
+            services: servicesPayload,          // <-- array so frontend can show service picker
+            isContractorBooking: true,
+            requiresServiceSelection: servicesPayload.length > 1,
+            date: booking.scheduledAt || booking.createdAt,
+            time: booking.timeSlot || 'Earliest available',
+            duration: bookingHours,
+            customerLocation: booking.address?.locationText || 'Service Location',
+            approximateDistance: labor.approximateDistance,
+            estimatedEarnings: bestEarning,
+            timeoutMs: BROADCAST_TIMEOUT_MS
+          })
+        } else {
+          // Single-service booking
+          const singleShare = booking.laborShare || booking.basePrice || 0
+          emitToUser(labor._id, 'BOOKING_RECEIVED', {
+            bookingId: booking._id,
+            customerName: booking.userId?.fullName || 'Customer',
+            serviceName: singleServiceName,
+            isContractorBooking: false,
+            requiresServiceSelection: false,
+            date: booking.scheduledAt || booking.createdAt,
+            time: booking.timeSlot || 'Earliest available',
+            duration: bookingHours,
+            customerLocation: booking.address?.locationText || 'Service Location',
+            approximateDistance: labor.approximateDistance,
+            estimatedEarnings: singleShare,
+            timeoutMs: BROADCAST_TIMEOUT_MS
+          })
         }
-
-        emitToUser(labor._id, 'BOOKING_RECEIVED', {
-          bookingId: booking._id,
-          customerName: booking.userId?.fullName || 'Customer',
-          serviceName: matchedServiceName,
-          date: booking.scheduledAt || booking.createdAt,
-          time: booking.timeSlot || 'Earliest available',
-          duration: booking.hours || 1,
-          customerLocation: booking.address?.locationText || 'Service Location',
-          approximateDistance: labor.approximateDistance,
-          estimatedEarnings: singleShare,
-          timeoutMs: BROADCAST_TIMEOUT_MS
-        })
         
         const sub = activeSubsMap[labor._id]
         if (sub) {

@@ -126,6 +126,9 @@ const bookingSchema = new mongoose.Schema(
     assignments: [{
       labourId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
       serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'LabourService' },
+      serviceName: { type: String },         // snapshot of service name at booking time
+      pricePerHour: { type: Number, default: 0 }, // snapshot of rate at booking time
+      labourShare: { type: Number, default: 0 },   // calculated at acceptance time
       status: {
         type: String,
         enum: ['ACCEPTED', 'EN_ROUTE', 'STARTED', 'COMPLETED', 'REJECTED', 'CANCELLED'],

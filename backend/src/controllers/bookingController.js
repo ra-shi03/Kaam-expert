@@ -797,14 +797,59 @@ export const generateMyInvoice = asyncHandler(async (req, res) => {
   if (!invoice) {
     let lines = []
     if (booking.contractorInfo?.services?.length > 0) {
-      lines = booking.contractorInfo.services.map(s => ({
-        description: `Service - ${s.serviceId?.name || 'Contractor Service'}`,
-        categoryId: booking.subcategoryId,
-        billableUnits: s.quantity || 1,
-        ratePerUnit: s.price || 0,
-        amount: (s.price || 0) * (s.quantity || 1),
-        gstAmount: 0,
-      }))
+      const services = booking.contractorInfo.services || []
+      const assignments = booking.assignments || []
+      const bookingHours = booking.duration || booking.hours || 1
+
+      let subtotal = 0
+      lines = services.map((s, idx) => {
+        const sId = s.serviceId?._id ? String(s.serviceId._id) : String(s.serviceId || '')
+        let matched = assignments.filter(a => {
+          const aSvcId = a.serviceId?._id ? String(a.serviceId._id) : String(a.serviceId || '')
+          return aSvcId && aSvcId === sId
+        })
+        if (matched.length === 0 && assignments.length > 0) {
+          let offset = 0
+          for (let i = 0; i < idx; i++) offset += Number(services[i].quantity) || 1
+          matched = assignments.slice(offset, offset + (Number(s.quantity) || 1))
+        }
+
+        const completedAssignments = matched.filter(a => a.status === 'COMPLETED')
+        const completedCount = completedAssignments.length
+        const extraHours = completedAssignments.reduce((acc, a) => acc + (Number(a.extraHours) || 0), 0)
+        const lineAmount = ((s.price || 0) * bookingHours * completedCount) + ((s.price || 0) * extraHours)
+        subtotal += lineAmount
+
+        return {
+          description: `Service - ${s.serviceId?.name || 'Contractor Service'} (${completedCount}/${s.quantity || 1} completed)`,
+          categoryId: booking.subcategoryId,
+          billableUnits: completedCount,
+          ratePerUnit: s.price || 0,
+          amount: lineAmount,
+          gstAmount: 0,
+        }
+      })
+
+      const originalBase = booking.basePrice || subtotal
+      const ratio = originalBase > 0 ? subtotal / originalBase : 0
+      const gstTotal = Math.round((booking.taxes || 0) * ratio)
+      const platformFee = subtotal > 0 ? (booking.platformFee || 0) : 0
+      const total = subtotal + gstTotal + platformFee
+
+      invoice = await Invoice.create({
+        invoiceNumber: generateInvoiceNumber(),
+        contractorId: booking.contractorInfo?.services ? booking.userId._id || booking.userId : undefined,
+        requestId: booking._id,
+        type: 'attendance',
+        billingMode: 'postpaid',
+        status: INVOICE_STATUS.ISSUED,
+        lines,
+        subtotal,
+        gstTotal,
+        total,
+        issuedAt: new Date(),
+        dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+      })
     } else {
       lines = [
         {
@@ -816,22 +861,22 @@ export const generateMyInvoice = asyncHandler(async (req, res) => {
           gstAmount: booking.taxes || 0,
         }
       ]
-    }
 
-    invoice = await Invoice.create({
-      invoiceNumber: generateInvoiceNumber(),
-      contractorId: booking.contractorInfo?.services ? booking.userId._id || booking.userId : undefined,
-      requestId: booking._id,
-      type: 'attendance',
-      billingMode: 'postpaid',
-      status: INVOICE_STATUS.ISSUED,
-      lines,
-      subtotal: booking.basePrice || 0,
-      gstTotal: booking.taxes || 0,
-      total: booking.totalAmount || 0,
-      issuedAt: new Date(),
-      dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
-    })
+      invoice = await Invoice.create({
+        invoiceNumber: generateInvoiceNumber(),
+        contractorId: undefined,
+        requestId: booking._id,
+        type: 'attendance',
+        billingMode: 'postpaid',
+        status: INVOICE_STATUS.ISSUED,
+        lines,
+        subtotal: booking.basePrice || 0,
+        gstTotal: booking.taxes || 0,
+        total: booking.totalAmount || 0,
+        issuedAt: new Date(),
+        dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+      })
+    }
   }
 
   // Hide OTPs

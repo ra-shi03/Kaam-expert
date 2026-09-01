@@ -27,6 +27,7 @@ import { GlassPanel } from '../../../components/ui/GlassPanel.jsx'
 import { fetchLabourCategoriesGrouped } from '../../../api/labourCategoriesApi.js'
 import { bookingsApi } from '../../../api/bookingsApi.js'
 import { paymentsApi } from '../../../api/paymentsApi.js'
+import { calculateCompletedBookingBill } from '../../../lib/completedBillingHelper.js'
 
 function loadRazorpay() {
   return new Promise((resolve) => {
@@ -574,6 +575,8 @@ export function IndividualBookingFlowPage() {
   }
 
   const [isPaying, setIsPaying] = useState(false)
+  const completedBill = useMemo(() => calculateCompletedBookingBill(activeBooking), [activeBooking])
+
   const handlePayNow = async () => {
     if (!activeBooking) return
     setIsPaying(true)
@@ -583,8 +586,12 @@ export function IndividualBookingFlowPage() {
         alert('Payment gateway failed to load. Please try again.')
         return
       }
+      const payAmount = completedBill.isContractorBooking
+        ? completedBill.completedTotalAmount
+        : activeBooking.totalAmount
+
       const payRes = await paymentsApi.initPayment({
-        amount: activeBooking.totalAmount,
+        amount: payAmount,
         purpose: 'BOOKING',
         bookingId: activeBooking._id,
       })
@@ -1019,63 +1026,124 @@ export function IndividualBookingFlowPage() {
         )}
             
             {(step === 'billing' || booking?.status === 'COMPLETED') && (
-              <div className="lc-booking-flow-card space-y-3 text-sm lc-booking-flow-body">
-                <div className="flex justify-between gap-2">
-                  <span className="lc-booking-flow-muted">Service</span>
-                  <span className="text-right font-bold text-black">
-                    <span className="lc-booking-highlight-title block text-base">{booking?.category?.name || draft.categoryName}</span>
-                    {booking?.service?.name || draft.serviceName ? <span className="text-xs font-semibold">{booking?.service?.name || draft.serviceName}</span> : null}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="lc-booking-flow-muted">Booking</span>
-                  <span className="font-bold capitalize text-black">{booking?.type?.toLowerCase() || 'scheduled'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="lc-booking-flow-muted">Date</span>
-                  <span className="font-bold text-black">
-                    {booking?.type === 'INSTANT' ? 'Today (ASAP)' : booking?.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="lc-booking-flow-muted">Time</span>
-                  <span className="font-bold text-black">
-                    {booking?.type === 'INSTANT' ? 'Earliest Available' : booking?.timeSlot || 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="lc-booking-flow-muted">Duration</span>
-                  <span className="font-bold text-black">
-                    {booking?.duration ? `${booking.duration} Hour${booking.duration > 1 ? 's' : ''}` : 'Few hours'}
-                  </span>
-                </div>
+              <div className="lc-booking-flow-card space-y-4 text-sm lc-booking-flow-body">
+                {completedBill.isContractorBooking ? (
+                  <div>
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <span className="font-extrabold text-slate-900 text-sm">Contractor Services Breakdown</span>
+                      <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        {completedBill.totalCompletedLabours} / {completedBill.totalRequestedLabours} Labours Completed
+                      </span>
+                    </div>
 
-                <p className="flex items-start gap-2 font-medium text-black">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
-                  {booking?.address?.locationText || 'N/A'}
-                </p>
+                    <div className="mt-3 space-y-3">
+                      {completedBill.serviceBreakdown.map((item, idx) => (
+                        <div key={item.serviceId || idx} className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-bold text-slate-900 text-sm">{item.name}</p>
+                              <p className="text-xs text-slate-500">
+                                ₹{item.pricePerHour}/hr × {item.bookingHours} hr(s)
+                                {item.extraHours > 0 && <span className="text-brand font-semibold"> + {item.extraHours} extra hr(s)</span>}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-black text-slate-900 text-sm">₹{item.completedAmount.toLocaleString('en-IN')}</p>
+                              {item.deductedAmount > 0 && (
+                                <p className="text-[10px] font-bold text-rose-600">-₹{item.deductedAmount.toLocaleString('en-IN')} cut</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">
+                            <span className="text-slate-600 font-medium">Labour Attendance:</span>
+                            {item.isFullyCompleted ? (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+                                <Check className="h-3 w-3" /> {item.completedQty} / {item.requestedQty} Completed
+                              </span>
+                            ) : item.isPartiallyCompleted ? (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                                <AlertCircle className="h-3 w-3" /> {item.completedQty} / {item.requestedQty} Completed ({item.pendingQty} Incomplete)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-800">
+                                ✕ 0 / {item.requestedQty} Completed (Unfulfilled)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-between gap-2">
+                    <span className="lc-booking-flow-muted">Service</span>
+                    <span className="text-right font-bold text-black">
+                      <span className="lc-booking-highlight-title block text-base">{booking?.category?.name || draft.categoryName}</span>
+                      {booking?.service?.name || draft.serviceName ? <span className="text-xs font-semibold">{booking?.service?.name || draft.serviceName}</span> : null}
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-2 pt-1">
+                  <div className="flex justify-between">
+                    <span className="lc-booking-flow-muted">Booking</span>
+                    <span className="font-bold capitalize text-black">{booking?.type?.toLowerCase() || 'scheduled'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="lc-booking-flow-muted">Date</span>
+                    <span className="font-bold text-black">
+                      {booking?.type === 'INSTANT' ? 'Today (ASAP)' : booking?.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="lc-booking-flow-muted">Time</span>
+                    <span className="font-bold text-black">
+                      {booking?.type === 'INSTANT' ? 'Earliest Available' : booking?.timeSlot || 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="lc-booking-flow-muted">Duration</span>
+                    <span className="font-bold text-black">
+                      {booking?.duration ? `${booking.duration} Hour${booking.duration > 1 ? 's' : ''}` : 'Few hours'}
+                    </span>
+                  </div>
+
+                  <p className="flex items-start gap-2 font-medium text-black pt-1">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
+                    {booking?.address?.locationText || 'N/A'}
+                  </p>
+                </div>
 
                 <div className="border-t border-slate-200 pt-3 mt-2">
                   <div className="flex justify-between font-semibold text-black">
                     <span className="flex flex-col">
-                      <span>Service fee</span>
-                      {((booking?.extraHours || 0) + (booking?.assignments || []).reduce((acc, a) => acc + (a.extraHours || 0), 0)) > 0 && (
-                        <span className="text-xs text-brand font-medium">Includes {((booking?.extraHours || 0) + (booking?.assignments || []).reduce((acc, a) => acc + (a.extraHours || 0), 0))} extra hour(s)</span>
+                      <span>{completedBill.isContractorBooking ? 'Completed Service Fee' : 'Service fee'}</span>
+                      {completedBill.extraHours > 0 && (
+                        <span className="text-xs text-brand font-medium">Includes {completedBill.extraHours} extra hour(s)</span>
                       )}
                     </span>
-                    <span>₹{booking?.basePrice?.toLocaleString('en-IN') || 0}</span>
+                    <span>₹{completedBill.completedBasePrice.toLocaleString('en-IN')}</span>
                   </div>
+
+                  {completedBill.isContractorBooking && completedBill.deductedBasePrice > 0 && (
+                    <div className="mt-1.5 flex justify-between text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-100">
+                      <span>Deductions (Unfulfilled / Pending)</span>
+                      <span>-₹{completedBill.deductedBasePrice.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+
                   <div className="mt-1 flex justify-between lc-booking-flow-muted">
                     <span>Platform fee</span>
-                    <span>₹{booking?.platformFee?.toLocaleString('en-IN') || 0}</span>
+                    <span>₹{completedBill.completedPlatformFee.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="flex justify-between lc-booking-flow-muted">
                     <span>Taxes</span>
-                    <span>₹{booking?.taxes?.toLocaleString('en-IN') || 0}</span>
+                    <span>₹{completedBill.completedTaxes.toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="mt-2 flex justify-between text-base font-extrabold text-black">
+                  <div className="mt-2 flex justify-between text-base font-extrabold text-black border-t border-slate-100 pt-2">
                     <span>Total</span>
-                    <span>₹{booking?.totalAmount?.toLocaleString('en-IN') || 0}</span>
+                    <span>₹{completedBill.completedTotalAmount.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </div>
@@ -1120,24 +1188,30 @@ export function IndividualBookingFlowPage() {
             <div className="lc-booking-flow-card text-sm lc-booking-flow-body">
               <div className="flex justify-between font-semibold">
                 <span className="flex flex-col">
-                  <span>Subtotal</span>
-                  {((booking?.extraHours || 0) + (booking?.assignments || []).reduce((acc, a) => acc + (a.extraHours || 0), 0)) > 0 && (
-                    <span className="text-xs text-brand font-medium">Includes {((booking?.extraHours || 0) + (booking?.assignments || []).reduce((acc, a) => acc + (a.extraHours || 0), 0))} extra hour(s)</span>
+                  <span>{completedBill.isContractorBooking ? 'Completed Subtotal' : 'Subtotal'}</span>
+                  {completedBill.extraHours > 0 && (
+                    <span className="text-xs text-brand font-medium">Includes {completedBill.extraHours} extra hour(s)</span>
                   )}
                 </span>
-                <span>{formatInr(booking?.basePrice || 0)}</span>
+                <span>{formatInr(completedBill.completedBasePrice)}</span>
               </div>
+              {completedBill.isContractorBooking && completedBill.deductedBasePrice > 0 && (
+                <div className="mt-1.5 flex justify-between text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-100">
+                  <span>Deductions (Unfulfilled slots)</span>
+                  <span>-₹{completedBill.deductedBasePrice.toLocaleString('en-IN')}</span>
+                </div>
+              )}
               <div className="mt-1 flex justify-between lc-booking-flow-muted">
                 <span>Platform fee</span>
-                <span>{formatInr(booking?.platformFee || 0)}</span>
+                <span>{formatInr(completedBill.completedPlatformFee)}</span>
               </div>
               <div className="mt-1 flex justify-between lc-booking-flow-muted">
                 <span>Taxes (GST)</span>
-                <span>{formatInr(booking?.taxes || 0)}</span>
+                <span>{formatInr(completedBill.completedTaxes)}</span>
               </div>
               <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 text-base font-extrabold text-black">
                 <span>Total</span>
-                <span>{formatInr(booking?.totalAmount || 0)}</span>
+                <span>{formatInr(completedBill.completedTotalAmount)}</span>
               </div>
             </div>
             <BookingPrimaryButton
