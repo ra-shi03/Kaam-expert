@@ -8,9 +8,9 @@ import {
 } from '../../../lib/labourCategoryDisplay.js'
 import { buildBookingFlowPath } from '../../../lib/bookingFlowNavigation.js'
 import { readBookingDraft, writeBookingDraft } from '../../../lib/individualBookingDraft.js'
+import allCategoryImg from '../../../assets/all-category.jpg'
 
-const ALL_TILE_IMAGE =
-  'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=400&q=70'
+const ALL_TILE_IMAGE = allCategoryImg
 
 const BTN_CONTINUE =
   'flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 text-sm font-bold text-white transition active:opacity-90 disabled:cursor-not-allowed disabled:opacity-45'

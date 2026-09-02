@@ -1,8 +1,8 @@
 import { Loader2 } from 'lucide-react'
 import { getGroupImageUrl } from '../../../lib/labourCategoryDisplay.js'
+import allCategoryImg from '../../../assets/all-category.jpg'
 
-const ALL_TILE_IMAGE =
-  'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=400&q=70'
+const ALL_TILE_IMAGE = allCategoryImg
 
 function CategoryTile({ label, imageSrc, active, onClick, onBrand }) {
   return (
