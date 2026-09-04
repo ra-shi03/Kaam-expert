@@ -315,7 +315,7 @@ export function IndividualHomeScreen({ user }) {
       </div>
 
       <section className="lc-individual-home-sheet space-y-6">
-        <div className="relative w-full overflow-hidden rounded-[1.25rem] bg-transparent shadow-sm flex items-center justify-center aspect-[21/9]">
+        <div className="relative w-full overflow-hidden rounded-[1.25rem] bg-transparent shadow-sm flex items-center justify-center aspect-[2/1]">
           {bannerLoading ? (
             <div className="w-full h-full bg-slate-100 animate-pulse" />
           ) : exploreBanner ? (

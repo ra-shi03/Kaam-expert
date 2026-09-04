@@ -55,6 +55,7 @@ import { bookingsApi } from '../../../api/bookingsApi.js'
 import { broadcastsApi } from '../../../api/broadcastsApi.js'
 import { withdrawalsApi } from '../../../api/withdrawalsApi.js'
 import { getPublicSettings } from '../../../api/adminSettingsApi.js'
+import { updateLabourSchedule } from '../../../api/userLabourApi.js'
 import { readWalletState, subscribeWallet } from '../../../lib/labourWalletStorage.js'
 import {
   buildEarningsGlance,
@@ -642,7 +643,6 @@ export function LabourHomeScreen({ user }) {
                     type="button"
                     onClick={async () => {
                       try {
-                        const { updateLabourSchedule } = await import('../../../api/userLabourApi.js')
                         await updateLabourSchedule(schedule)
                         showToast('Time schedule saved successfully')
                         setTimeManagementOpen(false)

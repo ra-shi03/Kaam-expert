@@ -4,6 +4,7 @@ import { buildGuestUser, clearBootRole, readBootRole, writeBootRole } from '../l
 import { clearSession, setCredentials } from '../store/slices/authSlice.js'
 import { baseApi } from '../store/api/baseApi.js'
 import { apiRequest } from '../api/http.js'
+import { registerFCMToken } from '../services/pushNotificationService.js'
 
 export function useAuth() {
   const dispatch = useDispatch()
@@ -58,12 +59,9 @@ export function useAuth() {
       setBootRoleState(null)
       dispatch(setCredentials({ accessToken, user: nextUser }))
       
-      // Register FCM token after session is set
-      import('../services/pushNotificationService.js').then(({ registerFCMToken }) => {
-        // We delay it slightly to ensure Redux state is updated first, 
-        // since registerFCMToken checks the store for auth token.
-        setTimeout(() => registerFCMToken(true).catch(console.error), 500)
-      }).catch(console.error)
+      // We delay it slightly to ensure Redux state is updated first, 
+      // since registerFCMToken checks the store for auth token.
+      setTimeout(() => registerFCMToken(true).catch(console.error), 500)
     },
     [dispatch],
   )

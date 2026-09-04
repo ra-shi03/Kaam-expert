@@ -27,6 +27,7 @@ import { GlassPanel } from '../../../components/ui/GlassPanel.jsx'
 import { fetchLabourCategoriesGrouped } from '../../../api/labourCategoriesApi.js'
 import { bookingsApi } from '../../../api/bookingsApi.js'
 import { paymentsApi } from '../../../api/paymentsApi.js'
+import { getPublicSettings } from '../../../api/adminSettingsApi.js'
 import { calculateCompletedBookingBill } from '../../../lib/completedBillingHelper.js'
 
 function loadRazorpay() {
@@ -347,13 +348,11 @@ export function IndividualBookingFlowPage() {
   
   useEffect(() => {
     let cancelled = false
-    import('../../../api/adminSettingsApi.js').then(({ getPublicSettings }) => {
-      getPublicSettings().then(res => {
-        if (!cancelled && res.data?.paymentModes) {
-          setPaymentModes(res.data.paymentModes)
-        }
-      }).catch(() => {})
-    })
+    getPublicSettings().then(res => {
+      if (!cancelled && res.data?.paymentModes) {
+        setPaymentModes(res.data.paymentModes)
+      }
+    }).catch(() => {})
     return () => { cancelled = true }
   }, [])
 
