@@ -312,12 +312,6 @@ export function AppShell() {
                 ))}
               </nav>
               <div className="border-t border-slate-200/70 bg-linear-to-t from-slate-50/50 to-white p-3">
-                <Link
-                  to="/"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200/90 bg-white py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand/25 hover:text-brand"
-                >
-                  Visit website
-                </Link>
                 {isGuest ? (
                   <Link
                     to="/auth"
@@ -331,8 +325,9 @@ export function AppShell() {
                   <button
                     type="button"
                     onClick={() => {
+                      const role = user?.role
                       logout()
-                      navigate('/auth', { replace: true })
+                      navigate(role === USER_ROLES.LABOUR ? '/labours/auth' : '/users/auth', { replace: true })
                     }}
                     className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200/90 bg-rose-50 py-3 text-sm font-semibold text-rose-800 shadow-sm transition hover:bg-rose-50/90"
                   >

@@ -80,7 +80,7 @@ function AuthField({ label, hint, children }) {
 const inputClass =
   'w-full rounded-full border border-slate-100 bg-slate-50 px-5 py-3 text-[15px] font-medium text-slate-900 outline-none transition focus:border-brand/30 focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400'
 
-export function AuthEntryPage() {
+export function AuthEntryPage({ authGroup = 'users' }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { applySession } = useAuth()
@@ -90,7 +90,8 @@ export function AuthEntryPage() {
 
   const [mode, setMode] = useState('login')
   const [step, setStep] = useState('form')
-  const [role, setRole] = useState(location.state?.defaultRole || USER_ROLES.CUSTOMER)
+  const allowedRoles = authGroup === 'labours' ? [USER_ROLES.LABOUR] : [USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]
+  const [role, setRole] = useState(location.state?.defaultRole && allowedRoles.includes(location.state.defaultRole) ? location.state.defaultRole : allowedRoles[0])
   const [phone, setPhone] = useState('')
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
@@ -172,7 +173,7 @@ export function AuthEntryPage() {
     setBusy(true)
     try {
       if (mode === 'login') {
-        const res = await requestLoginOtp({ phone: p })
+        const res = await requestLoginOtp({ phone: p, authGroup })
         setChallengeId(res.data?.challengeId ?? null)
       } else {
         const res = await requestRegisterOtp({
@@ -349,31 +350,45 @@ export function AuthEntryPage() {
               {mode === 'register' ? (
                 <div className="shrink-0 mb-4">
                   <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">I am a</p>
-                  <div className="flex gap-3">
-                    {ROLE_OPTIONS.map((opt) => {
-                      const Icon = opt.icon
-                      const active = role === opt.role
-                      return (
-                        <button
-                          key={opt.role}
-                          type="button"
-                          onClick={() => setRole(opt.role)}
-                          className={`flex flex-col flex-1 items-center justify-center gap-2 rounded-2xl border px-2 py-3.5 text-center transition active:scale-[0.99] ${active
-                            ? 'border-brand/30 bg-brand/5 ring-1 ring-brand/20'
-                            : 'border-slate-100 bg-slate-50 hover:border-brand/20'
-                            }`}
+                  {authGroup === 'users' && (
+                    <div className="space-y-3">
+                      {ROLE_OPTIONS.filter(r => allowedRoles.includes(r.role)).map((r) => (
+                        <label
+                          key={r.role}
+                          className={`flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition-all ${
+                            role === r.role
+                              ? 'border-brand bg-brand/5 shadow-[0_4px_12px_rgba(0,0,0,0.05)] ring-1 ring-brand'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
                         >
-                          <span
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${active ? 'bg-brand text-white shadow-sm shadow-brand/20' : 'bg-white text-slate-400 ring-1 ring-slate-200/60'
+                          <div className="pt-1">
+                            <div
+                              className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                                role === r.role ? 'border-brand bg-brand' : 'border-slate-300'
                               }`}
-                          >
-                            <Icon className="h-5 w-5" aria-hidden />
-                          </span>
-                          <span className={`block text-[12px] font-bold ${active ? 'text-brand' : 'text-slate-700'}`}>{ROLE_LABELS[opt.role]}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                            >
+                              {role === r.role && <div className="h-2 w-2 rounded-full bg-white" />}
+                            </div>
+                          </div>
+                          <input
+                            type="radio"
+                            className="hidden"
+                            name="role"
+                            value={r.role}
+                            checked={role === r.role}
+                            onChange={() => setRole(r.role)}
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 text-[15px] font-bold text-slate-900">
+                              <r.icon className="h-4 w-4 text-brand" />
+                              {ROLE_LABELS[r.role]}
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">{r.desc}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : null}
 

@@ -432,22 +432,24 @@ export function AppProfilePage() {
   }, [user, dispatch])
 
   const handleSignOut = async () => {
+    const role = user?.role
     await logout()
-    navigate('/auth', { replace: true })
+    navigate(role === USER_ROLES.LABOUR ? '/labours/auth' : '/users/auth', { replace: true })
   }
 
   const handleDeleteAccount = useCallback(async () => {
     setDeletingAccount(true)
     setDeleteErr('')
     try {
+      const role = user?.role
       await deleteCurrentUser()
       await logout()
-      navigate('/auth', { replace: true })
+      navigate(role === USER_ROLES.LABOUR ? '/labours/auth' : '/users/auth', { replace: true })
     } catch (err) {
       setDeleteErr(err instanceof ApiError ? err.message : 'Could not delete account')
       setDeletingAccount(false)
     }
-  }, [logout, navigate])
+  }, [logout, navigate, user?.role])
 
   const quickLinks = []
   quickLinks.push({ to: '/app', icon: Home, label: 'Home' })

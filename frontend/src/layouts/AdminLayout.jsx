@@ -178,20 +178,7 @@ export function AdminLayout() {
         ))}
       </nav>
 
-      <div
-        className={`relative shrink-0 border-t border-white/15 bg-transparent p-2 ${collapsed ? 'md:px-1.5' : ''}`}
-      >
-        <a
-          href="/"
-          className={`flex items-center gap-3 rounded-xl py-2.5 text-sm font-semibold text-blue-100 transition-all duration-200 hover:bg-white/15 hover:text-white active:scale-95 ${collapsed ? 'md:justify-center' : 'px-3'}`}
-          title="Public site"
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-blue-100 transition-colors duration-200 group-hover:text-white group-hover:bg-white/20">
-            <ExternalLink className="h-4 w-4" aria-hidden />
-          </span>
-          <span className={`${collapsed ? 'md:sr-only' : ''}`}>Public site</span>
-        </a>
-      </div>
+
     </>
   )
 
@@ -352,11 +339,13 @@ export function AdminLayout() {
                         <button
                           type="button"
                           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                          onClick={() => setProfileOpen(false)}
+                          onClick={() => {
+                            setProfileOpen(false)
+                            navigate('/admin/profile')
+                          }}
                         >
                           <User className="h-4 w-4 text-slate-400" aria-hidden />
                           Profile settings
-                          <span className="ml-auto text-[10px] font-bold uppercase text-slate-400">Soon</span>
                         </button>
                         <button
                           type="button"

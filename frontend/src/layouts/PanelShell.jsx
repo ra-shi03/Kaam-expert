@@ -132,17 +132,12 @@ export function PanelShell({
                 ))}
               </nav>
               <div className="border-t border-slate-200/70 p-3">
-                <Link
-                  to="/"
-                  className="flex w-full items-center justify-center rounded-xl border border-slate-200/90 bg-white py-3 text-sm font-semibold text-slate-700"
-                >
-                  Visit website
-                </Link>
                 <button
                   type="button"
                   onClick={() => {
+                    const role = user?.role
                     logout()
-                    navigate('/auth', { replace: true })
+                    navigate(role === USER_ROLES.LABOUR ? '/labours/auth' : '/users/auth', { replace: true })
                   }}
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200/90 bg-rose-50 py-3 text-sm font-semibold text-rose-800"
                 >

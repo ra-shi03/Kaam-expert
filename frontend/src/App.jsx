@@ -69,8 +69,9 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           {bootRoutes}
-          <Route path="/auth" element={<AuthEntryPage />} />
-
+          <Route path="/auth" element={<Navigate to="/users/auth" replace />} />
+          <Route path="/users/auth" element={<AuthEntryPage authGroup="users" />} />
+          <Route path="/labours/auth" element={<AuthEntryPage authGroup="labours" />} />
           <Route
             path="/app"
             element={

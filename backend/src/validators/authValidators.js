@@ -4,6 +4,12 @@ import { normalizeIndianPhone } from '../utils/phone.js'
 
 const appRegisterRoles = ROLE_LIST.filter((r) => r !== USER_ROLES.ADMIN)
 
+export const validateAuthGroup = body('authGroup')
+  .optional()
+  .trim()
+  .isIn(['users', 'labours'])
+  .withMessage("authGroup must be 'users' or 'labours'")
+
 export const validatePhoneBody = body('phone')
   .trim()
   .notEmpty()

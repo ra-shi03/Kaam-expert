@@ -17,13 +17,28 @@ function buildAuthPayload(user, token) {
 
 /** POST /auth/register/request-otp */
 export const registerRequestOtp = asyncHandler(async (req, res) => {
-  const { phone, role } = req.body
+  const { phone, role, authGroup } = req.body
   const existing = await User.findOne({ phone })
   if (existing) {
     return sendError(res, {
       message: 'An account with this phone already exists. Please login.',
       statusCode: HTTP_STATUS.CONFLICT,
       code: 'USER_EXISTS',
+    })
+  }
+
+  if (authGroup === 'users' && role === USER_ROLES.LABOUR) {
+    return sendError(res, {
+      message: 'Please register using the Labour app.',
+      statusCode: HTTP_STATUS.FORBIDDEN,
+      code: 'WRONG_PORTAL',
+    })
+  }
+  if (authGroup === 'labours' && role !== USER_ROLES.LABOUR) {
+    return sendError(res, {
+      message: 'Please register using the User app.',
+      statusCode: HTTP_STATUS.FORBIDDEN,
+      code: 'WRONG_PORTAL',
     })
   }
   const { challengeId } = await createOtpChallenge(phone, 'register')
@@ -102,13 +117,28 @@ export const registerVerify = asyncHandler(async (req, res) => {
 
 /** POST /auth/login/request-otp */
 export const loginRequestOtp = asyncHandler(async (req, res) => {
-  const { phone } = req.body
+  const { phone, authGroup } = req.body
   const user = await User.findOne({ phone })
   if (!user) {
     return sendError(res, {
       message: 'No account found for this number. Please register.',
       statusCode: HTTP_STATUS.NOT_FOUND,
       code: 'USER_NOT_FOUND',
+    })
+  }
+
+  if (authGroup === 'users' && user.role === USER_ROLES.LABOUR) {
+    return sendError(res, {
+      message: 'Please log in using the Labour app.',
+      statusCode: HTTP_STATUS.FORBIDDEN,
+      code: 'WRONG_PORTAL',
+    })
+  }
+  if (authGroup === 'labours' && user.role !== USER_ROLES.LABOUR) {
+    return sendError(res, {
+      message: 'Please log in using the User app.',
+      statusCode: HTTP_STATUS.FORBIDDEN,
+      code: 'WRONG_PORTAL',
     })
   }
   if (!user.isActive) {

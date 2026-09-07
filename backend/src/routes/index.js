@@ -28,6 +28,7 @@ import adminBookingRoutes from './adminBookingRoutes.js'
 import adminSubscriptionRoutes from './adminSubscriptionRoutes.js'
 import policyRoutes from './policyRoutes.js'
 import fcmTokenRoutes from './fcmTokenRoutes.js'
+import adminProfileRoutes from './adminProfileRoutes.js'
 
 const router = Router()
 
@@ -58,6 +59,7 @@ router.use('/admin/banners', adminBannerRoutes)
 router.use('/admin/reports', adminReportsRoutes)
 router.use('/admin/bookings', adminBookingRoutes)
 router.use('/admin/labour-subscriptions', adminSubscriptionRoutes)
+router.use('/admin/profile', adminProfileRoutes)
 router.use('/admin', adminLabourCategoryRoutes)
 
 router.use('/labour/location', locationRoutes)

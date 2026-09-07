@@ -1,18 +1,19 @@
-import axios from 'axios';
-
-const api = axios.create({
-  baseURL: '/api/v1/admin',
-  withCredentials: true,
-});
+import { apiRequest } from './http.js';
 
 export const getAdminProfile = async () => {
-  return api.get('/profile');
+  return apiRequest('/admin/profile', { method: 'GET' });
 };
 
 export const updateAdminProfile = async (payload) => {
-  return api.patch('/profile', payload);
+  return apiRequest('/admin/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 };
 
 export const changeAdminPassword = async (payload) => {
-  return api.patch('/profile/password', payload);
+  return apiRequest('/admin/profile/password', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 };
