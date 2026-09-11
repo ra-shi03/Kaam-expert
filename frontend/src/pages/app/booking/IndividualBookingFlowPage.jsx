@@ -604,6 +604,11 @@ export function IndividualBookingFlowPage() {
         order_id: order.id,
         name: 'KaamExpert',
         description: `Payment for Booking`,
+        prefill: {
+          name: realUser?.fullName || '',
+          contact: realUser?.phone || '',
+          email: realUser?.email || ''
+        },
         handler: async function (response) {
           try {
             await paymentsApi.verifyPayment({
@@ -979,17 +984,17 @@ export function IndividualBookingFlowPage() {
                 </ol>
               </div>
 
-              {booking.status !== 'COMPLETED' && booking.startOtp && (
+              {booking.status !== 'COMPLETED' && (booking.assignments?.[0]?.startOtp || booking.startOtp) && (
                 <div className="lc-booking-flow-card">
                   <p className="lc-booking-flow-label mb-2">Security OTPs</p>
                   <div className="flex gap-4">
                     <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
                       <p className="text-[10px] text-slate-500 font-semibold">Start OTP</p>
-                      <p className="text-xl font-black text-slate-800 tracking-widest">{booking.startOtp}</p>
+                      <p className="text-xl font-black text-slate-800 tracking-widest">{booking.assignments?.[0]?.startOtp || booking.startOtp}</p>
                     </div>
                     <div className="flex-1 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
                       <p className="text-[10px] text-slate-500 font-semibold">Completion OTP</p>
-                      <p className="text-xl font-black text-slate-800 tracking-widest">{booking.completionOtp}</p>
+                      <p className="text-xl font-black text-slate-800 tracking-widest">{booking.assignments?.[0]?.completionOtp || booking.completionOtp}</p>
                     </div>
                   </div>
                 </div>

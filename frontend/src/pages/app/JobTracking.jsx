@@ -17,7 +17,7 @@ import { useSocket } from '../../context/SocketContext.jsx'
 import { setActiveBooking, updateBookingStatus as updateBookingStatusAction, clearActiveBooking } from '../../store/slices/activeBookingSlice.js'
 import { AppStackScreenHeader } from '../../components/app/AppStackScreenHeader.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
-import { ReviewModal } from '../../components/app/ReviewModal.jsx'
+import { BookingReviewModal } from '../../components/app/booking/BookingReviewModal.jsx'
 
 const BOOKING_STEPS = [
   { id: 'CREATED', label: 'Booking Created' },
@@ -336,10 +336,13 @@ export function JobTracking() {
       ) : null}
 
       {/* Review Modal */}
-      <ReviewModal
+      <BookingReviewModal
         open={showReview}
         bookingId={bookingId}
+        workerName={booking?.laborId?.fullName || booking?.laborId?.name || booking?.assignments?.[0]?.labourId?.fullName || ''}
+        revieweeId={booking?.laborId?._id || booking?.assignments?.[0]?.labourId?._id}
         onClose={handleReviewClose}
+        onSubmitted={() => setShowReview(false)}
       />
     </div>
   )

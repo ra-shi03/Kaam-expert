@@ -21,12 +21,12 @@ export function BroadcastPopup() {
   const [error, setError] = useState('')
   const [selectedServiceId, setSelectedServiceId] = useState(null)
 
-  // Only render for labour users
-  const isLabour = user?.role === USER_ROLES.LABOUR || user?.role === 'labour'
+  // Only render for labour and contractor users
+  const isWorkerOrContractor = user?.role === USER_ROLES.LABOUR || user?.role === 'labour' || user?.role === USER_ROLES.CONTRACTOR || user?.role === 'contractor'
 
   // Listen for broadcast events
   useEffect(() => {
-    if (!socket || !isLabour) return
+    if (!socket || !isWorkerOrContractor) return
 
     const handleBroadcast = (data) => {
       const timeout = Math.floor((data.timeoutMs || 30000) / 1000)
@@ -47,7 +47,7 @@ export function BroadcastPopup() {
       socket.off('BOOKING_RECEIVED', handleBroadcast)
       socket.off('BOOKING_EXPIRED', handleExpired)
     }
-  }, [socket, isLabour])
+  }, [socket, isWorkerOrContractor])
 
   // Countdown timer
   useEffect(() => {
@@ -108,7 +108,7 @@ export function BroadcastPopup() {
     }
   }, [incoming])
 
-  if (!isLabour) return null
+  if (!isWorkerOrContractor) return null
 
   const services = incoming?.services || []
   const requiresSelection = incoming?.requiresServiceSelection && services.length > 1

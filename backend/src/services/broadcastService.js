@@ -154,7 +154,8 @@ export async function startBroadcastCycle(bookingId) {
 
     const activeSub = await UserSubscription.findOne({
       labour: labor._id,
-      date: today,
+      date: { $lte: today },
+      endDate: { $gte: today },
       status: 'active'
     })
     

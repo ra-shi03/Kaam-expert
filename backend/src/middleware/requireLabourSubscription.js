@@ -43,7 +43,8 @@ export const requireLabourSubscription = async (req, res, next) => {
   const today = now.toISOString().split('T')[0]
   const activeSub = await UserSubscription.findOne({
     labour: req.user._id,
-    date: today,
+    date: { $lte: today },
+    endDate: { $gte: today },
     status: 'active'
   })
 
