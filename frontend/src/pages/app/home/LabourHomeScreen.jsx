@@ -362,7 +362,7 @@ export function LabourHomeScreen({ user }) {
       ) : null}
 
       {/* 1. Header */}
-      <section className="relative px-4 pb-2 pt-[max(0.35rem,env(safe-area-inset-top,0px))]">
+      <section className="relative px-4 pb-2 pt-2">
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -382,7 +382,7 @@ export function LabourHomeScreen({ user }) {
           />
 
           <motion.div className="relative p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={openDrawer}
@@ -391,49 +391,53 @@ export function LabourHomeScreen({ user }) {
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <button
-                type="button"
-                onClick={() => navigate('/app/notifications')}
-                className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20"
-                aria-label={
-                  notifications.unreadCount > 0
-                    ? `Notifications, ${notifications.unreadCount} unread`
-                    : 'Notifications'
-                }
-              >
-                <Bell className="h-5 w-5" />
-                {notifications.unreadCount > 0 ? (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-md ring-2 ring-slate-900/80">
-                    {notifications.unreadCount > 9 ? '9+' : notifications.unreadCount}
-                  </span>
-                ) : null}
-              </button>
+
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate('/app/notifications')}
+                  className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20"
+                  aria-label={
+                    notifications.unreadCount > 0
+                      ? `Notifications, ${notifications.unreadCount} unread`
+                      : 'Notifications'
+                  }
+                >
+                  <Bell className="h-5 w-5" />
+                  {notifications.unreadCount > 0 ? (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-md ring-2 ring-slate-900/80">
+                      {notifications.unreadCount > 9 ? '9+' : notifications.unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                <Link
+                  to="/app/profile"
+                  className="relative shrink-0 rounded-xl p-0.5 ring-2 ring-white/40 transition hover:ring-white/70"
+                  aria-label="Open profile"
+                >
+                  {profileImageUrl ? (
+                    <img
+                      src={profileImageUrl}
+                      alt=""
+                      className="h-10 w-10 rounded-[0.6rem] object-cover sm:h-11 sm:w-11 sm:rounded-xl"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className="flex h-10 w-10 items-center justify-center rounded-[0.6rem] bg-white/15 text-sm font-black sm:h-11 sm:w-11 sm:rounded-xl sm:text-base">
+                      {initials}
+                    </span>
+                  )}
+                  {kycOk ? (
+                    <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand text-white ring-2 ring-slate-900">
+                      <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden />
+                    </span>
+                  ) : null}
+                </Link>
+              </div>
             </div>
 
             <div className="mt-4 flex items-stretch gap-2.5 sm:gap-3">
-              <Link
-                to="/app/profile"
-                className="relative shrink-0 self-center rounded-2xl p-0.5 ring-2 ring-white/40 transition hover:ring-white/70"
-                aria-label="Open profile"
-              >
-                {profileImageUrl ? (
-                  <img
-                    src={profileImageUrl}
-                    alt=""
-                    className="h-14 w-14 rounded-[0.85rem] object-cover sm:h-16 sm:w-16 sm:rounded-[0.9rem]"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span className="flex h-14 w-14 items-center justify-center rounded-[0.85rem] bg-white/15 text-lg font-black sm:h-16 sm:w-16 sm:rounded-[0.9rem] sm:text-xl">
-                    {initials}
-                  </span>
-                )}
-                {kycOk ? (
-                  <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-brand text-white ring-2 ring-slate-900 sm:h-6 sm:w-6">
-                    <Check className="h-3 w-3 sm:h-3.5 sm:w-3.5" strokeWidth={3} aria-hidden />
-                  </span>
-                ) : null}
-              </Link>
 
               <div className="flex min-w-0 flex-1 flex-col justify-center">
                 <p className="text-[11px] font-semibold text-white/75">
