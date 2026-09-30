@@ -7,6 +7,12 @@ const router = Router()
 
 router.use(protect)
 
+router.get(
+  '/pending',
+  restrictTo(USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR),
+  broadcast.getPendingBroadcasts,
+)
+
 // Only Labourers/Contractors can interact with broadcasts directly
 router.post(
   '/:bookingId/accept',

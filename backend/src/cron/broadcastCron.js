@@ -7,40 +7,54 @@ import { User } from '../models/User.js'
 import { SystemSetting } from '../models/SystemSetting.js'
 
 export function initBroadcastCron() {
-  // Run every minute
-  cron.schedule('* * * * *', async () => {
+  // Run every 30 seconds for precise 1-hour broadcast triggering
+  cron.schedule('*/30 * * * * *', async () => {
     try {
       const now = new Date()
-      // Clean up stuck BROADCASTING bookings
-      // If a booking has been BROADCASTING for more than 10 minutes, mark as FAILED
-      const tenMinsAgo = new Date(now.getTime() - 10 * 60 * 1000)
-      await Booking.updateMany(
-        { status: 'BROADCASTING', updatedAt: { $lt: tenMinsAgo } },
+      console.log(`[CRON] Tick at ${now.toISOString()}`)
+
+      // Clean up stuck BROADCASTING bookings.
+      // Instant flash offers expire in 5 min — only fail those after 7 min.
+      // Scheduled bulk/customer jobs stay BROADCASTING until the job start time.
+      const sevenMinsAgo = new Date(now.getTime() - 7 * 60 * 1000)
+      const fiveMinsAgo = new Date(now.getTime() - 5 * 60 * 1000)
+      
+      const stuck = await Booking.updateMany(
+        {
+          status: 'BROADCASTING',
+          $or: [
+            { type: 'INSTANT', updatedAt: { $lt: sevenMinsAgo } },
+            { type: { $exists: false }, updatedAt: { $lt: sevenMinsAgo } }, // default INSTANT
+            { type: 'SCHEDULED', scheduledAt: { $lt: fiveMinsAgo } },
+          ],
+        },
         { $set: { status: 'FAILED' } }
       )
+      if (stuck.modifiedCount > 0) {
+        console.log(`[CRON] Marked ${stuck.modifiedCount} stuck BROADCASTING booking(s) as FAILED`)
+      }
 
-      // 61 mins from now (gives a 1-minute buffer so it reliably triggers before or exactly at the 1-hour mark)
-      const sixtyMinsFromNow = new Date(now.getTime() + 61 * 60 * 1000)
+      // Trigger at exactly 1 hour before scheduledAt
+      const oneHourWindow = new Date(now.getTime() + 60 * 60 * 1000)
       
-      // Find all scheduled bookings that are in CREATED status
-      // where the scheduledAt is <= exactly 60 mins from now, but > now
-      // This means the job is supposed to start in 60 mins (1 hour) or less.
+      // CREATED scheduled bookings whose start is within the next hour (or up to 5 min overdue)
       const bookingsToBroadcast = await Booking.find({
         type: 'SCHEDULED',
         status: 'CREATED',
         scheduledAt: { 
-          $lte: sixtyMinsFromNow,
-          $gt: new Date(now.getTime() - 12 * 60 * 60 * 1000) // Ensure we don't pick up severely outdated ones, but allow immediate timeslots
+          $lte: oneHourWindow,
+          $gte: new Date(now.getTime() - 30 * 60 * 1000)
         }
       })
 
-      if (bookingsToBroadcast.length > 0) {
-        console.log(`[CRON] Found ${bookingsToBroadcast.length} scheduled bookings to broadcast.`)
+      console.log(`[CRON] Scanning for scheduled bookings to broadcast within 60 mins: found ${bookingsToBroadcast.length}`)
+      for (const booking of bookingsToBroadcast) {
+        const minsUntilBooking = Math.round((new Date(booking.scheduledAt) - now) / 60000)
+        console.log(`[CRON] -> Booking ${booking._id} scheduledAt=${booking.scheduledAt} (in ${minsUntilBooking} min), status=${booking.status}`)
       }
 
       for (const booking of bookingsToBroadcast) {
-        console.log(`[CRON] Broadcasting scheduled booking ${booking._id} scheduled for ${booking.scheduledAt}`)
-        // The broadcast service will change status to BROADCASTING internally
+        console.log(`[CRON] Triggering broadcast for scheduled booking ${booking._id} (scheduledAt=${booking.scheduledAt})`)
         await startBroadcastCycle(booking._id).catch(err => {
           console.error(`[CRON] Failed to broadcast booking ${booking._id}:`, err)
         })

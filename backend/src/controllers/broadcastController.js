@@ -1,7 +1,9 @@
 import { Booking } from '../models/Booking.js'
+import { BroadcastLog } from '../models/BroadcastLog.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import { KYC_STATUS } from '../constants/roles.js'
+import { getBroadcastTimeoutMs } from '../services/broadcastService.js'
 
 /**
  * Validate that labour can receive/accept bookings.
@@ -223,6 +225,11 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
 
   await booking.save()
 
+  await BroadcastLog.findOneAndUpdate(
+    { bookingId: booking._id, laborId: labour._id },
+    { $set: { status: 'ACCEPTED', respondedAt: new Date() } }
+  )
+
   // Increment subscription bookingsAccepted count
   if (accessCheck.subscription) {
     const { UserSubscription } = await import('../models/UserSubscription.js')
@@ -267,6 +274,11 @@ export const rejectBroadcast = asyncHandler(async (req, res) => {
   if (!booking) {
     return sendSuccess(res, { message: 'Booking already handled or no longer broadcasting' })
   }
+
+  await BroadcastLog.findOneAndUpdate(
+    { bookingId: booking._id, laborId: labour._id },
+    { $set: { status: 'REJECTED', respondedAt: new Date() } }
+  )
 
   // Track booking opportunities offered to this labour (even if rejected)
   // Per spec: a booking offered but rejected still counts as an opportunity
@@ -316,4 +328,50 @@ export const rejectBroadcast = asyncHandler(async (req, res) => {
   }
 
   return sendSuccess(res, { message: 'Booking rejected successfully' })
+})
+
+export const getPendingBroadcasts = asyncHandler(async (req, res) => {
+  const logs = await BroadcastLog.find({
+    laborId: req.user._id,
+    status: { $in: ['PENDING', 'pending'] },
+  }).sort({ createdAt: -1 }).lean()
+
+  if (!logs.length) {
+    return sendSuccess(res, { data: { offers: [] } })
+  }
+
+  const bookingIds = logs.map((l) => l.bookingId)
+  const bookings = await Booking.find({
+    _id: { $in: bookingIds },
+    status: 'BROADCASTING',
+  }).select('_id type scheduledAt').lean()
+
+  const liveById = {}
+  bookings.forEach((b) => {
+    liveById[String(b._id)] = b
+  })
+
+  // Cleanup stale logs whose bookings are no longer broadcasting
+  const staleBookingIds = bookingIds.filter((id) => !liveById[String(id)])
+  if (staleBookingIds.length > 0) {
+    BroadcastLog.updateMany(
+      { laborId: req.user._id, bookingId: { $in: staleBookingIds }, status: { $in: ['PENDING', 'pending'] } },
+      { $set: { status: 'TIMEOUT' } }
+    ).catch((e) => console.error('Failed to cleanup stale broadcast logs:', e))
+  }
+
+  const offers = logs
+    .filter((l) => liveById[String(l.bookingId)])
+    .map((l) => {
+      const booking = liveById[String(l.bookingId)]
+      return {
+        ...(l.payload || {}),
+        bookingId: l.bookingId,
+        type: l.payload?.type || booking.type,
+        scheduledAt: l.payload?.scheduledAt || booking.scheduledAt,
+        timeoutMs: getBroadcastTimeoutMs(booking),
+      }
+    })
+
+  return sendSuccess(res, { data: { offers } })
 })

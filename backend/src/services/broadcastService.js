@@ -6,8 +6,18 @@ import { getRoadDistances } from '../utils/googleMapsDistance.js'
 import { UserSubscription } from '../models/UserSubscription.js'
 import { Review } from '../models/Review.js'
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
+import { emitToUser, getIo } from '../socket.js'
+import { LabourService } from '../models/LabourService.js'
 
 export const BROADCAST_TIMEOUT_MS = 300000 // 5 minutes flash broadcast timeout
+
+export function getBroadcastTimeoutMs(booking) {
+  if (booking?.type === 'SCHEDULED' && booking.scheduledAt) {
+    const remaining = new Date(booking.scheduledAt).getTime() - Date.now()
+    return Math.max(60 * 1000, remaining + 2 * 60 * 1000)
+  }
+  return BROADCAST_TIMEOUT_MS
+}
 
 /**
  * Starts the flash broadcast for a new booking based on a radius zone.
@@ -105,7 +115,7 @@ export async function startBroadcastCycle(bookingId) {
 
   const targetDate = (booking.type === 'SCHEDULED' && booking.scheduledAt) ? new Date(booking.scheduledAt) : new Date()
   const { day: targetDayName, timeStr: currentIstTimeStr } = getIstDayAndTime(targetDate)
-  const targetStartTimeStr = to24Hour(booking.timeSlot) || currentIstTimeStr
+  const targetStartTimeStr = currentIstTimeStr
   const targetEndTimeStr = to24Hour(booking.endTime)
 
   const potentialLaborers = potentialLaborersRaw.filter(labor => {
@@ -250,150 +260,179 @@ export async function startBroadcastCycle(bookingId) {
   console.log(`Flash broadcasting Booking ${booking._id} to ${eligibleLaborers.length} laborers`)
 
   // Notify customer
-  import('../socket.js').then(({ emitToUser }) => {
-    emitToUser(booking.userId, 'BOOKING_BROADCAST_STARTED', { 
-      bookingId: booking._id,
-      radiusKm: radiusKm,
-      eligibleCount: eligibleLaborers.length
+  emitToUser(booking.userId, 'BOOKING_BROADCAST_STARTED', { 
+    bookingId: booking._id,
+    radiusKm: radiusKm,
+    eligibleCount: eligibleLaborers.length
+  })
+
+  // Pre-fetch service names for all contractor services
+  let serviceNameMap = {}
+  let singleServiceName = 'Requested Service'
+
+  if (booking.contractorInfo?.services?.length > 0) {
+    const svcDocs = await LabourService.find({
+      _id: { $in: booking.contractorInfo.services.map(s => s.serviceId) }
+    }).select('_id name').lean()
+    svcDocs.forEach(s => { serviceNameMap[String(s._id)] = s.name })
+  } else {
+    const service = await LabourService.findById(booking.serviceId).select('name').lean()
+    if (service) singleServiceName = service.name
+  }
+
+  // Count current open slots per service
+  const currentAssignments = booking.assignments || []
+  const openSlotsMap = {}
+  if (booking.contractorInfo?.services?.length > 0) {
+    booking.contractorInfo.services.forEach(s => {
+      const filled = currentAssignments.filter(a => String(a.serviceId) === String(s.serviceId)).length
+      openSlotsMap[String(s.serviceId)] = Math.max(0, (s.quantity || 1) - filled)
     })
+  }
 
-    // Notify all eligible laborers
-    const laborUpdates = []
+  const laborUpdates = []
+  const timeoutMs = getBroadcastTimeoutMs(booking)
+  const bookingType = booking.type || (booking.scheduledAt ? 'SCHEDULED' : 'INSTANT')
 
-    import('../models/LabourService.js').then(async ({ LabourService }) => {
-      // Pre-fetch service names for all contractor services
-      let serviceNameMap = {}
-      let singleServiceName = 'Requested Service'
+  for (const labor of eligibleLaborers) {
+    const laborServiceIds = labor.labourProfile?.serviceIds?.map(id => String(id)) || []
+    const bookingHours = booking.duration || booking.hours || 1
 
-      if (booking.contractorInfo?.services?.length > 0) {
-        const svcDocs = await LabourService.find({
-          _id: { $in: booking.contractorInfo.services.map(s => s.serviceId) }
-        }).select('_id name').lean()
-        svcDocs.forEach(s => { serviceNameMap[String(s._id)] = s.name })
-      } else {
-        const service = await LabourService.findById(booking.serviceId).select('name').lean()
-        if (service) singleServiceName = service.name
-      }
-
-      // Count current open slots per service
-      const currentAssignments = booking.assignments || []
-      const openSlotsMap = {}
-      if (booking.contractorInfo?.services?.length > 0) {
-        booking.contractorInfo.services.forEach(s => {
-          const filled = currentAssignments.filter(a => String(a.serviceId) === String(s.serviceId)).length
-          openSlotsMap[String(s.serviceId)] = Math.max(0, (s.quantity || 1) - filled)
+    if (booking.contractorInfo?.services?.length > 0) {
+      // Find open services that match this labourer's skills
+      const matchingOpenServices = booking.contractorInfo.services
+        .filter(s => {
+          const isOpen = openSlotsMap[String(s.serviceId)] > 0
+          const hasSkill = laborServiceIds.includes(String(s.serviceId))
+          return isOpen && hasSkill
         })
-      }
+        .map(s => {
+          const sId = String(s.serviceId)
+          const labourShare = Math.round((s.price || 0) * bookingHours * 0.90)
+          return {
+            serviceId: sId,
+            name: serviceNameMap[sId] || 'Service',
+            pricePerHour: s.price || 0,
+            estimatedEarnings: labourShare,
+            openSlots: openSlotsMap[sId] || 0
+          }
+        })
 
-      eligibleLaborers.forEach(labor => {
-        const laborServiceIds = labor.labourProfile?.serviceIds?.map(id => String(id)) || []
-        const bookingHours = booking.duration || booking.hours || 1
-
-        if (booking.contractorInfo?.services?.length > 0) {
-          // Find open services that match this labourer's skills
-          const matchingOpenServices = booking.contractorInfo.services
-            .filter(s => {
-              const isOpen = openSlotsMap[String(s.serviceId)] > 0
-              const hasSkill = laborServiceIds.includes(String(s.serviceId))
-              return isOpen && hasSkill
-            })
+      // Fall back to all open services if no skill match
+      const servicesPayload = matchingOpenServices.length > 0
+        ? matchingOpenServices
+        : booking.contractorInfo.services
+            .filter(s => openSlotsMap[String(s.serviceId)] > 0)
             .map(s => {
               const sId = String(s.serviceId)
-              const labourShare = Math.round((s.price || 0) * bookingHours * 0.90)
               return {
                 serviceId: sId,
                 name: serviceNameMap[sId] || 'Service',
                 pricePerHour: s.price || 0,
-                estimatedEarnings: labourShare,
+                estimatedEarnings: Math.round((s.price || 0) * bookingHours * 0.90),
                 openSlots: openSlotsMap[sId] || 0
               }
             })
 
-          // Fall back to all open services if no skill match
-          const servicesPayload = matchingOpenServices.length > 0
-            ? matchingOpenServices
-            : booking.contractorInfo.services
-                .filter(s => openSlotsMap[String(s.serviceId)] > 0)
-                .map(s => {
-                  const sId = String(s.serviceId)
-                  return {
-                    serviceId: sId,
-                    name: serviceNameMap[sId] || 'Service',
-                    pricePerHour: s.price || 0,
-                    estimatedEarnings: Math.round((s.price || 0) * bookingHours * 0.90),
-                    openSlots: openSlotsMap[sId] || 0
-                  }
-                })
+      // Show highest earning as the headline earnings figure
+      const bestEarning = servicesPayload.reduce((max, s) => Math.max(max, s.estimatedEarnings), 0)
 
-          // Show highest earning as the headline earnings figure
-          const bestEarning = servicesPayload.reduce((max, s) => Math.max(max, s.estimatedEarnings), 0)
+      const payload = {
+        bookingId: booking._id,
+        type: bookingType,
+        customerName: booking.userId?.fullName || 'Customer',
+        serviceName: servicesPayload.length === 1 ? servicesPayload[0].name : 'Multiple Services',
+        services: servicesPayload,
+        isContractorBooking: true,
+        requiresServiceSelection: servicesPayload.length > 1,
+        date: booking.scheduledAt || booking.createdAt,
+        scheduledAt: booking.scheduledAt,
+        time: booking.timeSlot || 'Earliest available',
+        timeSlot: booking.timeSlot || 'Earliest available',
+        duration: bookingHours,
+        address: booking.address,
+        customerLocation: booking.address?.locationText || 'Service Location',
+        approximateDistance: labor.approximateDistance,
+        estimatedEarnings: bestEarning,
+        laborShare: bestEarning,
+        timeoutMs: timeoutMs
+      }
 
-          import('../socket.js').then(({ emitToUser }) => {
-            emitToUser(labor._id, 'BOOKING_RECEIVED', {
-              bookingId: booking._id,
-              customerName: booking.userId?.fullName || 'Customer',
-              serviceName: servicesPayload.length === 1 ? servicesPayload[0].name : 'Multiple Services',
-              services: servicesPayload,
-              isContractorBooking: true,
-              requiresServiceSelection: servicesPayload.length > 1,
-              date: booking.scheduledAt || booking.createdAt,
-              time: booking.timeSlot || 'Earliest available',
-              duration: bookingHours,
-              customerLocation: booking.address?.locationText || 'Service Location',
-              approximateDistance: labor.approximateDistance,
-              estimatedEarnings: bestEarning,
-              timeoutMs: BROADCAST_TIMEOUT_MS
-            })
-          })
-          
-          sendNotificationToUser(labor._id, {
-            title: 'New Job Offer!',
-            body: `New ${servicesPayload.length === 1 ? servicesPayload[0].name : 'Multiple Services'} job available near you. Estimated earnings: ₹${bestEarning}`,
-            data: { type: 'booking_received', bookingId: String(booking._id) }
-          })
-        } else {
-          // Single-service booking
-          const singleShare = booking.laborShare || booking.basePrice || 0
-          import('../socket.js').then(({ emitToUser }) => {
-            emitToUser(labor._id, 'BOOKING_RECEIVED', {
-              bookingId: booking._id,
-              customerName: booking.userId?.fullName || 'Customer',
-              serviceName: singleServiceName,
-              isContractorBooking: false,
-              requiresServiceSelection: false,
-              date: booking.scheduledAt || booking.createdAt,
-              time: booking.timeSlot || 'Earliest available',
-              duration: bookingHours,
-              customerLocation: booking.address?.locationText || 'Service Location',
-              approximateDistance: labor.approximateDistance,
-              estimatedEarnings: singleShare,
-              timeoutMs: BROADCAST_TIMEOUT_MS
-            })
-          })
-          
-          sendNotificationToUser(labor._id, {
-            title: 'New Job Offer!',
-            body: `New ${singleServiceName} job available near you. Estimated earnings: ₹${singleShare}`,
-            data: { type: 'booking_received', bookingId: String(booking._id) }
-          })
-        }
-        
-        const sub = activeSubsMap[labor._id]
-        if (sub) {
-          sub.bookingsReceived += 1
-          sub.save().catch(err => console.error('Failed to increment bookingsReceived', err))
-        }
+      emitToUser(labor._id, 'BOOKING_RECEIVED', payload)
 
-        laborUpdates.push(
-          User.findByIdAndUpdate(labor._id, {
-            $inc: { 'labourProfile.lifetimeBroadcastsReceived': 1 }
-          }).exec()
-        )
+      BroadcastLog.findOneAndUpdate(
+        { bookingId: booking._id, laborId: labor._id },
+        {
+          $set: {
+            payload,
+            status: 'PENDING'
+          }
+        },
+        { upsert: true }
+      ).catch(err => console.error('Failed to save BroadcastLog:', err))
+
+      sendNotificationToUser(labor._id, {
+        title: 'New Job Offer!',
+        body: `New ${servicesPayload.length === 1 ? servicesPayload[0].name : 'Multiple Services'} job available near you. Estimated earnings: ₹${bestEarning}`,
+        data: { type: 'booking_received', bookingId: String(booking._id) }
       })
+    } else {
+      // Single-service booking
+      const singleShare = booking.laborShare || booking.basePrice || 0
+      const payload = {
+        bookingId: booking._id,
+        type: bookingType,
+        customerName: booking.userId?.fullName || 'Customer',
+        serviceName: singleServiceName,
+        isContractorBooking: false,
+        requiresServiceSelection: false,
+        date: booking.scheduledAt || booking.createdAt,
+        scheduledAt: booking.scheduledAt,
+        time: booking.timeSlot || 'Earliest available',
+        timeSlot: booking.timeSlot || 'Earliest available',
+        duration: bookingHours,
+        address: booking.address,
+        customerLocation: booking.address?.locationText || 'Service Location',
+        approximateDistance: labor.approximateDistance,
+        estimatedEarnings: singleShare,
+        laborShare: singleShare,
+        timeoutMs: timeoutMs
+      }
 
-      Promise.all(laborUpdates).catch(err => console.error('Failed to update lifetime received', err))
-    })
-  }).catch(err => console.error('Failed to load socket emitter:', err))
+      emitToUser(labor._id, 'BOOKING_RECEIVED', payload)
+
+      BroadcastLog.findOneAndUpdate(
+        { bookingId: booking._id, laborId: labor._id },
+        {
+          $set: {
+            payload,
+            status: 'PENDING'
+          }
+        },
+        { upsert: true }
+      ).catch(err => console.error('Failed to save BroadcastLog:', err))
+
+      sendNotificationToUser(labor._id, {
+        title: 'New Job Offer!',
+        body: `New ${singleServiceName} job available near you. Estimated earnings: ₹${singleShare}`,
+        data: { type: 'booking_received', bookingId: String(booking._id) }
+      })
+    }
+
+    const sub = activeSubsMap[labor._id]
+    if (sub) {
+      sub.bookingsReceived += 1
+      sub.save().catch(err => console.error('Failed to increment bookingsReceived', err))
+    }
+
+    laborUpdates.push(
+      User.findByIdAndUpdate(labor._id, {
+        $inc: { 'labourProfile.lifetimeBroadcastsReceived': 1 }
+      }).exec()
+    )
+  }
+
+  Promise.all(laborUpdates).catch(err => console.error('Failed to update lifetime received', err))
 
   // Set timeout to expire broadcast if no one accepts
   setTimeout(async () => {
@@ -405,31 +444,27 @@ export async function startBroadcastCycle(bookingId) {
         await currentBooking.save()
         console.log(`Booking ${booking._id} EXPIRED with partial acceptance (${currentBooking.acceptedLabourIds.length}/${currentBooking.quantity || 1}).`)
         
-        import('../socket.js').then(({ emitToUser, getIo }) => {
-          emitToUser(currentBooking.userId, 'BOOKING_ACCEPTED', { bookingId: currentBooking._id, partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
-          
-          const io = getIo()
-          if (io) {
-            io.emit('BOOKING_EXPIRED', { bookingId: currentBooking._id })
-          }
-        }).catch(err => console.error(err))
+        emitToUser(currentBooking.userId, 'BOOKING_ACCEPTED', { bookingId: currentBooking._id, partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
+        
+        const io = getIo()
+        if (io) {
+          io.emit('BOOKING_EXPIRED', { bookingId: currentBooking._id })
+        }
       } else {
         currentBooking.status = 'FAILED'
         await currentBooking.save()
         console.log(`Booking ${booking._id} EXPIRED without acceptance.`)
         
         // Notify customer
-        import('../socket.js').then(({ emitToUser }) => {
-          emitToUser(currentBooking.userId, 'BOOKING_FAILED', { bookingId: currentBooking._id, reason: 'Expired' })
-          
-          // Notify laborers that it expired
-          eligibleLaborers.forEach(labor => {
-            emitToUser(labor._id, 'BOOKING_EXPIRED', { bookingId: currentBooking._id })
-          })
-        }).catch(err => console.error(err))
+        emitToUser(currentBooking.userId, 'BOOKING_FAILED', { bookingId: currentBooking._id, reason: 'Expired' })
+        
+        // Notify laborers that it expired
+        eligibleLaborers.forEach(labor => {
+          emitToUser(labor._id, 'BOOKING_EXPIRED', { bookingId: currentBooking._id })
+        })
       }
     }
-  }, BROADCAST_TIMEOUT_MS)
+  }, getBroadcastTimeoutMs(booking))
 }
 
 async function markBookingFailed(booking, reason) {

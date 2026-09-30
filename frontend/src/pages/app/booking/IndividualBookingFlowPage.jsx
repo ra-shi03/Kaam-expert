@@ -7,6 +7,7 @@ import {
   Calendar,
   Check,
   CheckCircle2,
+  Clock,
   ImagePlus,
   IndianRupee,
   MapPin,
@@ -548,9 +549,10 @@ export function IndividualBookingFlowPage() {
     }
 
     const now = new Date()
-    const hh = String(now.getHours()).padStart(2, '0')
-    const mm = String(now.getMinutes()).padStart(2, '0')
-    const currentIstStr = `${hh}:${mm}`
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000)
+    const minH = String(oneHourLater.getHours()).padStart(2, '0')
+    const minM = String(oneHourLater.getMinutes()).padStart(2, '0')
+    const minIstStr = `${minH}:${minM}`
 
     if (draft.bookingType === 'scheduled') {
       if (!draft.serviceDate) {
@@ -565,8 +567,13 @@ export function IndividualBookingFlowPage() {
         setFormError('Pick a start time.')
         return false
       }
-      if (draft.serviceDate === todayISODate() && draft.timeSlot < currentIstStr) {
-        setFormError('Start time cannot be in the past.')
+      if (draft.serviceDate === todayISODate() && draft.timeSlot < minIstStr) {
+        let displayH = parseInt(minH, 10)
+        const ampm = displayH >= 12 ? 'PM' : 'AM'
+        if (displayH === 0) displayH = 12
+        else if (displayH > 12) displayH -= 12
+        const formattedMin = `${String(displayH).padStart(2, '0')}:${minM} ${ampm}`
+        setFormError(`Scheduled bookings must be at least 1 hour in advance (available from ${formattedMin} onwards). For immediate service, select Instant booking.`)
         return false
       }
     }
@@ -727,7 +734,9 @@ export function IndividualBookingFlowPage() {
             gstNumber: draft.gstNumber,
             projectName: draft.projectName,
             siteContactNumber: draft.siteContactNumber,
-            services: draft.contractorServices || [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }]
+            services: (draft.contractorServices && draft.contractorServices.length > 0)
+              ? draft.contractorServices
+              : [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }]
           }
         } : {})
       }

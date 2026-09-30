@@ -164,8 +164,18 @@ export const createBooking = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'Latitude and Longitude are required for accurate matching', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
-  if (type === 'SCHEDULED' && (!scheduledAt || !timeSlot)) {
-    return sendError(res, { message: 'scheduledAt date and timeSlot (startTime) are required for SCHEDULED bookings', statusCode: HTTP_STATUS.BAD_REQUEST })
+  if (type === 'SCHEDULED') {
+    if (!scheduledAt || !timeSlot) {
+      return sendError(res, { message: 'scheduledAt date and timeSlot (startTime) are required for SCHEDULED bookings', statusCode: HTTP_STATUS.BAD_REQUEST })
+    }
+    const parsedScheduled = parseISTDateTime(scheduledAt, timeSlot)
+    // Scheduled booking must be in the future and at least 45 minutes in advance (allowing slight clock tolerance)
+    if (parsedScheduled.getTime() < Date.now() + 45 * 60 * 1000) {
+      return sendError(res, { 
+        message: 'Scheduled bookings must be at least 1 hour in advance so workers can be broadcasted 1 hour before. For immediate service, please choose Instant booking.', 
+        statusCode: HTTP_STATUS.BAD_REQUEST 
+      })
+    }
   }
 
   const service = await LabourService.findById(serviceId)
@@ -298,14 +308,19 @@ export const createBooking = asyncHandler(async (req, res) => {
 
 
   // Phase 3: Trigger the Broadcast Engine asynchronously
-  // Only trigger immediately for INSTANT bookings.
-  // SCHEDULED bookings will be handled by the broadcastCron job 1 hour before the time.
-  if (type === 'INSTANT') {
+  // Trigger immediately for:
+  // 1. INSTANT bookings
+  // 2. SCHEDULED bookings if scheduledAt is within 1 hour (<= 60 mins from now)
+  // Future SCHEDULED bookings (> 60 mins) are queued and picked up by broadcastCron exactly 1 hour before scheduledAt.
+  const isScheduledWithinOneHour = type === 'SCHEDULED' && booking.scheduledAt && 
+    (new Date(booking.scheduledAt).getTime() - Date.now() <= 60 * 60 * 1000)
+
+  if (type === 'INSTANT' || isScheduledWithinOneHour) {
     import('../services/broadcastService.js').then(({ startBroadcastCycle }) => {
       startBroadcastCycle(booking._id).catch(err => console.error('Broadcast Error:', err))
     })
   } else {
-    // For scheduled, we can emit a socket event to let the user know it is confirmed and queued
+    // For scheduled > 1 hr, emit a socket event to let the user know it is confirmed and queued
     import('../socket.js').then(({ emitToUser }) => {
       emitToUser(booking.userId, 'BOOKING_SCHEDULED_QUEUED', { bookingId: booking._id, scheduledAt: booking.scheduledAt })
     }).catch(err => console.error(err))

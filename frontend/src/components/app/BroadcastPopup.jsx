@@ -50,6 +50,42 @@ export function BroadcastPopup() {
     }
   }, [socket, isWorkerOrContractor])
 
+  // Fetch pending broadcasts on mount, tab focus/visibility, and interval polling
+  useEffect(() => {
+    if (!isWorkerOrContractor) return
+
+    const fetchPending = () => {
+      broadcastsApi.getPendingBroadcasts().then((res) => {
+        const offers = res.data?.offers || []
+        if (offers.length > 0) {
+          const offer = offers[0]
+          const timeout = Math.floor((offer.timeoutMs || 30000) / 1000)
+          setIncoming((prev) => {
+            if (prev?.bookingId === offer.bookingId) return prev
+            setTimeLeft(timeout)
+            return offer
+          })
+        }
+      }).catch(err => console.error('Failed to fetch pending broadcasts', err))
+    }
+
+    fetchPending()
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchPending()
+    }
+
+    window.addEventListener('focus', fetchPending)
+    document.addEventListener('visibilitychange', handleVisibility)
+    const timer = setInterval(fetchPending, 8000)
+
+    return () => {
+      window.removeEventListener('focus', fetchPending)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      clearInterval(timer)
+    }
+  }, [isWorkerOrContractor])
+
   // Countdown timer
   useEffect(() => {
     if (!incoming) return
@@ -159,7 +195,7 @@ export function BroadcastPopup() {
                 </div>
                 <div className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 ring-1 ring-amber-200/80">
                   <Clock className="h-3.5 w-3.5 text-amber-600" aria-hidden />
-                  <span className="text-sm font-extrabold text-amber-700">{timeLeft}s</span>
+                  <span className="text-sm font-extrabold text-amber-700">{timeLeft > 60 ? `${Math.floor(timeLeft / 60)}m ${timeLeft % 60}s` : `${timeLeft}s`}</span>
                 </div>
               </div>
 

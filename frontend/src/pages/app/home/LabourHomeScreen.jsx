@@ -861,11 +861,11 @@ export function LabourHomeScreen({ user }) {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] font-bold uppercase tracking-wide text-amber-800">New job</p>
-                        <p className="text-sm font-extrabold text-slate-900">{formatInrFromPaise((offer.laborShare || 0) * 100)} payout</p>
+                        <p className="text-sm font-extrabold text-slate-900">{formatInrFromPaise((offer.laborShare || offer.estimatedEarnings || 0) * 100)} payout</p>
                         <p className="mt-0.5 text-xs text-slate-600">
-                          {offer.radiusKm ? `${offer.radiusKm} km radius` : ''} · {offer.type}
+                          {offer.radiusKm ? `${offer.radiusKm} km radius` : ''} · {offer.type || 'SCHEDULED'}
                         </p>
-                        <p className="mt-0.5 truncate text-xs text-slate-500">{offer.address?.locationText}</p>
+                        <p className="mt-0.5 truncate text-xs text-slate-500">{offer.address?.locationText || offer.customerLocation || 'Service Location'}</p>
                       </div>
                     </div>
                     <div className="relative mt-3 flex gap-2">

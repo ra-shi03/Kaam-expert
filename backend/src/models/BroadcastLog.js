@@ -26,6 +26,9 @@ const broadcastLogSchema = new mongoose.Schema(
     respondedAt: {
       type: Date,
     },
+    payload: {
+      type: mongoose.Schema.Types.Mixed,
+    },
   },
   { timestamps: true }
 )

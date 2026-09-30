@@ -122,7 +122,7 @@ export function Checkout() {
       if (ampm === 'AM' && h === 12) h = 0
       
       const slotMinutes = h * 60 + m
-      return slotMinutes > currentMinutes + 30 // Allow booking only if the slot is at least 30 mins from now
+      return slotMinutes >= currentMinutes + 60 // Allow booking only if the slot is at least 60 mins from now (broadcast appears 1 hour before)
     })
   }, [selectedDate, timeSlots])
 
@@ -271,7 +271,7 @@ export function Checkout() {
         serviceId: subcategoryId,
         type,
         scheduledAt: type === 'SCHEDULED' ? scheduledTime : undefined,
-        timeSlot: type === 'SCHEDULED' ? 'MORNING' : undefined, // Provide a default timeslot or parse it from time
+        timeSlot: type === 'SCHEDULED' ? (selectedTimeSlot || '09:00 AM') : undefined,
         locationText: address.trim(),
         lat,
         lng,
@@ -435,25 +435,27 @@ export function Checkout() {
                     No time slots available for today. Please select tomorrow.
                   </div>
                 ) : (
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {filteredTimeSlots.map((slot) => {
-                      const isSelected = selectedTimeSlot === slot
-                      return (
-                        <button
-                          key={slot}
-                          type="button"
-                          onClick={() => setSelectedTimeSlot(slot)}
-                          className={`rounded-xl border px-2 py-2.5 text-xs font-bold transition ${
-                            isSelected
-                              ? 'border-brand bg-brand text-white shadow-md shadow-brand/25'
-                              : 'border-slate-200 bg-white text-slate-700 hover:border-brand/30 hover:bg-brand/5'
-                          }`}
-                        >
-                          {slot}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {filteredTimeSlots.map((slot) => {
+                        const isSelected = selectedTimeSlot === slot
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            onClick={() => setSelectedTimeSlot(slot)}
+                            className={`rounded-xl border px-2 py-2.5 text-xs font-bold transition ${
+                              isSelected
+                                ? 'border-brand bg-brand text-white shadow-md shadow-brand/25'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-brand/30 hover:bg-brand/5'
+                            }`}
+                          >
+                            {slot}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
                 )}
               </motion.div>
             )}
