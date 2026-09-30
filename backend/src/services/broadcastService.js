@@ -118,16 +118,16 @@ export async function startBroadcastCycle(bookingId) {
   const targetStartTimeStr = currentIstTimeStr
   const targetEndTimeStr = to24Hour(booking.endTime)
 
-  const potentialLaborers = potentialLaborersRaw.filter(labor => {
+  const scheduleFiltered = potentialLaborersRaw.filter(labor => {
     const schedule = labor.labourProfile?.schedule || []
     if (schedule.length === 0) return true // Assume available if no schedule set
 
     const dayEntry = schedule.find(s => s.day === targetDayName)
     if (!dayEntry || !dayEntry.isAvailable) return false
-    
+
     const sTime = to24Hour(dayEntry.startTime || '00:00')
     const eTime = to24Hour(dayEntry.endTime || '23:59')
-    
+
     if (targetStartTimeStr < sTime || targetStartTimeStr > eTime) return false
 
     if (targetEndTimeStr) {
@@ -141,6 +141,11 @@ export async function startBroadcastCycle(bookingId) {
 
     return true
   })
+
+  // Every labourer gets a default Mon-Sat 9-5 schedule whether or not they ever set one,
+  // so this filter alone can zero out an otherwise valid pool for evening/weekend SCHEDULED
+  // bookings. Treat it as a preference, not a hard gate: only apply it when it leaves someone.
+  const potentialLaborers = scheduleFiltered.length > 0 ? scheduleFiltered : potentialLaborersRaw
 
   if (potentialLaborers.length === 0) {
     await markBookingFailed(booking, 'No laborers in area')
