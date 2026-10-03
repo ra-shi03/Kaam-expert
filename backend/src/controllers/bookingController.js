@@ -313,7 +313,7 @@ export const createBooking = asyncHandler(async (req, res) => {
   // 2. SCHEDULED bookings if scheduledAt is within 1 hour (<= 60 mins from now)
   // Future SCHEDULED bookings (> 60 mins) are queued and picked up by broadcastCron exactly 1 hour before scheduledAt.
   const isScheduledWithinOneHour = type === 'SCHEDULED' && booking.scheduledAt && 
-    (new Date(booking.scheduledAt).getTime() - Date.now() <= 60 * 60 * 1000)
+    (new Date(booking.scheduledAt).getTime() - Date.now() <= 61 * 60 * 1000)
 
   if (type === 'INSTANT' || isScheduledWithinOneHour) {
     import('../services/broadcastService.js').then(({ startBroadcastCycle }) => {

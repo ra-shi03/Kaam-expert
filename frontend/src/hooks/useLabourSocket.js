@@ -68,7 +68,9 @@ export function useLabourSocket() {
     socket.on('BOOKING_RECEIVED', onBookingReceived)
     socket.on('BOOKING_EXPIRED', onBookingExpired)
 
+    let lastLoadTime = 0
     const loadPending = () => {
+      lastLoadTime = Date.now()
       broadcastsApi.getPendingBroadcasts()
         .then((res) => {
           const offers = res.data?.offers || []
@@ -96,12 +98,20 @@ export function useLabourSocket() {
     }
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') loadPending()
+      if (document.visibilityState === 'visible' && Date.now() - lastLoadTime > 15000) {
+        loadPending()
+      }
     }
 
-    window.addEventListener('focus', loadPending)
+    const handleFocus = () => {
+      if (Date.now() - lastLoadTime > 15000) {
+        loadPending()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibility)
-    const pollInterval = setInterval(loadPending, 8000)
+    const pollInterval = setInterval(loadPending, 25000)
 
     return () => {
       socket.off('connect', onConnect)
@@ -109,7 +119,7 @@ export function useLabourSocket() {
       socket.off('connect_error', onConnectError)
       socket.off('BOOKING_RECEIVED', onBookingReceived)
       socket.off('BOOKING_EXPIRED', onBookingExpired)
-      window.removeEventListener('focus', loadPending)
+      window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleVisibility)
       clearInterval(pollInterval)
       // Do not disconnect the socket here to avoid React Strict Mode closing it

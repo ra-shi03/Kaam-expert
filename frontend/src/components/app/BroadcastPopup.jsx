@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { AlertCircle, Check, Clock, IndianRupee, Loader2, MapPin, X, Zap } from 'lucide-react'
+import { AlertCircle, Calendar, Check, Clock, IndianRupee, Loader2, MapPin, X, Zap } from 'lucide-react'
 import { useSelector } from 'react-redux'
 import { broadcastsApi } from '../../api/broadcastsApi.js'
 import { ApiError } from '../../api/http.js'
@@ -14,6 +14,7 @@ export function BroadcastPopup() {
   const reduce = useReducedMotion()
   const user = useSelector((s) => s.auth.user)
   const timerRef = useRef(null)
+  const lastFetchRef = useRef(0)
 
   const [incoming, setIncoming] = useState(null)
   const [timeLeft, setTimeLeft] = useState(30)
@@ -30,7 +31,10 @@ export function BroadcastPopup() {
 
     const handleBroadcast = (data) => {
       console.log('--- BOOKING_RECEIVED EVENT ---', data);
-      const timeout = Math.floor((data.timeoutMs || 30000) / 1000)
+      const isSched = data.type === 'SCHEDULED' && (data.scheduledAt || data.date)
+      const timeout = isSched
+        ? Math.max(30, Math.floor((new Date(data.scheduledAt || data.date).getTime() - Date.now()) / 1000))
+        : Math.floor((data.timeoutMs || 30000) / 1000)
       setIncoming(data)
       setTimeLeft(timeout)
       setError('')
@@ -50,16 +54,20 @@ export function BroadcastPopup() {
     }
   }, [socket, isWorkerOrContractor])
 
-  // Fetch pending broadcasts on mount, tab focus/visibility, and interval polling
+  // Fetch pending broadcasts on mount, tab focus/visibility, and interval polling (throttled to 25s)
   useEffect(() => {
     if (!isWorkerOrContractor) return
 
     const fetchPending = () => {
+      lastFetchRef.current = Date.now()
       broadcastsApi.getPendingBroadcasts().then((res) => {
         const offers = res.data?.offers || []
         if (offers.length > 0) {
           const offer = offers[0]
-          const timeout = Math.floor((offer.timeoutMs || 30000) / 1000)
+          const isSched = offer.type === 'SCHEDULED' && (offer.scheduledAt || offer.date)
+          const timeout = isSched
+            ? Math.max(30, Math.floor((new Date(offer.scheduledAt || offer.date).getTime() - Date.now()) / 1000))
+            : Math.floor((offer.timeoutMs || 30000) / 1000)
           setIncoming((prev) => {
             if (prev?.bookingId === offer.bookingId) return prev
             setTimeLeft(timeout)
@@ -72,15 +80,23 @@ export function BroadcastPopup() {
     fetchPending()
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') fetchPending()
+      if (document.visibilityState === 'visible' && Date.now() - lastFetchRef.current > 15000) {
+        fetchPending()
+      }
     }
 
-    window.addEventListener('focus', fetchPending)
+    const handleFocus = () => {
+      if (Date.now() - lastFetchRef.current > 15000) {
+        fetchPending()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibility)
-    const timer = setInterval(fetchPending, 8000)
+    const timer = setInterval(fetchPending, 25000)
 
     return () => {
-      window.removeEventListener('focus', fetchPending)
+      window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleVisibility)
       clearInterval(timer)
     }
@@ -94,7 +110,11 @@ export function BroadcastPopup() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timerRef.current)
-          if (incoming?.bookingId) broadcastsApi.rejectBroadcast(incoming.bookingId).catch(() => {})
+          // For INSTANT bookings: auto-reject so subsequent workers in queue can receive it.
+          // For SCHEDULED bookings: DO NOT reject on backend; dismiss popup while leaving offer alive in liveOffers.
+          if (incoming?.type !== 'SCHEDULED' && incoming?.bookingId) {
+            broadcastsApi.rejectBroadcast(incoming.bookingId).catch(() => {})
+          }
           setIncoming(null)
           return 0
         }
@@ -135,7 +155,11 @@ export function BroadcastPopup() {
     if (!incoming) return
     setResponding(true)
     try {
-      await broadcastsApi.rejectBroadcast(incoming.bookingId)
+      // Only notify backend of explicit rejection for INSTANT bookings.
+      // For SCHEDULED bookings, worker dismissing the popup leaves the opportunity open.
+      if (incoming.type !== 'SCHEDULED') {
+        await broadcastsApi.rejectBroadcast(incoming.bookingId)
+      }
     } catch {
       /* ignore */
     } finally {
@@ -176,7 +200,7 @@ export function BroadcastPopup() {
               <motion.div
                 initial={{ width: '100%' }}
                 animate={{ width: '0%' }}
-                transition={{ duration: (incoming.timeoutMs || 30000) / 1000, ease: 'linear' }}
+                transition={{ duration: Math.max(1, timeLeft), ease: 'linear' }}
                 className="absolute inset-y-0 left-0 bg-gradient-to-r from-brand to-blue-400"
               />
             </div>
@@ -195,7 +219,13 @@ export function BroadcastPopup() {
                 </div>
                 <div className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 ring-1 ring-amber-200/80">
                   <Clock className="h-3.5 w-3.5 text-amber-600" aria-hidden />
-                  <span className="text-sm font-extrabold text-amber-700">{timeLeft > 60 ? `${Math.floor(timeLeft / 60)}m ${timeLeft % 60}s` : `${timeLeft}s`}</span>
+                  <span className="text-sm font-extrabold text-amber-700">
+                    {timeLeft > 3600
+                      ? `${Math.floor(timeLeft / 3600)}h ${Math.floor((timeLeft % 3600) / 60)}m`
+                      : timeLeft > 60
+                      ? `${Math.floor(timeLeft / 60)}m ${timeLeft % 60}s`
+                      : `${timeLeft}s`}
+                  </span>
                 </div>
               </div>
 

@@ -308,8 +308,9 @@ export const rejectBroadcast = asyncHandler(async (req, res) => {
     console.error('[broadcastController] Failed to track booking opportunity:', e)
   }
 
-  // If everyone eligible has rejected it, fail it
-  if (booking.rejectedBy.length >= (booking.eligibleLabourCount || 0)) {
+  // If everyone eligible has rejected it, fail it (for INSTANT bookings).
+  // For SCHEDULED bookings, do not fail early - leave the booking open until scheduledAt
+  if (booking.type !== 'SCHEDULED' && booking.rejectedBy.length >= (booking.eligibleLabourCount || 0)) {
     booking.status = 'FAILED'
     await booking.save()
 

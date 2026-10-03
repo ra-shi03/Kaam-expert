@@ -9,6 +9,10 @@ import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 import { emitToUser, getIo } from '../socket.js'
 import { LabourService } from '../models/LabourService.js'
 
+// Track active broadcast timeouts (shared with cron for orphan recovery)
+export const activeBroadcastTimeouts = new Set()
+
+
 export const BROADCAST_TIMEOUT_MS = 300000 // 5 minutes flash broadcast timeout
 
 export function getBroadcastTimeoutMs(booking) {
@@ -50,6 +54,7 @@ export async function startBroadcastCycle(bookingId) {
 
   booking.status = 'BROADCASTING'
   await booking.save()
+  console.log(`[BROADCAST] Booking ${bookingId} status -> BROADCASTING (type=${booking.type}, scheduledAt=${booking.scheduledAt})`)
 
   // 2. Pre-filter labourers by bounding box (rough estimate to avoid hitting Google Maps for everyone)
   const latDiff = radiusKm / 111
@@ -123,7 +128,7 @@ export async function startBroadcastCycle(bookingId) {
     if (schedule.length === 0) return true // Assume available if no schedule set
 
     const dayEntry = schedule.find(s => s.day === targetDayName)
-    if (!dayEntry || !dayEntry.isAvailable) return false
+    if (!dayEntry || dayEntry.isAvailable === false) return false
 
     const sTime = to24Hour(dayEntry.startTime || '00:00')
     const eTime = to24Hour(dayEntry.endTime || '23:59')
@@ -132,19 +137,12 @@ export async function startBroadcastCycle(bookingId) {
 
     if (targetEndTimeStr) {
       if (targetEndTimeStr > eTime) return false
-    } else {
-      let [h, m] = targetStartTimeStr.split(':')
-      h = parseInt(h, 10) + (booking.hours || 1)
-      const bufferEndTime = `${String(h).padStart(2, '0')}:${m}`
-      if (bufferEndTime <= '23:59' && bufferEndTime > eTime) return false
     }
 
     return true
   })
 
-  // Every labourer gets a default Mon-Sat 9-5 schedule whether or not they ever set one,
-  // so this filter alone can zero out an otherwise valid pool for evening/weekend SCHEDULED
-  // bookings. Treat it as a preference, not a hard gate: only apply it when it leaves someone.
+  // Prioritize workers whose schedule matches the target shift; fall back to available pool if none customized
   const potentialLaborers = scheduleFiltered.length > 0 ? scheduleFiltered : potentialLaborersRaw
 
   if (potentialLaborers.length === 0) {
@@ -160,11 +158,16 @@ export async function startBroadcastCycle(bookingId) {
   const today = new Date().toISOString().split('T')[0]
   const activeSubsMap = {} // Store to increment bookingsReceived later
 
+  console.log(`[BROADCAST-DEBUG] Wallet eligible labourers count: ${walletEligible.length}`)
+
   for (const labor of walletEligible) {
     const trialEnds = labor.labourProfile?.trialEndsAt
     const now = new Date()
+    
+    console.log(`[BROADCAST-DEBUG] Checking labour ${labor._id} | trialEndsAt: ${trialEnds} | now: ${now}`)
     if (trialEnds && now <= new Date(trialEnds)) {
       subEligible.push(labor) // Free trial
+      console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via free trial`)
       continue
     }
 
@@ -176,12 +179,16 @@ export async function startBroadcastCycle(bookingId) {
     })
     
     if (activeSub) {
+      console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via active subscription ${activeSub._id}`)
       subEligible.push(labor)
       activeSubsMap[labor._id] = activeSub
+    } else {
+      console.log(`[BROADCAST-DEBUG] Labour ${labor._id} NOT eligible. No active sub for today (${today}).`)
     }
   }
 
   if (subEligible.length === 0) {
+    console.log(`[BROADCAST-DEBUG] Booking ${booking._id} failed: No eligible laborers found (Subscription)`)
     await markBookingFailed(booking, 'No eligible laborers found (Subscription)')
     return
   }
@@ -261,8 +268,11 @@ export async function startBroadcastCycle(bookingId) {
   booking.eligibleLabourCount = eligibleLaborers.length
   await booking.save()
 
+  const timeoutMs = getBroadcastTimeoutMs(booking)
+  const bookingType = booking.type || (booking.scheduledAt ? 'SCHEDULED' : 'INSTANT')
+
   // 6. Flash Broadcast via WebSockets
-  console.log(`Flash broadcasting Booking ${booking._id} to ${eligibleLaborers.length} laborers`)
+  console.log(`[BROADCAST] Booking ${booking._id}: broadcasting to ${eligibleLaborers.length} laborers (type=${bookingType}, timeoutMs=${timeoutMs}, ~${Math.round(timeoutMs/60000)} min)`)
 
   // Notify customer
   emitToUser(booking.userId, 'BOOKING_BROADCAST_STARTED', { 
@@ -296,14 +306,13 @@ export async function startBroadcastCycle(bookingId) {
   }
 
   const laborUpdates = []
-  const timeoutMs = getBroadcastTimeoutMs(booking)
-  const bookingType = booking.type || (booking.scheduledAt ? 'SCHEDULED' : 'INSTANT')
 
   for (const labor of eligibleLaborers) {
     const laborServiceIds = labor.labourProfile?.serviceIds?.map(id => String(id)) || []
     const bookingHours = booking.duration || booking.hours || 1
+    const hasContractorServices = booking.contractorInfo?.services?.length > 0
 
-    if (booking.contractorInfo?.services?.length > 0) {
+    if (hasContractorServices) {
       // Find open services that match this labourer's skills
       const matchingOpenServices = booking.contractorInfo.services
         .filter(s => {
@@ -365,16 +374,21 @@ export async function startBroadcastCycle(bookingId) {
 
       emitToUser(labor._id, 'BOOKING_RECEIVED', payload)
 
-      BroadcastLog.findOneAndUpdate(
-        { bookingId: booking._id, laborId: labor._id },
-        {
-          $set: {
-            payload,
-            status: 'PENDING'
-          }
-        },
-        { upsert: true }
-      ).catch(err => console.error('Failed to save BroadcastLog:', err))
+      try {
+        await BroadcastLog.findOneAndUpdate(
+          { bookingId: booking._id, laborId: labor._id },
+          {
+            $set: {
+              payload,
+              status: 'PENDING'
+            }
+          },
+          { upsert: true, new: true }
+        )
+      } catch (err) {
+        console.error(`[BROADCAST] Failed to save BroadcastLog for booking=${booking._id} labor=${labor._id}:`, err.message)
+      }
+
 
       sendNotificationToUser(labor._id, {
         title: 'New Job Offer!',
@@ -406,16 +420,21 @@ export async function startBroadcastCycle(bookingId) {
 
       emitToUser(labor._id, 'BOOKING_RECEIVED', payload)
 
-      BroadcastLog.findOneAndUpdate(
-        { bookingId: booking._id, laborId: labor._id },
-        {
-          $set: {
-            payload,
-            status: 'PENDING'
-          }
-        },
-        { upsert: true }
-      ).catch(err => console.error('Failed to save BroadcastLog:', err))
+      try {
+        await BroadcastLog.findOneAndUpdate(
+          { bookingId: booking._id, laborId: labor._id },
+          {
+            $set: {
+              payload,
+              status: 'PENDING'
+            }
+          },
+          { upsert: true, new: true }
+        )
+      } catch (err) {
+        console.error(`[BROADCAST] Failed to save BroadcastLog for booking=${booking._id} labor=${labor._id}:`, err.message)
+      }
+
 
       sendNotificationToUser(labor._id, {
         title: 'New Job Offer!',
@@ -440,36 +459,46 @@ export async function startBroadcastCycle(bookingId) {
   Promise.all(laborUpdates).catch(err => console.error('Failed to update lifetime received', err))
 
   // Set timeout to expire broadcast if no one accepts
+  const bookingIdStr = String(booking._id)
+  activeBroadcastTimeouts.add(bookingIdStr)
+  console.log(`[BROADCAST] Setting expiry timeout for booking ${booking._id}: ${Math.round(timeoutMs/60000)} min`)
+  
   setTimeout(async () => {
-    const currentBooking = await Booking.findById(booking._id)
-    if (currentBooking && currentBooking.status === 'BROADCASTING') {
-      if (currentBooking.acceptedLabourIds && currentBooking.acceptedLabourIds.length > 0) {
-        // Partially accepted, but timeout reached. Let's just finalize the partial match.
-        currentBooking.status = 'ACCEPTED'
-        await currentBooking.save()
-        console.log(`Booking ${booking._id} EXPIRED with partial acceptance (${currentBooking.acceptedLabourIds.length}/${currentBooking.quantity || 1}).`)
-        
-        emitToUser(currentBooking.userId, 'BOOKING_ACCEPTED', { bookingId: currentBooking._id, partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
-        
-        const io = getIo()
-        if (io) {
-          io.emit('BOOKING_EXPIRED', { bookingId: currentBooking._id })
+    activeBroadcastTimeouts.delete(bookingIdStr)
+    try {
+      const currentBooking = await Booking.findById(booking._id)
+      if (currentBooking && currentBooking.status === 'BROADCASTING') {
+        if (currentBooking.acceptedLabourIds && currentBooking.acceptedLabourIds.length > 0) {
+          // Partially accepted, but timeout reached. Finalize the partial match.
+          currentBooking.status = 'ACCEPTED'
+          await currentBooking.save()
+          console.log(`[BROADCAST] Booking ${booking._id} EXPIRED with partial acceptance (${currentBooking.acceptedLabourIds.length}/${currentBooking.quantity || 1}).`)
+          
+          emitToUser(currentBooking.userId, 'BOOKING_ACCEPTED', { bookingId: currentBooking._id, partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
+          
+          const io = getIo()
+          if (io) io.emit('BOOKING_EXPIRED', { bookingId: currentBooking._id })
+        } else {
+          currentBooking.status = 'FAILED'
+          await currentBooking.save()
+          console.log(`[BROADCAST] Booking ${booking._id} EXPIRED without acceptance.`)
+          
+          // Notify customer
+          emitToUser(currentBooking.userId, 'BOOKING_FAILED', { bookingId: currentBooking._id, reason: 'Expired' })
+          
+          // Notify laborers that it expired
+          eligibleLaborers.forEach(labor => {
+            emitToUser(labor._id, 'BOOKING_EXPIRED', { bookingId: currentBooking._id })
+          })
         }
       } else {
-        currentBooking.status = 'FAILED'
-        await currentBooking.save()
-        console.log(`Booking ${booking._id} EXPIRED without acceptance.`)
-        
-        // Notify customer
-        emitToUser(currentBooking.userId, 'BOOKING_FAILED', { bookingId: currentBooking._id, reason: 'Expired' })
-        
-        // Notify laborers that it expired
-        eligibleLaborers.forEach(labor => {
-          emitToUser(labor._id, 'BOOKING_EXPIRED', { bookingId: currentBooking._id })
-        })
+        console.log(`[BROADCAST] Booking ${booking._id} timeout fired but status is ${currentBooking?.status || 'NOT_FOUND'} - no action needed`)
       }
+    } catch (err) {
+      console.error(`[BROADCAST] Error in expiry timeout for booking ${booking._id}:`, err)
     }
-  }, getBroadcastTimeoutMs(booking))
+  }, timeoutMs)
+
 }
 
 async function markBookingFailed(booking, reason) {
