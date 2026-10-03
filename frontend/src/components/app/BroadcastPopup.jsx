@@ -314,7 +314,11 @@ export function BroadcastPopup() {
                 {incoming.duration && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">Duration</span>
-                    <span className="font-bold text-slate-800">{incoming.duration} {incoming.duration === 1 ? 'Hour' : 'Hours'}</span>
+                    <span className="font-bold text-slate-800">
+                      {Number(incoming.duration) === 0.5 
+                        ? '30 minutes' 
+                        : `${incoming.duration} ${Number(incoming.duration) === 1 ? 'Hour' : 'Hours'}`}
+                    </span>
                   </div>
                 )}
                 {(incoming.customerLocation || incoming.address) && (

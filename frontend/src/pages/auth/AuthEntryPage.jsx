@@ -286,7 +286,7 @@ export function AuthEntryPage({ authGroup = 'users' }) {
   return (
     <div className="fixed inset-0 flex flex-col bg-white selection:bg-brand/20 overflow-hidden overscroll-none touch-none">
       {/* Top Header Section with Wave */}
-      <div className="relative flex flex-col pt-10 pb-10 text-white bg-linear-to-b from-brand to-brand-bright overflow-hidden shrink-0">
+      <div className="relative flex flex-col pt-10 pb-10 text-white bg-linear-to-b from-brand to-brand-bright shrink-0">
         {/* Wave SVG */}
         <div className="absolute -bottom-1 left-0 right-0 w-full overflow-hidden leading-[0]">
           <svg viewBox="0 0 1440 320" className="relative block w-[120%] h-[50px] sm:h-[70px] left-[-10%]" preserveAspectRatio="none">
