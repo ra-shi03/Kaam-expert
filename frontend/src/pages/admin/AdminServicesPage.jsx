@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useMemo } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Plus, Search, RefreshCw, Edit2, Trash2, Wrench, Eye, X, AlertTriangle, ChevronDown, ChevronUp, Clock } from 'lucide-react'
+import { Plus, Search, RefreshCw, Edit2, Trash2, Wrench, Eye, X, AlertTriangle, ChevronDown, ChevronUp, Clock, Sparkles, CheckCircle2, XCircle } from 'lucide-react'
 import {
   fetchAdminLabourCategoryTree,
   createAdminLabourService,
@@ -569,10 +569,97 @@ function ZonePricingEditor({
   )
 }
 
+function BulletPointsEditor({ label, icon: Icon, iconColor, badgeStyle, items = [], onChange, placeholder }) {
+  const [inputValue, setInputValue] = useState('')
+
+  const handleAdd = () => {
+    const trimmed = inputValue.trim()
+    if (!trimmed) return
+    if (!items.includes(trimmed)) {
+      onChange([...items, trimmed])
+    }
+    setInputValue('')
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAdd()
+    }
+  }
+
+  const handleRemove = (indexToRemove) => {
+    onChange(items.filter((_, idx) => idx !== indexToRemove))
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-700">
+          {Icon && <Icon className={`h-3.5 w-3.5 ${iconColor || 'text-slate-500'}`} />}
+          <span>{label}</span>
+          <span className="ml-1 rounded-full bg-slate-200 px-1.5 py-0.2 text-[10px] font-bold text-slate-600">
+            {items.length}
+          </span>
+        </label>
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder || `Add a ${label.toLowerCase()} bullet point...`}
+          className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-brand focus:ring-1 focus:ring-brand/30"
+        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!inputValue.trim()}
+          className="inline-flex items-center gap-1 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-900 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add
+        </button>
+      </div>
+
+      {items.length > 0 ? (
+        <ul className="space-y-1.5 pt-1">
+          {items.map((item, idx) => (
+            <li
+              key={idx}
+              className={`flex items-start justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${badgeStyle || 'border-slate-200 bg-white text-slate-700'}`}
+            >
+              <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                {Icon && <Icon className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${iconColor || 'text-slate-400'}`} />}
+                <span className="font-medium break-words leading-tight">{item}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRemove(idx)}
+                className="shrink-0 p-0.5 text-slate-400 hover:text-rose-600 transition"
+                title="Remove bullet point"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] italic text-slate-400 pl-0.5">No bullet points added yet.</p>
+      )}
+    </div>
+  )
+}
+
 function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSaved, busy, setBusy }) {
   const [name, setName] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
   const [description, setDescription] = useState('')
+  const [features, setFeatures] = useState([])
+  const [whatWeProvide, setWhatWeProvide] = useState([])
+  const [whatWeDontProvide, setWhatWeDontProvide] = useState([])
   const [hourlyPrice, setHourlyPrice] = useState(0)
   const [minHours, setMinHours] = useState(1)
   const [maxHours, setMaxHours] = useState(24)
@@ -591,6 +678,9 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
       setName('')
       setSubcategoryId(subcategories[0]?._id ?? '')
       setDescription('')
+      setFeatures([])
+      setWhatWeProvide([])
+      setWhatWeDontProvide([])
       setHourlyPrice(0)
       setMinHours(1)
       setMaxHours(24)
@@ -649,6 +739,9 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
         name: name.trim(),
         subcategoryId,
         description: description.trim(),
+        features,
+        whatWeProvide,
+        whatWeDontProvide,
         basePrice: Number(hourlyPrice), // Keep schema happy with basePrice = hourlyPrice
         hourlyPrice: Number(hourlyPrice),
         minHours: parseFloat(minHours) || 0.5,
@@ -730,6 +823,47 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
                 placeholder="Optional description"
               />
+            </div>
+
+            {/* Bullet Points Section */}
+            <div className="col-span-2 space-y-3 pt-1">
+              <div className="border-t border-slate-100 pt-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
+                  Service Highlights & Details
+                </h4>
+                <p className="text-[11px] text-slate-400 mb-3">
+                  Add bullet points for features, what we provide, and what we don't provide.
+                </p>
+                <div className="space-y-3">
+                  <BulletPointsEditor
+                    label="Features"
+                    icon={Sparkles}
+                    iconColor="text-brand"
+                    badgeStyle="border-indigo-100 bg-indigo-50/40 text-slate-800"
+                    items={features}
+                    onChange={setFeatures}
+                    placeholder="e.g. Certified professionals, same-day service..."
+                  />
+                  <BulletPointsEditor
+                    label="What We Provide"
+                    icon={CheckCircle2}
+                    iconColor="text-emerald-600"
+                    badgeStyle="border-emerald-100 bg-emerald-50/40 text-slate-800"
+                    items={whatWeProvide}
+                    onChange={setWhatWeProvide}
+                    placeholder="e.g. Standard tools, post-service cleanup..."
+                  />
+                  <BulletPointsEditor
+                    label="What We Don't Provide"
+                    icon={XCircle}
+                    iconColor="text-rose-600"
+                    badgeStyle="border-rose-100 bg-rose-50/40 text-slate-800"
+                    items={whatWeDontProvide}
+                    onChange={setWhatWeDontProvide}
+                    placeholder="e.g. Spare parts/materials, civil alterations..."
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="col-span-2 sm:col-span-1">
@@ -880,6 +1014,9 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
   const [name, setName] = useState('')
   const [subcategoryId, setSubcategoryId] = useState('')
   const [description, setDescription] = useState('')
+  const [features, setFeatures] = useState([])
+  const [whatWeProvide, setWhatWeProvide] = useState([])
+  const [whatWeDontProvide, setWhatWeDontProvide] = useState([])
   const [hourlyPrice, setHourlyPrice] = useState(0)
   const [minHours, setMinHours] = useState(1)
   const [maxHours, setMaxHours] = useState(24)
@@ -898,6 +1035,9 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
       setName(service.name || '')
       setSubcategoryId(service.subcategoryId || (subcategories[0]?._id ?? ''))
       setDescription(service.description || '')
+      setFeatures(Array.isArray(service.features) ? service.features : [])
+      setWhatWeProvide(Array.isArray(service.whatWeProvide) ? service.whatWeProvide : [])
+      setWhatWeDontProvide(Array.isArray(service.whatWeDontProvide) ? service.whatWeDontProvide : [])
       setHourlyPrice(service.hourlyPrice ?? 0)
       setMinHours(service.minHours ?? 1)
       setMaxHours(service.maxHours ?? 24)
@@ -968,6 +1108,9 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
         name: name.trim(),
         subcategoryId,
         description: description.trim(),
+        features,
+        whatWeProvide,
+        whatWeDontProvide,
         basePrice: Number(hourlyPrice), // Keep schema happy
         hourlyPrice: Number(hourlyPrice),
         minHours: parseFloat(minHours) || 0.5,
@@ -1049,6 +1192,47 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
                 placeholder="Optional description"
               />
+            </div>
+
+            {/* Bullet Points Section */}
+            <div className="col-span-2 space-y-3 pt-1">
+              <div className="border-t border-slate-100 pt-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-1">
+                  Service Highlights & Details
+                </h4>
+                <p className="text-[11px] text-slate-400 mb-3">
+                  Add bullet points for features, what we provide, and what we don't provide.
+                </p>
+                <div className="space-y-3">
+                  <BulletPointsEditor
+                    label="Features"
+                    icon={Sparkles}
+                    iconColor="text-brand"
+                    badgeStyle="border-indigo-100 bg-indigo-50/40 text-slate-800"
+                    items={features}
+                    onChange={setFeatures}
+                    placeholder="e.g. Certified professionals, same-day service..."
+                  />
+                  <BulletPointsEditor
+                    label="What We Provide"
+                    icon={CheckCircle2}
+                    iconColor="text-emerald-600"
+                    badgeStyle="border-emerald-100 bg-emerald-50/40 text-slate-800"
+                    items={whatWeProvide}
+                    onChange={setWhatWeProvide}
+                    placeholder="e.g. Standard tools, post-service cleanup..."
+                  />
+                  <BulletPointsEditor
+                    label="What We Don't Provide"
+                    icon={XCircle}
+                    iconColor="text-rose-600"
+                    badgeStyle="border-rose-100 bg-rose-50/40 text-slate-800"
+                    items={whatWeDontProvide}
+                    onChange={setWhatWeDontProvide}
+                    placeholder="e.g. Spare parts/materials, civil alterations..."
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="col-span-2 sm:col-span-1">
@@ -1226,15 +1410,15 @@ function ViewServiceModal({ open, service, onClose }) {
       <motion.div
         initial={{ opacity: 0, y: 10, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
-        <div className="bg-slate-50 border-b border-slate-100 px-5 py-4 flex justify-between items-center">
+        <div className="bg-slate-50 border-b border-slate-100 px-5 py-4 flex justify-between items-center shrink-0">
           <h3 className="text-lg font-extrabold text-slate-900">Service Details</h3>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto">
           {loading ? (
             <div className="text-center py-10 text-slate-500">Loading details...</div>
           ) : error ? (
@@ -1266,20 +1450,95 @@ function ViewServiceModal({ open, service, onClose }) {
                     <p className="text-[10px] font-bold uppercase text-slate-400">Price</p>
                     <p className="text-sm font-medium text-blue-600 font-mono">₹{displayData.hourlyPrice}</p>
                   </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Status</p>
+                    <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${
+                      displayData.isActive ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-slate-100 text-slate-500 ring-slate-200'
+                    }`}>
+                      {displayData.isActive ? 'Active' : 'Hidden'}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Status</p>
-                  <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${
-                    displayData.isActive ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-slate-100 text-slate-500 ring-slate-200'
-                  }`}>
-                    {displayData.isActive ? 'Active' : 'Hidden'}
+              </div>
+
+              {/* Features Section */}
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/30 p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
+                    <Sparkles className="h-4 w-4 text-brand" />
+                    <span>Features</span>
+                  </div>
+                  <span className="rounded-full bg-indigo-100/80 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                    {displayData.features?.length || 0}
                   </span>
                 </div>
+                {displayData.features?.length > 0 ? (
+                  <ul className="space-y-1.5 pt-0.5">
+                    {displayData.features.map((feat, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-xs text-slate-700">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+                        <span className="leading-snug">{feat}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] italic text-slate-400 pl-0.5">No features listed.</p>
+                )}
+              </div>
+
+              {/* What We Provide Section */}
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/30 p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-950">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <span>What We Provide</span>
+                  </div>
+                  <span className="rounded-full bg-emerald-100/80 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                    {displayData.whatWeProvide?.length || 0}
+                  </span>
+                </div>
+                {displayData.whatWeProvide?.length > 0 ? (
+                  <ul className="space-y-1.5 pt-0.5">
+                    {displayData.whatWeProvide.map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-xs text-slate-700">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        <span className="leading-snug">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] italic text-slate-400 pl-0.5">No inclusions listed.</p>
+                )}
+              </div>
+
+              {/* What We Don't Provide Section */}
+              <div className="rounded-xl border border-rose-100 bg-rose-50/30 p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-rose-950">
+                    <XCircle className="h-4 w-4 text-rose-600" />
+                    <span>What We Don't Provide</span>
+                  </div>
+                  <span className="rounded-full bg-rose-100/80 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                    {displayData.whatWeDontProvide?.length || 0}
+                  </span>
+                </div>
+                {displayData.whatWeDontProvide?.length > 0 ? (
+                  <ul className="space-y-1.5 pt-0.5">
+                    {displayData.whatWeDontProvide.map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-xs text-slate-700">
+                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />
+                        <span className="leading-snug">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] italic text-slate-400 pl-0.5">No exclusions listed.</p>
+                )}
               </div>
             </>
           )}
         </div>
-        <div className="bg-slate-50 px-5 py-4 text-right">
+        <div className="bg-slate-50 px-5 py-3.5 text-right border-t border-slate-100 shrink-0">
           <button
             onClick={onClose}
             className="rounded-xl bg-white border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"

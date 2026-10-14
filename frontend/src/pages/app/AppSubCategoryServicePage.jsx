@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useLocation, useNavigate, useParams, Navigate } from 'react-router-dom'
-import { ArrowLeft, Wrench, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { ArrowLeft, Wrench, ChevronDown, ChevronUp, Loader2, Sparkles, CheckCircle2, XCircle } from 'lucide-react'
 import { getCategoryImageUrl } from '../../lib/labourCategoryDisplay.js'
 import { BookingTypeSheet } from '../../components/app/booking/BookingTypeSheet.jsx'
 import { readBookingDraft, writeBookingDraft } from '../../lib/individualBookingDraft.js'
@@ -14,6 +14,7 @@ export function AppSubCategoryServicePage() {
   const navigate = useNavigate()
 
   const [expandedServiceId, setExpandedServiceId] = useState(null)
+  const [serviceTabs, setServiceTabs] = useState({})
   const [bookingTypeOpen, setBookingTypeOpen] = useState(false)
   const [bookingService, setBookingService] = useState(null)
   
@@ -131,6 +132,17 @@ export function AppSubCategoryServicePage() {
             <div className="grid gap-3">
               {services.map((service) => {
                 const isExpanded = expandedServiceId === service._id;
+                const featuresList = Array.isArray(service.features) ? service.features.filter(Boolean) : []
+                const providesList = Array.isArray(service.whatWeProvide) ? service.whatWeProvide.filter(Boolean) : []
+                const dontProvidesList = Array.isArray(service.whatWeDontProvide) ? service.whatWeDontProvide.filter(Boolean) : []
+                const hasBulletPoints = featuresList.length > 0 || providesList.length > 0 || dontProvidesList.length > 0
+
+                const activeTab = serviceTabs[service._id] || (
+                  featuresList.length > 0 ? 'features' :
+                  providesList.length > 0 ? 'provide' :
+                  dontProvidesList.length > 0 ? 'dont_provide' : 'features'
+                )
+
                 return (
                   <div
                     key={service._id}
@@ -174,23 +186,155 @@ export function AppSubCategoryServicePage() {
                     </button>
 
                     {isExpanded && (
-                      <div className="px-4 pb-4 pt-1 bg-slate-50/50 border-t border-slate-100 space-y-3">
+                      <div className="px-4 pb-4 pt-2 bg-slate-50/60 border-t border-slate-100 space-y-3.5">
                         {service.description && (
                           <div>
-                            <p className="text-[10px] font-bold uppercase text-slate-400">Description</p>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Description</p>
                             <p className="text-sm font-medium text-slate-700 leading-relaxed mt-0.5">{service.description}</p>
                           </div>
                         )}
-                        <div className="grid grid-cols-1 gap-4">
+
+                        {hasBulletPoints && (
+                          <div className="space-y-2 pt-1">
+                            {/* Segmented Pill Tabs */}
+                            <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl overflow-x-auto no-scrollbar">
+                              <button
+                                type="button"
+                                onClick={() => setServiceTabs(prev => ({ ...prev, [service._id]: 'features' }))}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                  activeTab === 'features'
+                                    ? 'bg-white text-indigo-600 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                <Sparkles className="h-3.5 w-3.5" />
+                                <span>Features</span>
+                                {featuresList.length > 0 && (
+                                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                    activeTab === 'features' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-300/70 text-slate-700'
+                                  }`}>
+                                    {featuresList.length}
+                                  </span>
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setServiceTabs(prev => ({ ...prev, [service._id]: 'provide' }))}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                  activeTab === 'provide'
+                                    ? 'bg-white text-emerald-700 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                <span>What We Provide</span>
+                                {providesList.length > 0 && (
+                                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                    activeTab === 'provide' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-300/70 text-slate-700'
+                                  }`}>
+                                    {providesList.length}
+                                  </span>
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setServiceTabs(prev => ({ ...prev, [service._id]: 'dont_provide' }))}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                  activeTab === 'dont_provide'
+                                    ? 'bg-white text-rose-600 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                              >
+                                <XCircle className="h-3.5 w-3.5" />
+                                <span>What We Don't Provide</span>
+                                {dontProvidesList.length > 0 && (
+                                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                    activeTab === 'dont_provide' ? 'bg-rose-50 text-rose-700' : 'bg-slate-300/70 text-slate-700'
+                                  }`}>
+                                    {dontProvidesList.length}
+                                  </span>
+                                )}
+                              </button>
+                            </div>
+
+                            {/* Active Tab Panel Content */}
+                            <div className="rounded-xl border border-slate-200/80 bg-white p-3 shadow-2xs">
+                              {activeTab === 'features' && (
+                                <div>
+                                  <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-700 mb-2 flex items-center gap-1.5">
+                                    <Sparkles className="h-3.5 w-3.5 text-brand" />
+                                    <span>Key Highlights & Features</span>
+                                  </p>
+                                  {featuresList.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {featuresList.map((feat, idx) => (
+                                        <li key={idx} className="flex items-start gap-2 text-xs text-slate-700 leading-snug">
+                                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
+                                          <span>{feat}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-xs italic text-slate-400">No specific features listed for this service.</p>
+                                  )}
+                                </div>
+                              )}
+
+                              {activeTab === 'provide' && (
+                                <div>
+                                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-2 flex items-center gap-1.5">
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                    <span>Included With Service</span>
+                                  </p>
+                                  {providesList.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {providesList.map((item, idx) => (
+                                        <li key={idx} className="flex items-start gap-2 text-xs text-slate-700 leading-snug">
+                                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 mt-0.5" />
+                                          <span>{item}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-xs italic text-slate-400">No specific inclusions listed for this service.</p>
+                                  )}
+                                </div>
+                              )}
+
+                              {activeTab === 'dont_provide' && (
+                                <div>
+                                  <p className="text-[11px] font-bold uppercase tracking-wider text-rose-600 mb-2 flex items-center gap-1.5">
+                                    <XCircle className="h-3.5 w-3.5 text-rose-500" />
+                                    <span>Not Included / Exclusions</span>
+                                  </p>
+                                  {dontProvidesList.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {dontProvidesList.map((item, idx) => (
+                                        <li key={idx} className="flex items-start gap-2 text-xs text-slate-700 leading-snug">
+                                          <XCircle className="h-3.5 w-3.5 shrink-0 text-rose-500 mt-0.5" />
+                                          <span>{item}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <p className="text-xs italic text-slate-400">No specific exclusions listed for this service.</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                           <div>
                             <p className="text-[10px] font-bold uppercase text-slate-400">Status</p>
-                            <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${service.isActive !== false ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-slate-100 text-slate-500 ring-slate-200'
+                            <span className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${service.isActive !== false ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-slate-100 text-slate-500 ring-slate-200'
                               }`}>
                               {service.isActive !== false ? 'Active' : 'Hidden'}
                             </span>
                           </div>
-                        </div>
-                        <div className="flex justify-end pt-2">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -198,7 +342,7 @@ export function AppSubCategoryServicePage() {
                               setBookingService(service)
                               setBookingTypeOpen(true)
                             }}
-                            className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-white shadow-sm transition active:scale-95"
+                            className="rounded-xl bg-brand px-6 py-2.5 text-sm font-bold text-white shadow-sm transition active:scale-95 hover:bg-brand/90"
                           >
                             Book
                           </button>

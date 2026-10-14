@@ -284,6 +284,7 @@ export const createService = asyncHandler(async (req, res) => {
     discountType = 'PERCENTAGE', discountValue = 0,
     isAllZones = true, zones = [], isActive,
     durationPricing = [],
+    features = [], whatWeProvide = [], whatWeDontProvide = [],
   } = req.body
   const subcat = await LabourSubcategory.findById(subcategoryId)
   if (!subcat) {
@@ -354,10 +355,17 @@ export const createService = asyncHandler(async (req, res) => {
       }))
     : []
 
+  const cleanFeatures = Array.isArray(features) ? features.map(f => String(f).trim()).filter(Boolean) : []
+  const cleanWhatWeProvide = Array.isArray(whatWeProvide) ? whatWeProvide.map(f => String(f).trim()).filter(Boolean) : []
+  const cleanWhatWeDontProvide = Array.isArray(whatWeDontProvide) ? whatWeDontProvide.map(f => String(f).trim()).filter(Boolean) : []
+
   const s = await LabourService.create({
     subcategoryId: subcat._id,
     name: name.trim(),
     description,
+    features: cleanFeatures,
+    whatWeProvide: cleanWhatWeProvide,
+    whatWeDontProvide: cleanWhatWeDontProvide,
     basePrice: Number(basePrice),
     estimatedDurationMins: Number(estimatedDurationMins),
     iconUrl: image,
@@ -400,9 +408,19 @@ export const patchService = asyncHandler(async (req, res) => {
     name, description, basePrice, estimatedDurationMins, isActive, iconUrl,
     hourlyPrice, minHours, maxHours, discountType, discountValue, isAllZones, zones,
     durationPricing,
+    features, whatWeProvide, whatWeDontProvide,
   } = req.body
   if (name != null) s.name = String(name).trim()
   if (description != null) s.description = String(description)
+  if (features != null) {
+    s.features = Array.isArray(features) ? features.map(f => String(f).trim()).filter(Boolean) : []
+  }
+  if (whatWeProvide != null) {
+    s.whatWeProvide = Array.isArray(whatWeProvide) ? whatWeProvide.map(f => String(f).trim()).filter(Boolean) : []
+  }
+  if (whatWeDontProvide != null) {
+    s.whatWeDontProvide = Array.isArray(whatWeDontProvide) ? whatWeDontProvide.map(f => String(f).trim()).filter(Boolean) : []
+  }
   if (basePrice != null) s.basePrice = Number(basePrice)
   if (estimatedDurationMins != null) s.estimatedDurationMins = Number(estimatedDurationMins)
   if (isActive != null) s.isActive = Boolean(isActive)

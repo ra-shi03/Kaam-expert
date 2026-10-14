@@ -17,6 +17,18 @@ const labourServiceSchema = new mongoose.Schema(
       trim: true,
       maxlength: 1000,
     },
+    features: {
+      type: [String],
+      default: [],
+    },
+    whatWeProvide: {
+      type: [String],
+      default: [],
+    },
+    whatWeDontProvide: {
+      type: [String],
+      default: [],
+    },
     // basePrice = hourlyPrice — kept in sync, used as fallback for slot price calculation
     basePrice: {
       type: Number,
