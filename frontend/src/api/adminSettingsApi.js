@@ -92,6 +92,36 @@ export const adminSettingsApi = {
       method: 'DELETE',
     })
   },
+
+  getDurationOptions: () => {
+    return apiRequest('/admin/settings/duration-options', { method: 'GET' })
+  },
+
+  toggleDurationOption: (minutes) => {
+    return apiRequest(`/admin/settings/duration-options/${minutes}/toggle`, {
+      method: 'PATCH',
+    })
+  },
+
+  addDurationOption: ({ minutes, label, tag }) => {
+    return apiRequest('/admin/settings/duration-options', {
+      method: 'POST',
+      body: { minutes, label, tag },
+    })
+  },
+
+  deleteDurationOption: (minutes) => {
+    return apiRequest(`/admin/settings/duration-options/${minutes}`, {
+      method: 'DELETE',
+    })
+  },
+
+  updateWorkingHours: (workingHoursPerDay) => {
+    return apiRequest('/admin/settings/working-hours', {
+      method: 'PATCH',
+      body: { workingHoursPerDay },
+    })
+  },
 }
 
 // Public endpoint (no admin auth) — used in Checkout to fetch time slots

@@ -98,20 +98,20 @@ export function useLabourSocket() {
     }
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && Date.now() - lastLoadTime > 15000) {
+      if (document.visibilityState === 'visible' && Date.now() - lastLoadTime > 4000) {
         loadPending()
       }
     }
 
     const handleFocus = () => {
-      if (Date.now() - lastLoadTime > 15000) {
+      if (Date.now() - lastLoadTime > 4000) {
         loadPending()
       }
     }
 
     window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibility)
-    const pollInterval = setInterval(loadPending, 25000)
+    const pollInterval = setInterval(loadPending, 6000)
 
     return () => {
       socket.off('connect', onConnect)

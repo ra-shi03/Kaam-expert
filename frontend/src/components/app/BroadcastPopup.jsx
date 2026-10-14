@@ -80,20 +80,20 @@ export function BroadcastPopup() {
     fetchPending()
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && Date.now() - lastFetchRef.current > 15000) {
+      if (document.visibilityState === 'visible' && Date.now() - lastFetchRef.current > 4000) {
         fetchPending()
       }
     }
 
     const handleFocus = () => {
-      if (Date.now() - lastFetchRef.current > 15000) {
+      if (Date.now() - lastFetchRef.current > 4000) {
         fetchPending()
       }
     }
 
     window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibility)
-    const timer = setInterval(fetchPending, 25000)
+    const timer = setInterval(fetchPending, 6000)
 
     return () => {
       window.removeEventListener('focus', handleFocus)
@@ -268,7 +268,7 @@ export function BroadcastPopup() {
                           <div>
                             <p className="font-bold text-sm text-slate-900">{svc.name}</p>
                             <p className="text-xs text-slate-500 mt-0.5">
-                              ₹{svc.pricePerHour}/hr · {incoming.duration || 1} hr{(incoming.duration || 1) > 1 ? 's' : ''}
+                              ₹{svc.pricePerHour}/hr · {incoming.selectedSlotLabel || (typeof incoming.duration === 'string' ? incoming.duration : `${incoming.duration || 1} hr`)}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -311,13 +311,23 @@ export function BroadcastPopup() {
                     </span>
                   </div>
                 )}
-                {incoming.duration && (
+                {(incoming.selectedSlotLabel || incoming.duration) && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">Duration</span>
                     <span className="font-bold text-slate-800">
-                      {Number(incoming.duration) === 0.5 
-                        ? '30 minutes' 
-                        : `${incoming.duration} ${Number(incoming.duration) === 1 ? 'Hour' : 'Hours'}`}
+                      {incoming.selectedSlotLabel
+                        ? incoming.selectedSlotLabel
+                        : (typeof incoming.duration === 'string' && isNaN(Number(incoming.duration)))
+                        ? incoming.duration
+                        : (() => {
+                            const num = Number(incoming.duration || 1)
+                            if (num < 1) {
+                              const mins = incoming.durationMinutes || Math.round(num * 60)
+                              return `${mins} Minutes`
+                            }
+                            return `${+num.toFixed(1)} ${num === 1 ? 'Hour' : 'Hours'}`
+                          })()
+                      }
                     </span>
                   </div>
                 )}

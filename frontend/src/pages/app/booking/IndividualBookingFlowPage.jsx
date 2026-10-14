@@ -319,7 +319,6 @@ export function IndividualBookingFlowPage() {
   }, [categoryIdParam, groupIdParam, syncDraft])
 
   useEffect(() => {
-    if (realUser?.role !== 'contractor') return
     let cancelled = false
     const loc = readAppUserLocation()
     fetchLabourCategoriesGrouped(loc?.lat, loc?.lng, loc?.city, loc?.address)
@@ -344,15 +343,96 @@ export function IndividualBookingFlowPage() {
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [realUser])
+  }, [])
 
   const [paymentModes, setPaymentModes] = useState({ cashEnabled: true, onlineEnabled: true })
-  
+  const [globalDurationOptions, setGlobalDurationOptions] = useState([])
+  const [extraTimeModalOpen, setExtraTimeModalOpen] = useState(false)
+  const [selectedExtraSlot, setSelectedExtraSlot] = useState(null)
+  const [addingExtraTime, setAddingExtraTime] = useState(false)
+
+  const currentServiceObj = useMemo(() => {
+    const sId = draft.serviceId || draft.categoryId
+    if (!sId) return null
+    return availableServicesList.find(s => String(s._id) === String(sId) || String(s.value) === String(sId)) || null
+  }, [availableServicesList, draft.serviceId, draft.categoryId])
+
+  const availableDurationSlots = useMemo(() => {
+    const baseSlots = (globalDurationOptions && globalDurationOptions.length > 0)
+      ? globalDurationOptions.filter(o => o.isActive !== false)
+      : [
+          { minutes: 10, label: '10 min', tag: 'quick', isActive: true },
+          { minutes: 25, label: '25 min', tag: 'quick', isActive: true },
+          { minutes: 30, label: '30 min', tag: 'quick', isActive: true },
+          { minutes: 45, label: '45 min', tag: 'quick', isActive: true },
+          { minutes: 60, label: '1 hr', tag: 'hourly', isActive: true },
+          { minutes: 75, label: '1 hr 15 min', tag: 'hourly', isActive: true },
+          { minutes: 80, label: '1 hr 20 min', tag: 'hourly', isActive: true },
+          { minutes: 90, label: '1 hr 30 min', tag: 'hourly', isActive: true },
+          { minutes: 105, label: '1 hr 45 min', tag: 'hourly', isActive: true },
+          { minutes: 120, label: '2 hrs', tag: 'hourly', isActive: true },
+          { minutes: 180, label: '3 hrs', tag: 'hourly', isActive: true },
+          { minutes: 240, label: '4 hrs', tag: 'hourly', isActive: true },
+          { minutes: 300, label: '5 hrs', tag: 'hourly', isActive: true },
+          { minutes: 360, label: 'Half Day (6 hrs)', tag: 'half_day', isActive: true },
+          { minutes: 480, label: '8 hrs', tag: 'hourly', isActive: true },
+          { minutes: 720, label: 'Full Day (12 hrs)', tag: 'full_day', isActive: true },
+        ]
+
+    const isContractor = realUser?.role === 'contractor'
+    const contractorList = draft.contractorServices?.length
+      ? draft.contractorServices
+      : (isContractor ? [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }] : [])
+
+    return baseSlots.map(slot => {
+      let price = 0
+      if (isContractor && contractorList.length > 0) {
+        price = contractorList.reduce((acc, cs) => {
+          if (!cs.serviceId) return acc
+          const srv = availableServicesList.find(s => String(s._id) === String(cs.serviceId) || String(s.value) === String(cs.serviceId))
+          if (!srv) return acc
+          const custom = (srv.durationPricing || []).find(p => p.minutes === slot.minutes && p.isActive !== false)
+          const slotUnitPrice = (custom && custom.price > 0)
+            ? custom.price
+            : Math.round((srv.basePrice || srv.hourlyPrice || 100) * (slot.minutes / 60))
+          return acc + (slotUnitPrice * (cs.quantity || 1))
+        }, 0)
+      } else if (currentServiceObj) {
+        const custom = (currentServiceObj.durationPricing || []).find(p => p.minutes === slot.minutes && p.isActive !== false)
+        const unitPrice = (custom && custom.price > 0)
+          ? custom.price
+          : Math.round((currentServiceObj.basePrice || currentServiceObj.hourlyPrice || 100) * (slot.minutes / 60))
+        price = unitPrice * (draft.quantity || 1)
+      }
+
+      return {
+        ...slot,
+        price
+      }
+    })
+  }, [globalDurationOptions, realUser, draft.contractorServices, draft.serviceId, draft.categoryId, draft.quantity, availableServicesList, currentServiceObj])
+
+  useEffect(() => {
+    if (availableDurationSlots.length > 0 && !draft.durationMinutes) {
+      const targetMin = draft.hours ? Math.round(draft.hours * 60) : 60
+      const matched = availableDurationSlots.find(s => s.minutes === targetMin) || availableDurationSlots[0]
+      if (matched) {
+        syncDraft({
+          durationMinutes: matched.minutes,
+          selectedSlotLabel: matched.label,
+          hours: Math.max(0.5, +(matched.minutes / 60).toFixed(2)),
+          durationKind: matched.tag === 'half_day' ? 'half_day' : matched.tag === 'full_day' ? 'full_day' : 'few_hours'
+        })
+      }
+    }
+  }, [availableDurationSlots, draft.durationMinutes, draft.hours, syncDraft])
+
   useEffect(() => {
     let cancelled = false
     getPublicSettings().then(res => {
-      if (!cancelled && res.data?.paymentModes) {
-        setPaymentModes(res.data.paymentModes)
+      if (!cancelled) {
+        if (res.data?.paymentModes) setPaymentModes(res.data.paymentModes)
+        if (Array.isArray(res.data?.durationOptions)) setGlobalDurationOptions(res.data.durationOptions)
       }
     }).catch(() => {})
     return () => { cancelled = true }
@@ -455,9 +535,12 @@ export function IndividualBookingFlowPage() {
       const days = durationKindToDays(draft.durationKind, draft.durationDays)
       const kind = draft.durationKind || 'few_hours'
       const hours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
+      const durationMinutes = draft.durationMinutes || Math.round(hours * 60)
       bookingsApi.calculateBill({
         serviceId: draft.serviceId || draft.categoryId,
         hours,
+        durationMinutes,
+        selectedSlotLabel: draft.selectedSlotLabel,
         quantity: draft.quantity || 1,
         address: draft.address,
         ...(realUser?.role === 'contractor' ? { contractorServices: draft.contractorServices } : {})
@@ -593,20 +676,37 @@ export function IndividualBookingFlowPage() {
         alert('Payment gateway failed to load. Please try again.')
         return
       }
-      const payAmount = completedBill.isContractorBooking
+      const rawAmount = completedBill.isContractorBooking
         ? completedBill.completedTotalAmount
         : activeBooking.totalAmount
+      const payAmount = Math.max(1, Math.round(Number(rawAmount) || 0))
+      const targetBookingId = activeBooking._id || activeBookingId
 
       const payRes = await paymentsApi.initPayment({
         amount: payAmount,
         purpose: 'BOOKING',
-        bookingId: activeBooking._id,
+        bookingId: targetBookingId,
       })
       const order = payRes.data?.order
       if (!order) throw new Error('Payment initialization failed')
 
+      if (order.mock || order.id?.startsWith('order_mock_')) {
+        await paymentsApi.verifyPayment({
+          razorpayOrderId: order.id,
+          razorpayPaymentId: `pay_mock_${Date.now()}`,
+          razorpaySignature: 'mock_signature',
+        })
+        setActiveBooking(prev => prev ? { ...prev, paymentStatus: 'PAID' } : null)
+        if (activeBooking?.type === 'SCHEDULED') {
+          setPaymentSuccess(true)
+        } else {
+          handleOpenReview()
+        }
+        return
+      }
+
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_8sYbzHWidwe5Zw',
         amount: order.amount,
         currency: order.currency || 'INR',
         order_id: order.id,
@@ -659,9 +759,12 @@ export function IndividualBookingFlowPage() {
       const days = durationKindToDays(draft.durationKind, draft.durationDays)
       const kind = draft.durationKind || 'few_hours'
       const hours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
+      const durationMinutes = draft.durationMinutes || Math.round(hours * 60)
       const res = await bookingsApi.calculateBill({
-        serviceId: draft.serviceId || draft.categoryId, // Fallback
+        serviceId: draft.serviceId || draft.contractorServices?.[0]?.serviceId || draft.categoryId, // Fallback
         hours,
+        durationMinutes,
+        selectedSlotLabel: draft.selectedSlotLabel,
         quantity: draft.quantity || 1,
         address: draft.address,
         ...(realUser?.role === 'contractor' ? { contractorServices: draft.contractorServices } : {})
@@ -712,18 +815,25 @@ export function IndividualBookingFlowPage() {
 
       const days = durationKindToDays(draft.durationKind, draft.durationDays)
       const kind = draft.durationKind || 'few_hours'
-      const hours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
+      const fallbackHours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
+      const durationMinutes = draft.durationMinutes || Math.round(fallbackHours * 60)
+      const hours = +(durationMinutes / 60).toFixed(2)
+      const resolvedPaymentMethod = realUser?.role === 'contractor'
+        ? 'ONLINE'
+        : String(draft.paymentMethod || 'CASH').toUpperCase()
       const payload = {
-        serviceId: draft.serviceId || draft.categoryId,
+        serviceId: draft.serviceId || draft.contractorServices?.[0]?.serviceId || draft.categoryId,
         type: draft.bookingType === 'scheduled' ? 'SCHEDULED' : 'INSTANT',
-        locationText: draft.address.trim(),
+        locationText: (draft.address || '').trim(),
         lat: draft.lat || 28.6139,
         lng: draft.lng || 77.2090,
-        paymentMethod: realUser?.role === 'contractor' ? 'ONLINE' : (draft.paymentMethod || 'CASH'),
+        paymentMethod: ['ONLINE', 'CASH'].includes(resolvedPaymentMethod) ? resolvedPaymentMethod : 'CASH',
         notes: draft.notes,
         durationKind: draft.durationKind,
         durationDays: days,
         hours,
+        durationMinutes,
+        selectedSlotLabel: draft.selectedSlotLabel || `${hours} hrs`,
         quantity: draft.quantity || 1,
         timeSlot: draft.timeSlot,
         scheduledAt: draft.serviceDate,
@@ -735,7 +845,7 @@ export function IndividualBookingFlowPage() {
             projectName: draft.projectName,
             siteContactNumber: draft.siteContactNumber,
             services: (draft.contractorServices && draft.contractorServices.length > 0)
-              ? draft.contractorServices
+              ? draft.contractorServices.filter(cs => cs && cs.serviceId)
               : [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }]
           }
         } : {})
@@ -744,7 +854,9 @@ export function IndividualBookingFlowPage() {
       const res = await bookingsApi.createBooking(payload)
       const createdBooking = res.data.booking
       setActiveBookingId(createdBooking._id)
-      patchBookingDraft({ lastRef: createdBooking._id })
+      setActiveBooking(createdBooking)
+      patchBookingDraft({ lastRef: createdBooking._id, billAmount: createdBooking.totalAmount })
+      syncDraft({ lastRef: createdBooking._id, billAmount: createdBooking.totalAmount })
       setNoMatch(false)
       goStep(draft.bookingType === 'scheduled' ? 'scheduled_success' : 'searching')
     } catch (err) {
@@ -814,7 +926,7 @@ export function IndividualBookingFlowPage() {
               </div>
               <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-slate-900 mt-2">
                 <span>Total Bill</span>
-                <span>₹{draft.billAmount?.toLocaleString('en-IN') || 0}</span>
+                <span>{formatInr(activeBooking?.totalAmount ?? draft.billAmount ?? 0)}</span>
               </div>
             </div>
           </div>
@@ -1016,8 +1128,35 @@ export function IndividualBookingFlowPage() {
         {booking && step !== 'billing' && (
           <div className="space-y-4">
             <div className="lc-booking-flow-card">
-              <p className="lc-booking-flow-label mb-2">Booking Details</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="lc-booking-flow-label">Booking Details</p>
+                {['ACCEPTED', 'EN_ROUTE', 'STARTED', 'IN_PROGRESS', 'ASSIGNED'].includes(booking.status) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedExtraSlot(null)
+                      setExtraTimeModalOpen(true)
+                    }}
+                    className="flex items-center gap-1 text-xs font-bold text-brand bg-brand/10 hover:bg-brand/20 px-2.5 py-1 rounded-lg transition"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    + Add Extra Time
+                  </button>
+                )}
+              </div>
               <div className="space-y-2 text-sm text-slate-700">
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-500">Duration</span>
+                  <span className="font-bold text-slate-900">
+                    {booking.selectedSlotLabel || `${booking.hours || 1} hrs`}
+                  </span>
+                </div>
+                {booking.extraSlotLabel && (
+                  <div className="flex justify-between text-brand font-medium">
+                    <span>Extra Time Added</span>
+                    <span className="font-bold">+{booking.extraSlotLabel} (+₹{booking.extraAmount || 0})</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="font-semibold text-slate-500">Date</span>
                   <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? new Date(booking.scheduledAt).toLocaleDateString() : 'ASAP'}</span>
@@ -1032,7 +1171,7 @@ export function IndividualBookingFlowPage() {
                 </div>
                 <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-slate-900 mt-2">
                   <span>Total Bill</span>
-                  <span>₹{booking.totalAmount?.toLocaleString('en-IN') || 0}</span>
+                  <span>{formatInr(booking.totalAmount || 0)}</span>
                 </div>
               </div>
             </div>
@@ -1295,6 +1434,95 @@ export function IndividualBookingFlowPage() {
           onClose={() => setReviewOpen(false)}
           onSubmitted={handleReviewSubmitted}
         />
+
+        {extraTimeModalOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-brand/10 text-brand">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Add Extra Time</h3>
+                    <p className="text-xs text-slate-500">Select duration to add</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExtraTimeModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1 text-sm font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1 border border-slate-100 rounded-xl bg-slate-50/50 mb-4">
+                {availableDurationSlots.filter(s => s.minutes <= 360).map((slot) => {
+                  const isSel = selectedExtraSlot?.minutes === slot.minutes
+                  return (
+                    <button
+                      key={slot.minutes}
+                      type="button"
+                      onClick={() => setSelectedExtraSlot(slot)}
+                      className={`p-2.5 rounded-xl border text-left transition ${
+                        isSel
+                          ? 'border-brand bg-brand/10 ring-2 ring-brand/30'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <p className={`text-xs font-bold ${isSel ? 'text-brand' : 'text-slate-800'}`}>{slot.label}</p>
+                      <p className="text-[11px] font-extrabold text-slate-900 mt-0.5">
+                        {slot.price > 0 ? `+₹${slot.price.toLocaleString('en-IN')}` : ''}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExtraTimeModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedExtraSlot || addingExtraTime}
+                  onClick={async () => {
+                    if (!selectedExtraSlot || !activeBookingId) return
+                    setAddingExtraTime(true)
+                    try {
+                      await bookingsApi.addExtraTime(activeBookingId, {
+                        extraMinutes: selectedExtraSlot.minutes,
+                        extraSlotLabel: selectedExtraSlot.label,
+                        extraPrice: selectedExtraSlot.price,
+                        extraHours: +(selectedExtraSlot.minutes / 60).toFixed(2)
+                      })
+                      const res = await bookingsApi.getBookingStatus(activeBookingId)
+                      if (res.data?.booking) setActiveBooking(res.data.booking)
+                      setExtraTimeModalOpen(false)
+                      setSelectedExtraSlot(null)
+                    } catch (err) {
+                      alert(err.message || 'Failed to add extra time')
+                    } finally {
+                      setAddingExtraTime(false)
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand/90 transition disabled:opacity-50"
+                >
+                  {addingExtraTime ? 'Adding...' : 'Confirm'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {paymentSuccess && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
@@ -1627,28 +1855,59 @@ export function IndividualBookingFlowPage() {
                   </motion.div>
                 </>
               ) : null}
-              <motion.div>
-                <FieldLabel>Required Duration</FieldLabel>
-                <div className="relative">
-                  <AppSearchableSelect
-                    value={parseFloat(draft.hours) || parseFloat(draft.minHours) || 1}
-                    onChange={(val) => syncDraft({ hours: parseFloat(val) || parseFloat(draft.minHours) || 1 })}
-                    hideSearch
-                    options={(() => {
-                      const min = parseFloat(draft.minHours) || 1
-                      const max = draft.maxHours || 24
-                      const opts = []
-                      // 30-min option only when the service explicitly allows it
-                      if (min <= 0.5) {
-                        opts.push({ value: 0.5, label: '30 Minutes' })
-                      }
-                      const startHour = min <= 0.5 ? 1 : Math.ceil(min)
-                      for (let h = startHour; h <= max; h++) {
-                        opts.push({ value: h, label: `${h} ${h === 1 ? 'Hour' : 'Hours'}` })
-                      }
-                      return opts
-                    })()}
-                  />
+              <motion.div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <FieldLabel>Select Service Duration</FieldLabel>
+                  {draft.selectedSlotLabel && (
+                    <span className="text-xs font-bold text-brand bg-brand/10 px-2 py-0.5 rounded-full">
+                      {draft.selectedSlotLabel}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-1.5 border border-slate-200/80 rounded-2xl bg-slate-50/60">
+                  {availableDurationSlots.map((slot) => {
+                    const isSelected = draft.durationMinutes
+                      ? draft.durationMinutes === slot.minutes
+                      : (draft.hours ? Math.round(draft.hours * 60) === slot.minutes : slot.minutes === 60)
+                    return (
+                      <button
+                        key={slot.minutes}
+                        type="button"
+                        onClick={() => {
+                          syncDraft({
+                            durationMinutes: slot.minutes,
+                            selectedSlotLabel: slot.label,
+                            hours: Math.max(0.5, +(slot.minutes / 60).toFixed(2)),
+                            durationKind: slot.tag === 'half_day' ? 'half_day' : slot.tag === 'full_day' ? 'full_day' : 'few_hours'
+                          })
+                          setCalculatedBill(null)
+                        }}
+                        className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${
+                          isSelected
+                            ? 'border-brand bg-brand/10 shadow-xs ring-2 ring-brand/30'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className={`text-xs font-bold ${isSelected ? 'text-brand' : 'text-slate-800'}`}>
+                            {slot.label}
+                          </span>
+                          {slot.tag && (
+                            <span className={`text-[8px] font-bold uppercase px-1 py-0.2 rounded ${
+                              slot.tag === 'half_day' || slot.tag === 'full_day'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {slot.tag.replace('_', ' ')}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] font-extrabold text-slate-900 mt-1">
+                          {slot.price > 0 ? `₹${slot.price.toLocaleString('en-IN')}` : '—'}
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
               </motion.div>
 
@@ -1746,9 +2005,9 @@ export function IndividualBookingFlowPage() {
                 <div className="flex justify-between">
                   <span className="lc-booking-flow-muted">Duration</span>
                   <span className="font-bold text-black">
-                    {draft.bookingType === 'instant'
+                    {draft.selectedSlotLabel || (draft.bookingType === 'instant'
                       ? formatDuration(parseFloat(draft.hours) || parseFloat(draft.minHours) || 1)
-                      : durationKindLabel(draft.durationKind)}
+                      : durationKindLabel(draft.durationKind))}
                   </span>
                 </div>
 
@@ -1783,14 +2042,14 @@ export function IndividualBookingFlowPage() {
                         <span>Service fee</span>
                         <span className="text-[11px] text-slate-500 font-medium">
                           {(() => {
+                            const q = draft.quantity || 1;
                             const h = draft.durationKind === 'few_hours' ? (parseFloat(draft.hours) || parseFloat(draft.minHours) || 1) : 
                                      draft.durationKind === 'half_day' ? 4 : 
                                      draft.durationKind === 'full_day' ? 8 : 
                                      draft.durationKind === 'multi_day' ? ((draft.durationDays || 1) * 8) : 
                                      (parseFloat(draft.hours) || parseFloat(draft.minHours) || 1);
-                            const q = draft.quantity || 1;
-                            const hLabel = h === 0.5 ? '30 min' : `${h} hrs`
-                            return `Hourly rate (${formatInr((calculatedBill.subTotal || calculatedBill.basePrice) / (h * q))}/hr) × ${hLabel}${q > 1 ? ` × ${q} workers` : ''}`;
+                            const slotLabel = draft.selectedSlotLabel || formatDurationMinutes(draft.durationMinutes || Math.round(h * 60));
+                            return `${slotLabel}${q > 1 ? ` × ${q} workers` : ''}`;
                           })()}
                         </span>
                       </span>

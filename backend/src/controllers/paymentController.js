@@ -22,9 +22,11 @@ export const initPayment = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'requestId is required for WORKFORCE_REQUEST purpose', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
+  const numericAmount = Math.max(1, Math.round(Number(amount) || 0))
+
   // Generate Razorpay Order
   const receiptId = `rcpt_${req.user._id.toString().slice(-4)}_${Date.now().toString().slice(-4)}`
-  const order = await createOrder(amount, 'INR', receiptId)
+  const order = await createOrder(numericAmount, 'INR', receiptId)
 
   // Record Transaction intent
   const pTx = await PaymentTransaction.create({
@@ -34,7 +36,7 @@ export const initPayment = asyncHandler(async (req, res) => {
     planId: purpose === 'SUBSCRIPTION' ? req.body.planId : undefined,
     requestId: purpose === 'WORKFORCE_REQUEST' ? req.body.requestId : undefined,
     razorpayOrderId: order.id,
-    amount,
+    amount: numericAmount,
     purpose,
     status: 'CREATED'
   })

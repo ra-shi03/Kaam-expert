@@ -71,23 +71,63 @@ export async function startBroadcastCycle(bookingId) {
   }).select('acceptedLabourId').lean()
   const busyLabourIds = busyBookings.map(b => b.acceptedLabourId)
 
-  const query = {
-    _id: { $nin: busyLabourIds },
-    role: { $in: ['labour', 'contractor'] },
-    'labourProfile.availabilityStatus': 'available',
-    'labourProfile.kycStatus': 'verified',
-    'labourProfile.currentLatitude': { $gte: bookingLat - bufferLatDiff, $lte: bookingLat + bufferLatDiff },
-    'labourProfile.currentLongitude': { $gte: bookingLng - bufferLngDiff, $lte: bookingLng + bufferLngDiff }
+  const andClauses = [
+    { _id: { $nin: busyLabourIds } },
+    { role: { $in: ['labour', 'contractor'] } },
+    { 'labourProfile.availabilityStatus': { $nin: ['busy', 'offline'] } },
+  ]
+
+  // Location filter: worker coordinates can be in labourProfile or savedAddress
+  andClauses.push({
+    $or: [
+      {
+        'labourProfile.currentLatitude': { $gte: bookingLat - bufferLatDiff, $lte: bookingLat + bufferLatDiff },
+        'labourProfile.currentLongitude': { $gte: bookingLng - bufferLngDiff, $lte: bookingLng + bufferLngDiff }
+      },
+      {
+        'savedAddress.lat': { $gte: bookingLat - bufferLatDiff, $lte: bookingLat + bufferLatDiff },
+        'savedAddress.lng': { $gte: bookingLng - bufferLngDiff, $lte: bookingLng + bufferLngDiff }
+      }
+    ]
+  })
+
+  // KYC filter
+  if (process.env.NODE_ENV !== 'production') {
+    andClauses.push({
+      $or: [
+        { 'labourProfile.kycStatus': { $in: ['verified', 'pending', null] } },
+        { 'labourProfile.kycStatus': { $exists: false } },
+        { 'contractorProfile.kycStatus': { $in: ['verified', 'pending', null] } },
+        { 'contractorProfile.kycStatus': { $exists: false } }
+      ]
+    })
+  } else {
+    andClauses.push({
+      $or: [
+        { role: 'labour', 'labourProfile.kycStatus': 'verified' },
+        { role: 'contractor', 'contractorProfile.kycStatus': 'verified' }
+      ]
+    })
   }
 
+  // Service / Subcategory skill filter:
   if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 0) {
     const requestedServiceIds = booking.contractorInfo.services.map(s => s.serviceId)
-    query['labourProfile.serviceIds'] = { $in: requestedServiceIds }
+    andClauses.push({ 'labourProfile.serviceIds': { $in: requestedServiceIds } })
+  } else if (booking.serviceId && booking.subcategoryId) {
+    andClauses.push({
+      $or: [
+        { 'labourProfile.serviceIds': booking.serviceId },
+        { 'labourProfile.subcategoryIds': booking.subcategoryId }
+      ]
+    })
   } else if (booking.serviceId) {
-    query['labourProfile.serviceIds'] = booking.serviceId
+    andClauses.push({ 'labourProfile.serviceIds': booking.serviceId })
   } else if (booking.subcategoryId) {
-    query['labourProfile.subcategoryIds'] = booking.subcategoryId
+    andClauses.push({ 'labourProfile.subcategoryIds': booking.subcategoryId })
   }
+
+  const query = { $and: andClauses }
 
   const potentialLaborersRaw = await User.find(query).lean()
 
@@ -154,36 +194,42 @@ export async function startBroadcastCycle(bookingId) {
   const walletEligible = potentialLaborers
 
   // 3b. Subscription Eligibility Filter
-  const subEligible = []
-  const today = new Date().toISOString().split('T')[0]
+  const isSubEnabled = settings?.isUserSubscriptionEnabled ?? false
+  let subEligible = []
   const activeSubsMap = {} // Store to increment bookingsReceived later
 
-  console.log(`[BROADCAST-DEBUG] Wallet eligible labourers count: ${walletEligible.length}`)
+  if (!isSubEnabled) {
+    console.log(`[BROADCAST] Subscription check disabled in master_config. All ${walletEligible.length} labourers eligible.`)
+    subEligible = walletEligible
+  } else {
+    const today = new Date().toISOString().split('T')[0]
+    console.log(`[BROADCAST-DEBUG] Wallet eligible labourers count: ${walletEligible.length}`)
 
-  for (const labor of walletEligible) {
-    const trialEnds = labor.labourProfile?.trialEndsAt
-    const now = new Date()
-    
-    console.log(`[BROADCAST-DEBUG] Checking labour ${labor._id} | trialEndsAt: ${trialEnds} | now: ${now}`)
-    if (trialEnds && now <= new Date(trialEnds)) {
-      subEligible.push(labor) // Free trial
-      console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via free trial`)
-      continue
-    }
+    for (const labor of walletEligible) {
+      const trialEnds = labor.labourProfile?.trialEndsAt
+      const now = new Date()
+      
+      console.log(`[BROADCAST-DEBUG] Checking labour ${labor._id} | trialEndsAt: ${trialEnds} | now: ${now}`)
+      if (trialEnds && now <= new Date(trialEnds)) {
+        subEligible.push(labor) // Free trial
+        console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via free trial`)
+        continue
+      }
 
-    const activeSub = await UserSubscription.findOne({
-      labour: labor._id,
-      date: { $lte: today },
-      endDate: { $gte: today },
-      status: 'active'
-    })
-    
-    if (activeSub) {
-      console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via active subscription ${activeSub._id}`)
-      subEligible.push(labor)
-      activeSubsMap[labor._id] = activeSub
-    } else {
-      console.log(`[BROADCAST-DEBUG] Labour ${labor._id} NOT eligible. No active sub for today (${today}).`)
+      const activeSub = await UserSubscription.findOne({
+        labour: labor._id,
+        date: { $lte: today },
+        endDate: { $gte: today },
+        status: 'active'
+      })
+      
+      if (activeSub) {
+        console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via active subscription ${activeSub._id}`)
+        subEligible.push(labor)
+        activeSubsMap[labor._id] = activeSub
+      } else {
+        console.log(`[BROADCAST-DEBUG] Labour ${labor._id} NOT eligible. No active sub for today (${today}).`)
+      }
     }
   }
 
@@ -196,8 +242,8 @@ export async function startBroadcastCycle(bookingId) {
   // 4. Precise Distance Filter (Google Maps)
   const destinations = subEligible.map(l => ({
     id: String(l._id),
-    lat: l.labourProfile.currentLatitude,
-    lng: l.labourProfile.currentLongitude
+    lat: l.labourProfile?.currentLatitude ?? l.savedAddress?.lat ?? bookingLat,
+    lng: l.labourProfile?.currentLongitude ?? l.savedAddress?.lng ?? bookingLng
   }))
 
   const distances = await getRoadDistances(bookingLat, bookingLng, destinations)
@@ -310,7 +356,17 @@ export async function startBroadcastCycle(bookingId) {
   for (const labor of eligibleLaborers) {
     const laborServiceIds = labor.labourProfile?.serviceIds?.map(id => String(id)) || []
     const bookingHours = booking.duration || booking.hours || 1
-    const hasContractorServices = booking.contractorInfo?.services?.length > 0
+    const hasContractorServices = !!(booking.contractorInfo?.services?.length > 0)
+    const displayDuration = booking.selectedSlotLabel
+      || (booking.durationMinutes
+          ? (booking.durationMinutes < 60
+              ? `${booking.durationMinutes} Minutes`
+              : `${+(booking.durationMinutes / 60).toFixed(1)} Hours`)
+          : (booking.hours
+              ? (booking.hours < 1
+                  ? `${Math.round(booking.hours * 60)} Minutes`
+                  : `${+Number(booking.hours).toFixed(1)} Hours`)
+              : '1 Hour'))
 
     if (hasContractorServices) {
       // Find open services that match this labourer's skills
@@ -363,7 +419,10 @@ export async function startBroadcastCycle(bookingId) {
         scheduledAt: booking.scheduledAt,
         time: booking.timeSlot || 'Earliest available',
         timeSlot: booking.timeSlot || 'Earliest available',
-        duration: bookingHours,
+        duration: displayDuration,
+        durationMinutes: booking.durationMinutes,
+        selectedSlotLabel: booking.selectedSlotLabel || displayDuration,
+        durationKind: booking.durationKind,
         address: booking.address,
         customerLocation: booking.address?.locationText || 'Service Location',
         approximateDistance: labor.approximateDistance,
@@ -409,7 +468,10 @@ export async function startBroadcastCycle(bookingId) {
         scheduledAt: booking.scheduledAt,
         time: booking.timeSlot || 'Earliest available',
         timeSlot: booking.timeSlot || 'Earliest available',
-        duration: bookingHours,
+        duration: displayDuration,
+        durationMinutes: booking.durationMinutes,
+        selectedSlotLabel: booking.selectedSlotLabel || displayDuration,
+        durationKind: booking.durationKind,
         address: booking.address,
         customerLocation: booking.address?.locationText || 'Service Location',
         approximateDistance: labor.approximateDistance,

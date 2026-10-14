@@ -76,6 +76,10 @@ export default function InvoicePrintView({ data }) {
                 <td className="py-4 text-sm text-gray-800">
                   <p className="font-medium">{actualDescription}</p>
                   <p className="text-xs text-gray-500 mt-1 max-w-[300px] whitespace-normal">
+                    Duration: {booking?.selectedSlotLabel || `${booking?.hours || 1} hrs`}
+                    {booking?.extraSlotLabel && ` (+${booking.extraSlotLabel} extra)`}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5 max-w-[300px] whitespace-normal">
                     Labour: {relevantAssignments.length > 0 
                       ? relevantAssignments.map(a => a.labourId?.fullName).filter(Boolean).join(', ') 
                       : (booking?.laborId?.fullName || (booking?.quantity > 1 ? `${booking.quantity} Labours` : 'Assigned Labour'))

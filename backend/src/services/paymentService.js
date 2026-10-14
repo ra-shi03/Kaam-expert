@@ -19,26 +19,37 @@ const getRazorpayInstance = () => {
 
 export const createOrder = async (amount, currency = 'INR', receipt = 'receipt#1') => {
   const instance = getRazorpayInstance()
+  const roundedAmountInPaise = Math.max(100, Math.round(Number(amount) * 100))
+  const cleanReceipt = String(receipt).slice(0, 40)
   
   if (!instance) {
     // Mock successful order creation for MVP if keys are missing
     return {
       id: `order_mock_${Date.now()}`,
-      amount: amount * 100,
+      amount: roundedAmountInPaise,
       currency,
-      receipt,
+      receipt: cleanReceipt,
       status: 'created',
       mock: true
     }
   }
 
   const options = {
-    amount: amount * 100, // amount in the smallest currency unit
+    amount: roundedAmountInPaise, // amount in the smallest currency unit (must be an integer)
     currency,
-    receipt,
+    receipt: cleanReceipt,
   }
 
-  return await instance.orders.create(options)
+  try {
+    return await instance.orders.create(options)
+  } catch (err) {
+    console.error('Razorpay order creation failed:', err)
+    const description = err.error?.description || err.message || 'Payment provider error'
+    const error = new Error(description)
+    error.statusCode = err.statusCode || 400
+    error.code = err.error?.code || 'GATEWAY_ERROR'
+    throw error
+  }
 }
 
 export const verifyPaymentSignature = (orderId, paymentId, signature) => {

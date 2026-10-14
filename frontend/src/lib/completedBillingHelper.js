@@ -74,8 +74,8 @@ export function calculateCompletedBookingBill(booking) {
     const requestedQty = Number(svc.quantity) || 1
     const pricePerHour = Number(svc.price) || 0
 
-    totalRequestedLabours += requestedQty
-    const expectedServiceBase = pricePerHour * bookingHours * requestedQty
+    const slotPrice = Number(svc.slotPrice) > 0 ? Number(svc.slotPrice) : (pricePerHour * bookingHours)
+    const expectedServiceBase = slotPrice * requestedQty
     requestedBasePrice += expectedServiceBase
 
     // Find assignments matching this service.
@@ -104,11 +104,12 @@ export function calculateCompletedBookingBill(booking) {
     )
     totalExtraHours += extraHoursForService
 
-    const regularCompletedAmount = pricePerHour * bookingHours * completedQty
-    const extraCompletedAmount = pricePerHour * extraHoursForService
+    const regularCompletedAmount = slotPrice * completedQty
+    const unitHourly = bookingHours > 0 ? (slotPrice / bookingHours) : pricePerHour
+    const extraCompletedAmount = unitHourly * extraHoursForService
     const serviceCompletedAmount = regularCompletedAmount + extraCompletedAmount
     const pendingQty = Math.max(0, requestedQty - completedQty)
-    const serviceDeductedAmount = pricePerHour * bookingHours * pendingQty
+    const serviceDeductedAmount = slotPrice * pendingQty
 
     completedBasePrice += serviceCompletedAmount
 
@@ -119,7 +120,9 @@ export function calculateCompletedBookingBill(booking) {
       completedQty,
       pendingQty,
       pricePerHour,
+      slotPrice,
       bookingHours,
+      selectedSlotLabel: booking.selectedSlotLabel || '',
       extraHours: extraHoursForService,
       completedAmount: serviceCompletedAmount,
       deductedAmount: serviceDeductedAmount,

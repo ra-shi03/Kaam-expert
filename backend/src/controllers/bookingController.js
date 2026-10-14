@@ -11,43 +11,82 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import { parseISTDateTime } from '../utils/dateHelper.js'
 
+/**
+ * Resolve price for a specific slot duration.
+ * Priority: matchedZone.durationPricing[exact minutes] → zone hourly × fraction → service.durationPricing[exact minutes] → basePrice × fraction
+ */
+function resolveSlotPrice(service, durationMinutes, matchedZone) {
+  // 1. Zone-specific duration slot price
+  if (matchedZone && Array.isArray(service.zones) && service.zones.length > 0) {
+    const zonePricing = service.zones.find((z) => String(z.zone) === String(matchedZone._id))
+    if (zonePricing && Array.isArray(zonePricing.durationPricing) && zonePricing.durationPricing.length > 0) {
+      const zoneSlot = zonePricing.durationPricing.find(
+        (d) => d.minutes === durationMinutes && d.isActive && d.price > 0
+      )
+      if (zoneSlot) return zoneSlot.price
+    }
+    // 2. Zone hourly rate fallback
+    if (zonePricing && typeof zonePricing.price === 'number' && zonePricing.price > 0) {
+      return zonePricing.price * (durationMinutes / 60)
+    }
+  }
+  // 3. Service duration pricing
+  if (Array.isArray(service.durationPricing) && service.durationPricing.length > 0) {
+    const slotEntry = service.durationPricing.find(
+      (d) => d.minutes === durationMinutes && d.isActive && d.price > 0
+    )
+    if (slotEntry) return slotEntry.price
+  }
+  // 4. Fallback: base hourly rate × fraction
+  return (service.basePrice || 0) * (durationMinutes / 60)
+}
+
 export const calculateBill = asyncHandler(async (req, res) => {
-  const { serviceId, hours: rawHours = 1, quantity = 1, address, contractorServices } = req.body
-  const hours = parseFloat(rawHours) || 1 // supports 0.5 = 30 min
+  const {
+    serviceId,
+    durationMinutes: rawMins,
+    hours: rawHours,
+    quantity = 1,
+    address,
+    contractorServices,
+  } = req.body
+
+  // Accept durationMinutes (new) OR hours (legacy) — always work in minutes internally
+  const durationMinutes = rawMins
+    ? Math.max(1, parseInt(rawMins))
+    : Math.round((parseFloat(rawHours) || 1) * 60)
+  const hours = durationMinutes / 60 // keep for discount threshold comparison
 
   let matchedZone = null
   if (address) {
     const activeZones = await Zone.find({ isActive: true }).lean()
-    matchedZone = activeZones.find(z => address.toLowerCase().includes(z.city.toLowerCase()))
+    matchedZone = activeZones.find((z) =>
+      address.toLowerCase().includes(z.city.toLowerCase())
+    )
   }
 
-  const resolveHourlyRate = async (sId) => {
+  const resolveItemPrice = async (sId) => {
     const service = await LabourService.findById(sId)
-    let hourlyRate = 0
+    let slotPrice = 0
     let name = ''
     let categoryId = null
+
     if (service) {
-      hourlyRate = service.basePrice
+      slotPrice = resolveSlotPrice(service, durationMinutes, matchedZone)
       name = service.name
       const sub = await LabourSubcategory.findById(service.subcategoryId)
       if (sub) categoryId = sub.categoryId
-      if (matchedZone && service.zones && service.zones.length > 0) {
-        const zonePricing = service.zones.find(z => String(z.zone) === String(matchedZone._id))
-        if (zonePricing && typeof zonePricing.price === 'number') {
-          hourlyRate = zonePricing.price
-        }
-      }
     } else {
       const subcategory = await LabourSubcategory.findById(sId)
       if (subcategory) {
-        hourlyRate = subcategory.basePrice || 800
+        slotPrice = (subcategory.basePrice || 800) * (durationMinutes / 60)
         name = subcategory.name
         categoryId = subcategory.categoryId
       } else {
         const { LabourCategory } = await import('../models/LabourCategory.js')
         const category = await LabourCategory.findById(sId)
         if (category) {
-          hourlyRate = 800
+          slotPrice = 800 * (durationMinutes / 60)
           name = category.name
           categoryId = category._id
         } else {
@@ -55,33 +94,35 @@ export const calculateBill = asyncHandler(async (req, res) => {
         }
       }
     }
-    return { hourlyRate, name, categoryId }
+    return { slotPrice, name, categoryId }
   }
 
   let subTotal = 0
   let breakdown = []
 
-  const servicesToCalculate = contractorServices && contractorServices.length > 0 
-    ? contractorServices 
-    : [{ serviceId, quantity }]
+  const servicesToCalculate =
+    contractorServices && contractorServices.length > 0
+      ? contractorServices
+      : [{ serviceId, quantity }]
 
   let primaryCategoryId = null
   for (const item of servicesToCalculate) {
     if (!item.serviceId) continue
-    const { hourlyRate, name, categoryId, error } = await resolveHourlyRate(item.serviceId)
+    const { slotPrice, name, categoryId, error } = await resolveItemPrice(item.serviceId)
     if (error) return sendError(res, { message: error, statusCode: HTTP_STATUS.NOT_FOUND })
-    
     if (!primaryCategoryId && categoryId) primaryCategoryId = categoryId
 
-    const itemTotal = hourlyRate * hours * item.quantity
+    const itemTotal = slotPrice * item.quantity
     subTotal += itemTotal
     breakdown.push({
       serviceId: item.serviceId,
       name,
-      hourlyRate,
-      hours,
+      slotPrice,
+      hourlyRate: Math.round(slotPrice / (durationMinutes / 60)),
+      hours: +(durationMinutes / 60).toFixed(2),
+      durationMinutes,
       quantity: item.quantity,
-      subTotal: itemTotal
+      subTotal: itemTotal,
     })
   }
 
@@ -90,28 +131,27 @@ export const calculateBill = asyncHandler(async (req, res) => {
     settings = await SystemSetting.create({ configKey: 'master_config' })
   }
 
-  // Calculate Subtotal (Hourly Rate * Hours * Quantity)
-  // subTotal already calculated above
-  let maxHourDiscount = 0
+  // Get slot label from systemSettings durationOptions
+  const slotDef = (settings.durationOptions || []).find((d) => d.minutes === durationMinutes)
+  const selectedSlotLabel = slotDef?.label || `${hours.toFixed(1)} hr(s)`
 
-  if (hours >= 8 && settings.maxHourDiscountPercentage > 0) {
-    maxHourDiscount = (subTotal * settings.maxHourDiscountPercentage) / 100
+  // Max hour discount triggers at 480 min (8 hrs) or above
+  let maxHourDiscount = 0
+  if (durationMinutes >= 480 && settings.maxHourDiscountPercentage > 0) {
+    maxHourDiscount = Math.round((subTotal * settings.maxHourDiscountPercentage) / 100)
   }
 
-  let basePrice = subTotal - maxHourDiscount
+  let basePrice = Math.round(subTotal - maxHourDiscount)
   let platformFee = 0
-
   if (settings.platformFee.isActive) {
-    if (settings.platformFee.type === 'fixed') {
-      platformFee = settings.platformFee.value
-    } else if (settings.platformFee.type === 'percentage') {
-      platformFee = (basePrice * settings.platformFee.value) / 100
-    }
+    platformFee =
+      settings.platformFee.type === 'fixed'
+        ? Math.round(settings.platformFee.value)
+        : Math.round((basePrice * settings.platformFee.value) / 100)
   }
 
   const baseAmount = basePrice + platformFee
   let taxes = 0
-
   let gstPercentage = 0
   if (primaryCategoryId) {
     const { LabourCategory } = await import('../models/LabourCategory.js')
@@ -120,41 +160,81 @@ export const calculateBill = asyncHandler(async (req, res) => {
       gstPercentage = category.gstPercentage || 0
     }
   } else if (settings.gstPercentage > 0) {
-    // Fallback to global if for some reason category is not resolved
     gstPercentage = settings.gstPercentage
   }
-
   if (gstPercentage > 0) {
-    taxes = (basePrice * gstPercentage) / 100
+    taxes = Math.round((basePrice * gstPercentage) / 100)
   }
 
-  const totalAmount = baseAmount + taxes
+  const totalAmount = Math.round(baseAmount + taxes)
 
-  // Also pre-calculate commission to show to admin internally, but user doesn't necessarily need to see it
   let commissionAmount = 0
   if (settings.commission.isActive && settings.commission.type === 'global') {
-    commissionAmount = (basePrice * settings.commission.globalPercentage) / 100
+    commissionAmount = Math.round((basePrice * settings.commission.globalPercentage) / 100)
+  }
+  const laborShare = Math.round(basePrice - commissionAmount)
+
+  // Also return available slots for the primary service (so frontend avoids a separate call)
+  let availableSlots = []
+  if (serviceId) {
+    const primaryService = await LabourService.findById(serviceId).lean()
+    if (primaryService && Array.isArray(primaryService.durationPricing)) {
+      const activeGlobalMinutes = new Set(
+        (settings.durationOptions || [])
+          .filter((d) => d.isActive)
+          .map((d) => d.minutes)
+      )
+      availableSlots = primaryService.durationPricing
+        .filter((dp) => dp.isActive && dp.price > 0 && activeGlobalMinutes.has(dp.minutes))
+        .map((dp) => {
+          const globalOpt = (settings.durationOptions || []).find(
+            (d) => d.minutes === dp.minutes
+          )
+          return {
+            minutes: dp.minutes,
+            label: globalOpt?.label || dp.label || `${dp.minutes} min`,
+            tag: globalOpt?.tag || dp.tag || null,
+            price: dp.price,
+          }
+        })
+        .sort((a, b) => a.minutes - b.minutes)
+    }
   }
 
   return sendSuccess(res, {
     data: {
+      durationMinutes,
+      selectedSlotLabel,
       subTotal,
       maxHourDiscount,
       basePrice,
       platformFee,
       taxes,
       totalAmount,
-      commissionAmount, // Internal calculation preview
+      commissionAmount,
       laborShare: basePrice - commissionAmount,
       paymentModes: settings.paymentModes || { cashEnabled: true, onlineEnabled: true },
-      breakdown
-    }
+      breakdown,
+      availableSlots, // service's enabled slots — helps frontend avoid extra API call
+    },
   })
 })
 
+
 export const createBooking = asyncHandler(async (req, res) => {
-  const { serviceId, type, scheduledAt, timeSlot, endTime, locationText, lat, lng, paymentMethod, notes, hours: rawHours = 1, quantity = 1, imageNames = [], contractorInfo } = req.body
-  const hours = parseFloat(rawHours) || 1 // supports 0.5 = 30 min
+  const {
+    serviceId, type, scheduledAt, timeSlot, endTime,
+    locationText, lat, lng, paymentMethod, notes,
+    hours: rawHours,
+    durationMinutes: rawMins,
+    quantity = 1, imageNames = [], contractorInfo,
+  } = req.body
+
+  // Accept durationMinutes (new) OR hours (legacy)
+  const durationMinutes = rawMins
+    ? Math.max(1, parseInt(rawMins))
+    : Math.round((parseFloat(rawHours) || 1) * 60)
+  const hours = durationMinutes / 60 // kept for backward compat
 
   if (!serviceId || !type || !locationText || !paymentMethod) {
     return sendError(res, { message: 'Missing required fields', statusCode: HTTP_STATUS.BAD_REQUEST })
@@ -178,7 +258,10 @@ export const createBooking = asyncHandler(async (req, res) => {
     }
   }
 
-  const service = await LabourService.findById(serviceId)
+  let service = await LabourService.findById(serviceId)
+  if (!service) {
+    service = await LabourService.findOne({ subcategoryId: serviceId, isActive: true })
+  }
   if (!service || !service.isActive) {
     return sendError(res, { message: 'Valid and active Service required', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
@@ -197,48 +280,39 @@ export const createBooking = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'We currently do not provide service in this area (Zone not found).', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
   
-  const resolveHourlyRate = async (sId) => {
-    let hrRate = 0
-    const srv = await LabourService.findById(sId)
-    if (srv) {
-      hrRate = srv.basePrice
-      if (matchingZone && srv.zones && srv.zones.length > 0) {
-        const zonePricing = srv.zones.find(z => String(z.zone) === String(matchingZone._id))
-        if (zonePricing && typeof zonePricing.price === 'number') {
-          hrRate = zonePricing.price
-        }
-      }
-    }
-    return hrRate
-  }
+  const resolveServiceSlotPrice = (srv) => resolveSlotPrice(srv, durationMinutes, matchingZone)
 
   let subTotal = 0
-  if (contractorInfo && contractorInfo.services && contractorInfo.services.length > 0) {
+  if (contractorInfo && Array.isArray(contractorInfo.services) && contractorInfo.services.length > 0) {
+    contractorInfo.services = contractorInfo.services.filter((item) => item && item.serviceId)
     for (const item of contractorInfo.services) {
-      const hrRate = await resolveHourlyRate(item.serviceId)
-      item.price = hrRate // Store the unit hourly rate
-      subTotal += hrRate * hours * (item.quantity || 1)
+      const srv = await LabourService.findById(item.serviceId)
+      const sp = srv ? resolveServiceSlotPrice(srv) : 0
+      item.price = srv?.basePrice || 0    // hourly rate snapshot (legacy)
+      item.slotPrice = sp                 // slot price snapshot
+      subTotal += sp * (item.quantity || 1)
     }
   } else {
-    const hrRate = await resolveHourlyRate(serviceId)
-    subTotal = hrRate * hours * quantity
+    const sp = resolveServiceSlotPrice(service)
+    subTotal = sp * quantity
   }
+
+  // Max hour discount: 480 min (8 hrs) threshold
   let maxHourDiscount = 0
-  if (hours >= 8 && settings?.maxHourDiscountPercentage > 0) {
-    maxHourDiscount = (subTotal * settings.maxHourDiscountPercentage) / 100
+  if (durationMinutes >= 480 && settings?.maxHourDiscountPercentage > 0) {
+    maxHourDiscount = Math.round((subTotal * settings.maxHourDiscountPercentage) / 100)
   }
-  
-  const basePrice = subTotal - maxHourDiscount
+
+  const basePrice = Math.round(subTotal - maxHourDiscount)
   let platformFee = 0
   if (settings?.platformFee?.isActive) {
-    platformFee = settings.platformFee.type === 'fixed' 
-      ? settings.platformFee.value 
-      : (basePrice * settings.platformFee.value) / 100
+    platformFee = settings.platformFee.type === 'fixed'
+      ? Math.round(settings.platformFee.value)
+      : Math.round((basePrice * settings.platformFee.value) / 100)
   }
-  
+
   const baseAmount = basePrice + platformFee
   let taxes = 0
-  
   let gstPercentage = 0
   const subcategory = await LabourSubcategory.findById(service.subcategoryId)
   if (subcategory) {
@@ -250,20 +324,29 @@ export const createBooking = asyncHandler(async (req, res) => {
   } else if (settings?.gstPercentage > 0) {
     gstPercentage = settings.gstPercentage
   }
-
   if (gstPercentage > 0) {
-    taxes = (basePrice * gstPercentage) / 100
+    taxes = Math.round((basePrice * gstPercentage) / 100)
   }
 
-  
-  const totalAmount = baseAmount + taxes
+  const totalAmount = Math.round(baseAmount + taxes)
 
   let commissionAmount = 0
   if (settings?.commission?.isActive && settings.commission.type === 'global') {
-    commissionAmount = (basePrice * settings.commission.globalPercentage) / 100
+    commissionAmount = Math.round((basePrice * settings.commission.globalPercentage) / 100)
   }
+  const laborShare = Math.round(basePrice - commissionAmount)
 
-  const laborShare = basePrice - commissionAmount
+  // Resolve slot metadata for storage
+  const slotDef = (settings?.durationOptions || []).find((d) => d.minutes === durationMinutes)
+  const serviceSlotDef = (service?.durationPricing || []).find((d) => d.minutes === durationMinutes)
+  const selectedSlotLabel = req.body.selectedSlotLabel || serviceSlotDef?.label || slotDef?.label || `${hours.toFixed(1)} hr(s)`
+  const slotTag = serviceSlotDef?.tag || slotDef?.tag || null
+  const durationKind = slotTag === 'half_day' ? 'half_day'
+    : slotTag === 'full_day' ? 'full_day'
+    : 'few_hours'
+  const slotPriceSnapshot = Math.round(subTotal / (contractorInfo?.services?.length
+    ? contractorInfo.services.reduce((s, i) => s + (i.quantity || 1), 0)
+    : quantity))
 
   const startOtp = Math.floor(1000 + Math.random() * 9000).toString()
   const completionOtp = Math.floor(1000 + Math.random() * 9000).toString()
@@ -283,16 +366,20 @@ export const createBooking = asyncHandler(async (req, res) => {
     endTime: type === 'SCHEDULED' ? endTime : undefined,
     images: Array.isArray(imageNames) ? imageNames : [],
     notes,
-    hours,
+    hours,               // backward compat (= durationMinutes / 60)
+    durationMinutes,     // new primary field
+    selectedSlotLabel,   // "30 Minutes", "Half Day (6 hrs)", etc.
+    slotPriceSnapshot,   // per-worker slot price at booking time
+    durationKind,        // auto from slot tag
     quantity: totalQuantity,
     contractorInfo,
     maxHourDiscount,
-    address: { 
+    address: {
       locationText,
       coordinates: {
         type: 'Point',
-        coordinates: [parsedLng, parsedLat] // GeoJSON uses [longitude, latitude]
-      }
+        coordinates: [parseFloat(lng), parseFloat(lat)],
+      },
     },
     basePrice,
     platformFee,
@@ -303,8 +390,9 @@ export const createBooking = asyncHandler(async (req, res) => {
     paymentMethod,
     status: 'CREATED',
     startOtp,
-    completionOtp
+    completionOtp,
   })
+
 
 
   // Phase 3: Trigger the Broadcast Engine asynchronously
@@ -369,6 +457,12 @@ export const getBookingStatus = asyncHandler(async (req, res) => {
       }
     }
   }
+
+  // Ensure clean integer amounts without raw floating point decimals
+  if (typeof booking.totalAmount === 'number') booking.totalAmount = Math.round(booking.totalAmount)
+  if (typeof booking.basePrice === 'number') booking.basePrice = Math.round(booking.basePrice)
+  if (typeof booking.taxes === 'number') booking.taxes = Math.round(booking.taxes)
+  if (typeof booking.platformFee === 'number') booking.platformFee = Math.round(booking.platformFee)
 
   return sendSuccess(res, { data: { booking } })
 })
@@ -696,11 +790,21 @@ export const confirmCashPayment = asyncHandler(async (req, res) => {
 
 export const addExtraTime = asyncHandler(async (req, res) => {
   const { id } = req.params
-  const { extraHours: rawExtra, assignmentId } = req.body
-  const extraHours = parseFloat(rawExtra) || 0 // supports 0.5 = 30 min
+  const {
+    extraHours: rawExtra,
+    extraMinutes: rawExtraMins,
+    extraSlotLabel: rawExtraLabel,
+    assignmentId,
+  } = req.body
 
-  if (extraHours < 0.5) {
-    return sendError(res, { message: 'Extra time must be at least 30 minutes (0.5)', statusCode: HTTP_STATUS.BAD_REQUEST })
+  // Accept extraMinutes (new, from slot picker) OR extraHours (legacy 0.5 step)
+  const extraMinutes = rawExtraMins
+    ? Math.max(1, parseInt(rawExtraMins))
+    : Math.round((parseFloat(rawExtra) || 0) * 60)
+  const extraHours = extraMinutes / 60 // kept for legacy wallet/billing calculations
+
+  if (extraMinutes < 10) {
+    return sendError(res, { message: 'Extra time must be at least 10 minutes', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
   const booking = await Booking.findById(id)
@@ -730,31 +834,59 @@ export const addExtraTime = asyncHandler(async (req, res) => {
   if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 0) {
     totalProfessionals = booking.contractorInfo.services.reduce((sum, s) => sum + (s.quantity || 1), 0)
   }
-  
-  let hourlyRate = originalBasePrice / (booking.hours * totalProfessionals)
-  
-  // If specific assignment is provided, try to find its exact service rate
+
+  // Resolve matching zone if address contains city
+  let matchedZone = null
+  if (booking.address?.locationText) {
+    const activeZones = await Zone.find({ isActive: true })
+    const normalizedLocation = (booking.address.locationText || '').toLowerCase()
+    matchedZone = activeZones.find(z => normalizedLocation.includes(z.city.toLowerCase()))
+  }
+
+  let addedBasePrice = 0
+
+  // 1. Try to resolve slot price from service duration pricing
+  if (booking.serviceId) {
+    const service = await LabourService.findById(booking.serviceId)
+    if (service) {
+      addedBasePrice = resolveSlotPrice(service, extraMinutes, matchedZone)
+    }
+  }
+
+  // 2. For contractor booking with specific assignment
   if (assignmentId && booking.assignments && booking.contractorInfo && booking.contractorInfo.services) {
     const assignment = booking.assignments.find(a => String(a.labourId) === String(assignmentId) || String(a._id) === String(assignmentId))
     if (assignment && assignment.serviceId) {
-      const serviceInfo = booking.contractorInfo.services.find(s => String(s.serviceId) === String(assignment.serviceId))
-      if (serviceInfo && serviceInfo.price) {
-        hourlyRate = serviceInfo.price
+      const srv = await LabourService.findById(assignment.serviceId)
+      if (srv) {
+        addedBasePrice = resolveSlotPrice(srv, extraMinutes, matchedZone)
       }
     }
   }
 
-  const addedBasePrice = extraHours * hourlyRate
+  // 3. If client sent extraPrice / slotPrice
+  if (!addedBasePrice && typeof req.body.extraPrice === 'number' && req.body.extraPrice > 0) {
+    addedBasePrice = req.body.extraPrice
+  }
 
-  let newBasePrice = booking.basePrice + addedBasePrice
+  // 4. Fallback: hourly rate
+  if (!addedBasePrice) {
+    const hourlyRate = (booking.hours && booking.hours > 0)
+      ? originalBasePrice / (booking.hours * totalProfessionals)
+      : originalBasePrice
+    addedBasePrice = extraHours * hourlyRate
+  }
+
+  addedBasePrice = Math.round(addedBasePrice)
+  const newBasePrice = Math.round(booking.basePrice + addedBasePrice)
 
   const settings = await SystemSetting.findOne({ configKey: 'master_config' })
 
-  let platformFee = booking.platformFee
+  let platformFee = booking.platformFee || 0
   if (settings?.platformFee?.isActive) {
     platformFee = settings.platformFee.type === 'fixed' 
-      ? settings.platformFee.value 
-      : (newBasePrice * settings.platformFee.value) / 100
+      ? Math.round(settings.platformFee.value) 
+      : Math.round((newBasePrice * settings.platformFee.value) / 100)
   }
   
   const baseAmount = newBasePrice + platformFee
@@ -775,28 +907,46 @@ export const addExtraTime = asyncHandler(async (req, res) => {
   }
 
   if (gstPercentage > 0) {
-    taxes = (newBasePrice * gstPercentage) / 100
+    taxes = Math.round((newBasePrice * gstPercentage) / 100)
   }
 
-  
-  const newTotalAmount = baseAmount + taxes
+  const newTotalAmount = Math.round(baseAmount + taxes)
 
-  let commissionAmount = booking.commissionAmount
+  let commissionAmount = booking.commissionAmount || 0
   if (settings?.commission?.isActive && settings.commission.type === 'global') {
-    commissionAmount = (newBasePrice * settings.commission.globalPercentage) / 100
+    commissionAmount = Math.round((newBasePrice * settings.commission.globalPercentage) / 100)
   }
 
-  const laborShare = newBasePrice - commissionAmount
+  const laborShare = Math.round(newBasePrice - commissionAmount)
 
   // Update specific assignment or the whole booking
+  const extraLabel = rawExtraLabel || (extraMinutes < 60
+    ? `${extraMinutes} Min`
+    : `${(extraMinutes / 60).toFixed(1)} Hr`)
+
   if (assignmentId && booking.assignments && booking.assignments.length > 0) {
     const assignment = booking.assignments.find(a => String(a.labourId) === String(assignmentId) || String(a._id) === String(assignmentId))
     if (!assignment) return sendError(res, { message: 'Assignment not found', statusCode: HTTP_STATUS.NOT_FOUND })
-    assignment.extraHours = (assignment.extraHours || 0) + extraHours
-    assignment.extraAmount = (assignment.extraAmount || 0) + addedBasePrice
+    assignment.extraHours = +((assignment.extraHours || 0) + extraHours).toFixed(2)
+    assignment.extraMinutes = (assignment.extraMinutes || 0) + extraMinutes
+    assignment.extraAmount = Math.round((assignment.extraAmount || 0) + addedBasePrice)
+    assignment.extraSlotLabel = extraLabel
+
+    // Also update root booking extra totals from all assignments
+    booking.extraHours = +(booking.assignments.reduce((sum, a) => sum + (a.extraHours || 0), 0)).toFixed(2)
+    booking.extraMinutes = booking.assignments.reduce((sum, a) => sum + (a.extraMinutes || 0), 0)
+    booking.extraAmount = booking.assignments.reduce((sum, a) => sum + (a.extraAmount || 0), 0)
+    const withExtra = booking.assignments.filter(a => (a.extraMinutes || 0) > 0 || (a.extraHours || 0) > 0)
+    if (withExtra.length === 1) {
+      booking.extraSlotLabel = withExtra[0].extraSlotLabel || extraLabel
+    } else {
+      booking.extraSlotLabel = `${booking.extraMinutes} Min`
+    }
   } else {
-    booking.extraHours = (booking.extraHours || 0) + extraHours
-    booking.extraAmount = (booking.extraAmount || 0) + addedBasePrice
+    booking.extraHours = +((booking.extraHours || 0) + extraHours).toFixed(2)
+    booking.extraMinutes = (booking.extraMinutes || 0) + extraMinutes
+    booking.extraAmount = Math.round((booking.extraAmount || 0) + addedBasePrice)
+    booking.extraSlotLabel = extraLabel
   }
 
   booking.basePrice = newBasePrice

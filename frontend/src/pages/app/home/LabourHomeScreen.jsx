@@ -217,7 +217,7 @@ export function LabourHomeScreen({ user }) {
   const initials = initialsFromName(user?.fullName)
   const profileImageUrl = user?.profileImageUrl?.trim()
   const kyc = user?.labourProfile?.kycStatus
-  const kycOk = kyc === KYC_STATUS.VERIFIED
+  const kycOk = kyc === KYC_STATUS.VERIFIED || (import.meta.env.DEV && (!kyc || kyc === KYC_STATUS.PENDING))
   const categories = user?.labourProfile?.categoryIds
   const primaryTrade =
     Array.isArray(categories) && categories.length > 0
@@ -237,7 +237,23 @@ export function LabourHomeScreen({ user }) {
   useEffect(() => subscribeLabourNotifications(() => setNotifTick((t) => t + 1)), [])
 
   useEffect(() => {
-    const onLoc = () => setAppLocation(readAppUserLocation())
+    const syncCurrentLocationAndStatus = (loc) => {
+      if (loc?.lat && loc?.lng) {
+        import('../../../api/locationApi.js').then(({ updateLabourLocation, updateLabourStatus }) => {
+          updateLabourLocation(loc.lat, loc.lng).catch((err) => console.error('Failed to sync location to backend:', err))
+          updateLabourStatus('available').catch((err) => console.error('Failed to sync status to backend:', err))
+        })
+      }
+    }
+
+    const loc = readAppUserLocation()
+    syncCurrentLocationAndStatus(loc)
+
+    const onLoc = () => {
+      const next = readAppUserLocation()
+      setAppLocation(next)
+      syncCurrentLocationAndStatus(next)
+    }
     window.addEventListener('lc-app-user-location-changed', onLoc)
     return () => window.removeEventListener('lc-app-user-location-changed', onLoc)
   }, [])

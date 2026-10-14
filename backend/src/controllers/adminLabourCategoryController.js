@@ -278,7 +278,13 @@ export const patchSubcategory = asyncHandler(async (req, res) => {
 })
 
 export const createService = asyncHandler(async (req, res) => {
-  const { subcategoryId, name, description = '', basePrice = 0, estimatedDurationMins = 60, iconUrl, hourlyPrice = 0, minHours = 1, maxHours = 24, discountType = 'PERCENTAGE', discountValue = 0, isAllZones = true, zones = [], isActive } = req.body
+  const {
+    subcategoryId, name, description = '', basePrice = 0, estimatedDurationMins = 60,
+    iconUrl, hourlyPrice = 0, minHours = 1, maxHours = 24,
+    discountType = 'PERCENTAGE', discountValue = 0,
+    isAllZones = true, zones = [], isActive,
+    durationPricing = [],
+  } = req.body
   const subcat = await LabourSubcategory.findById(subcategoryId)
   if (!subcat) {
     return sendError(res, { message: 'Subcategory not found', statusCode: HTTP_STATUS.NOT_FOUND, code: 'NOT_FOUND' })
@@ -299,6 +305,55 @@ export const createService = asyncHandler(async (req, res) => {
     }
     image = normalized
   }
+
+  // Enrich durationPricing with label + tag from SystemSetting
+  let enrichedDurationPricing = []
+  if (Array.isArray(durationPricing) && durationPricing.length > 0) {
+    const { SystemSetting } = await import('../models/SystemSetting.js')
+    const settings = await SystemSetting.findOne({ configKey: 'master_config' }).lean()
+    const globalOptions = settings?.durationOptions || []
+    enrichedDurationPricing = durationPricing
+      .filter((d) => d.minutes > 0 && d.price >= 0)
+      .map((d) => {
+        const globalOpt = globalOptions.find((g) => g.minutes === d.minutes)
+        return {
+          minutes: Number(d.minutes),
+          label: d.label || globalOpt?.label || `${d.minutes} min`,
+          tag: d.tag || globalOpt?.tag || null,
+          price: Number(d.price),
+          isActive: d.isActive !== false,
+        }
+      })
+      .sort((a, b) => a.minutes - b.minutes)
+  }
+
+  // Auto-derive minHours/maxHours from durationPricing if not explicitly provided
+  const activeSlots = enrichedDurationPricing.filter((d) => d.isActive && d.price > 0)
+  const derivedMinHours = activeSlots.length > 0
+    ? activeSlots[0].minutes / 60
+    : Number(minHours)
+  const derivedMaxHours = activeSlots.length > 0
+    ? activeSlots[activeSlots.length - 1].minutes / 60
+    : Number(maxHours)
+
+  const cleanZones = Array.isArray(zones)
+    ? zones.map((z) => ({
+        zone: z.zone?._id || z.zone,
+        price: Number(z.price) || 0,
+        durationPricing: Array.isArray(z.durationPricing)
+          ? z.durationPricing
+              .filter((d) => d.minutes > 0 && d.price >= 0)
+              .map((d) => ({
+                minutes: Number(d.minutes),
+                label: d.label || `${d.minutes} min`,
+                tag: d.tag || null,
+                price: Number(d.price) || 0,
+                isActive: d.isActive !== false,
+              }))
+          : [],
+      }))
+    : []
+
   const s = await LabourService.create({
     subcategoryId: subcat._id,
     name: name.trim(),
@@ -307,16 +362,18 @@ export const createService = asyncHandler(async (req, res) => {
     estimatedDurationMins: Number(estimatedDurationMins),
     iconUrl: image,
     hourlyPrice: Number(hourlyPrice),
-    minHours: Number(minHours),
-    maxHours: Number(maxHours),
+    minHours: derivedMinHours,
+    maxHours: derivedMaxHours,
     discountType,
     discountValue: Number(discountValue),
     isAllZones: Boolean(isAllZones),
-    zones: Array.isArray(zones) ? zones : [],
+    zones: cleanZones,
     isActive: isActive !== undefined ? Boolean(isActive) : true,
+    durationPricing: enrichedDurationPricing,
   })
   return sendSuccess(res, { message: 'Service created', statusCode: HTTP_STATUS.CREATED, data: { service: s } })
 })
+
 
 export const getService = asyncHandler(async (req, res) => {
   const s = await LabourService.findById(req.params.id)
@@ -339,7 +396,11 @@ export const patchService = asyncHandler(async (req, res) => {
   if (!s) {
     return sendError(res, { message: 'Service not found', statusCode: HTTP_STATUS.NOT_FOUND, code: 'NOT_FOUND' })
   }
-  const { name, description, basePrice, estimatedDurationMins, isActive, iconUrl, hourlyPrice, minHours, maxHours, discountType, discountValue, isAllZones, zones } = req.body
+  const {
+    name, description, basePrice, estimatedDurationMins, isActive, iconUrl,
+    hourlyPrice, minHours, maxHours, discountType, discountValue, isAllZones, zones,
+    durationPricing,
+  } = req.body
   if (name != null) s.name = String(name).trim()
   if (description != null) s.description = String(description)
   if (basePrice != null) s.basePrice = Number(basePrice)
@@ -351,7 +412,24 @@ export const patchService = asyncHandler(async (req, res) => {
   if (discountType != null) s.discountType = discountType
   if (discountValue != null) s.discountValue = Number(discountValue)
   if (isAllZones != null) s.isAllZones = Boolean(isAllZones)
-  if (zones != null && Array.isArray(zones)) s.zones = zones
+  if (zones != null && Array.isArray(zones)) {
+    s.zones = zones.map((z) => ({
+      zone: z.zone,
+      price: Number(z.price) || 0,
+      isActive: z.isActive !== false,
+      durationPricing: Array.isArray(z.durationPricing)
+        ? z.durationPricing
+            .filter((d) => d && Number(d.minutes) > 0 && Number(d.price) >= 0)
+            .map((d) => ({
+              minutes: Number(d.minutes),
+              label: d.label || `${d.minutes} min`,
+              tag: d.tag || null,
+              price: Number(d.price) || 0,
+              isActive: d.isActive !== false,
+            }))
+        : [],
+    }))
+  }
   if (iconUrl !== undefined) {
     const normalized = normalizeImageUrl(iconUrl)
     if (normalized === null) {
@@ -363,9 +441,38 @@ export const patchService = asyncHandler(async (req, res) => {
     }
     s.iconUrl = normalized
   }
+
+  // Update durationPricing if provided
+  if (Array.isArray(durationPricing)) {
+    const { SystemSetting } = await import('../models/SystemSetting.js')
+    const settings = await SystemSetting.findOne({ configKey: 'master_config' }).lean()
+    const globalOptions = settings?.durationOptions || []
+    s.durationPricing = durationPricing
+      .filter((d) => d && Number(d.minutes) > 0 && Number(d.price) >= 0)
+      .map((d) => {
+        const globalOpt = globalOptions.find((g) => g.minutes === Number(d.minutes))
+        return {
+          minutes: Number(d.minutes),
+          label: d.label || globalOpt?.label || `${d.minutes} min`,
+          tag: d.tag || globalOpt?.tag || null,
+          price: Number(d.price),
+          isActive: d.isActive !== false,
+        }
+      })
+      .sort((a, b) => a.minutes - b.minutes)
+
+    // Auto-update minHours/maxHours from durationPricing if not also provided
+    const activeSlots = s.durationPricing.filter((d) => d.isActive && d.price > 0)
+    if (activeSlots.length > 0) {
+      if (minHours == null) s.minHours = activeSlots[0].minutes / 60
+      if (maxHours == null) s.maxHours = activeSlots[activeSlots.length - 1].minutes / 60
+    }
+  }
+
   await s.save()
   return sendSuccess(res, { message: 'Service updated', data: { service: s } })
 })
+
 
 export const deleteCategory = asyncHandler(async (req, res) => {
   const c = await LabourCategory.findByIdAndDelete(req.params.id)

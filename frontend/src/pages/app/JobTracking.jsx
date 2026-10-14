@@ -220,7 +220,7 @@ export function JobTracking() {
           </div>
           <div className="flex justify-between border-t border-slate-100 pt-2 font-bold text-slate-900 mt-2">
             <span>Total Bill</span>
-            <span>₹{booking.totalAmount?.toLocaleString('en-IN') || 0}</span>
+            <span>₹{Math.round(booking.totalAmount || 0).toLocaleString('en-IN')}</span>
           </div>
         </div>
       </GlassPanel>

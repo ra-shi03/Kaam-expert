@@ -14,12 +14,18 @@ async function validateLabourBookingAccess(labour) {
   const { UserSubscription } = await import('../models/UserSubscription.js')
 
   // 1. KYC check
-  if (labour.labourProfile?.kycStatus !== KYC_STATUS.VERIFIED) {
+  const isDev = process.env.NODE_ENV !== 'production'
+  const isVerified =
+    labour.labourProfile?.kycStatus === KYC_STATUS.VERIFIED ||
+    labour.contractorProfile?.kycStatus === KYC_STATUS.VERIFIED ||
+    (isDev && (!labour.labourProfile?.kycStatus || labour.labourProfile?.kycStatus === KYC_STATUS.PENDING))
+
+  if (!isVerified) {
     return { allowed: false, code: 'KYC_NOT_APPROVED', message: 'KYC not approved. Cannot receive bookings.' }
   }
 
   const settings = await SystemSetting.findOne({ configKey: 'master_config' })
-  const isSubEnabled = settings?.isUserSubscriptionEnabled ?? true
+  const isSubEnabled = settings?.isUserSubscriptionEnabled ?? false
   const startHour = settings?.subscriptionStartHour ?? 8
   const endHour = settings?.subscriptionEndHour ?? 20
 

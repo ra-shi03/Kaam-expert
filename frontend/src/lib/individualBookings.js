@@ -164,14 +164,28 @@ export function formatInr(amount) {
 }
 
 /**
+ * Format a duration in minutes as a human-readable string.
+ * Supports: 10 → "10 Minutes", 60 → "1 Hour", 75 → "1 Hr 15 Min", etc.
+ * @param {number} minutes
+ */
+export function formatDurationMinutes(minutes) {
+  const m = parseInt(minutes) || 0
+  if (m === 0) return '0 Minutes'
+  if (m < 60) return `${m} Minutes`
+  const h = Math.floor(m / 60)
+  const rem = m % 60
+  if (rem === 0) return `${h} ${h === 1 ? 'Hour' : 'Hours'}`
+  return `${h} Hr ${rem} Min`
+}
+
+/**
  * Format a duration (in hours) as a human-readable string.
- * Supports fractional hours: 0.5 → "30 Minutes", 1 → "1 Hour", etc.
  * @param {number} hours
  */
 export function formatDuration(hours) {
   const h = parseFloat(hours) || 0
-  if (h === 0.5) return '30 Minutes'
-  return `${h} ${h === 1 ? 'Hour' : 'Hours'}`
+  const m = Math.round(h * 60)
+  return formatDurationMinutes(m)
 }
 
 export function bookingStatusToUi(status) {
@@ -266,6 +280,7 @@ export function durationKindToDays(kind, fallback = 1) {
 }
 
 export function durationKindLabel(kind) {
+  if (kind === 'half_day') return 'Half day'
   if (kind === 'full_day') return 'Full day'
   if (kind === 'multi_day') return 'Multi day'
   return 'Few hours'

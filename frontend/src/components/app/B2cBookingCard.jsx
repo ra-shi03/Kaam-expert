@@ -33,41 +33,10 @@ export function B2cBookingCard({ booking, isLabour }) {
   const displayStartOtp = booking.assignments?.length > 0 ? booking.assignments[0].startOtp : booking.startOtp;
   const displayCompletionOtp = booking.assignments?.length > 0 ? booking.assignments[0].completionOtp : booking.completionOtp;
 
-  const [extraHours, setExtraHours] = useState({})
   const [loadingTime, setLoadingTime] = useState(null)
-  const [confirmModalData, setConfirmModalData] = useState(null)
+  const [slotModalTarget, setSlotModalTarget] = useState(null)
+  const [selectedSlotForExtra, setSelectedSlotForExtra] = useState(null)
   const [successModalOpen, setSuccessModalOpen] = useState(false)
-
-  const handleAddExtraTimeClick = (e, targetLabourId) => {
-    e.stopPropagation()
-    const hours = extraHours[targetLabourId] || 0
-    if (hours <= 0) return
-    setConfirmModalData({ targetLabourId, hours })
-  }
-
-  const confirmAddExtraTime = async () => {
-    if (!confirmModalData) return
-    const { targetLabourId, hours } = confirmModalData
-    setConfirmModalData(null)
-    setLoadingTime(targetLabourId)
-    try {
-      await bookingsApi.addExtraTime(booking._id, {
-        extraHours: hours,
-        assignmentId: targetLabourId !== 'main' ? targetLabourId : undefined
-      })
-      setExtraHours(prev => ({ ...prev, [targetLabourId]: 0 }))
-      if (status === 'COMPLETED' && !isPaid) {
-        navigate(`/app/booking/flow?bookingId=${booking._id}&step=billing`)
-      } else {
-        setSuccessModalOpen(true)
-      }
-    } catch (err) {
-      console.error(err)
-      alert('Failed to add extra time')
-    } finally {
-      setLoadingTime(null)
-    }
-  }
 
   return (
     <>
@@ -139,6 +108,22 @@ export function B2cBookingCard({ booking, isLabour }) {
                   : '—'}
             </span>
           </div>
+
+          <div className="flex items-center gap-3 text-sm text-slate-700">
+            <div className="flex items-center justify-center w-7 h-7 rounded-full bg-white shadow-sm border border-slate-100 shrink-0">
+              <Clock className="h-4 w-4 text-brand" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-800">
+                {booking.selectedSlotLabel || (booking.durationMinutes ? `${booking.durationMinutes} min` : (booking.hours ? (booking.hours < 1 ? `${Math.round(booking.hours * 60)} min` : `${+Number(booking.hours).toFixed(1)} hrs`) : '1 hr'))}
+              </span>
+              {booking.extraSlotLabel && (
+                <span className="text-[10px] font-bold text-brand bg-brand/10 px-2 py-0.5 rounded-full">
+                  +{booking.extraSlotLabel}
+                </span>
+              )}
+            </div>
+          </div>
           
           {booking.address?.locationText && (
             <div className="flex items-start gap-3 text-sm text-slate-700">
@@ -205,29 +190,18 @@ export function B2cBookingCard({ booking, isLabour }) {
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-slate-400" />
                             <span className="text-xs font-semibold text-slate-600">Extra Time</span>
-                            {assignment.extraHours > 0 && <span className="text-[10px] font-bold text-brand bg-brand/10 px-1.5 py-0.5 rounded">+{assignment.extraHours}h added</span>}
+                            {assignment.extraHours > 0 && <span className="text-[10px] font-bold text-brand bg-brand/10 px-1.5 py-0.5 rounded">+{assignment.extraSlotLabel || `${assignment.extraHours}h`} added</span>}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
-                              <button type="button" className="p-1.5 text-slate-500 hover:bg-slate-200 transition" onClick={() => setExtraHours(prev => ({ ...prev, [assignment.labourId?._id]: Math.max(0, (prev[assignment.labourId?._id] || 0) - 1) }))}>
-                                <Minus className="w-3 h-3" />
-                              </button>
-                              <span className="w-6 text-center text-xs font-bold text-slate-800">{extraHours[assignment.labourId?._id] || 0}h</span>
-                              <button type="button" className="p-1.5 text-slate-500 hover:bg-slate-200 transition" onClick={() => setExtraHours(prev => ({ ...prev, [assignment.labourId?._id]: (prev[assignment.labourId?._id] || 0) + 1 }))}>
-                                <Plus className="w-3 h-3" />
-                              </button>
-                            </div>
-                            {(extraHours[assignment.labourId?._id] || 0) > 0 && (
-                              <button 
-                                type="button"
-                                disabled={loadingTime === assignment.labourId?._id}
-                                onClick={(e) => handleAddExtraTimeClick(e, assignment.labourId?._id)}
-                                className="flex items-center justify-center bg-brand text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-brand-600 transition disabled:opacity-50"
-                              >
-                                {loadingTime === assignment.labourId?._id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
-                              </button>
-                            )}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSlotModalTarget(assignment.labourId?._id)
+                            }}
+                            className="flex items-center gap-1 text-[11px] font-bold text-brand bg-brand/10 hover:bg-brand/20 px-2.5 py-1 rounded-lg transition"
+                          >
+                            <Plus className="w-3 h-3" /> Add Time
+                          </button>
                         </div>
                       )}
 
@@ -254,29 +228,18 @@ export function B2cBookingCard({ booking, isLabour }) {
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-slate-400" />
                     <span className="text-xs font-semibold text-slate-600">Extra Time</span>
-                    {booking.extraHours > 0 && <span className="text-[10px] font-bold text-brand bg-brand/10 px-1.5 py-0.5 rounded">+{booking.extraHours}h added</span>}
+                    {booking.extraHours > 0 && <span className="text-[10px] font-bold text-brand bg-brand/10 px-1.5 py-0.5 rounded">+{booking.extraSlotLabel || `${booking.extraHours}h`} added</span>}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
-                      <button type="button" className="p-1.5 text-slate-500 hover:bg-slate-200 transition" onClick={() => setExtraHours(prev => ({ ...prev, 'main': Math.max(0, (prev['main'] || 0) - 1) }))}>
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="w-6 text-center text-xs font-bold text-slate-800">{extraHours['main'] || 0}h</span>
-                      <button type="button" className="p-1.5 text-slate-500 hover:bg-slate-200 transition" onClick={() => setExtraHours(prev => ({ ...prev, 'main': (prev['main'] || 0) + 1 }))}>
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-                    {(extraHours['main'] || 0) > 0 && (
-                      <button 
-                        type="button"
-                        disabled={loadingTime === 'main'}
-                        onClick={(e) => handleAddExtraTimeClick(e, 'main')}
-                        className="flex items-center justify-center bg-brand text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-brand-600 transition disabled:opacity-50"
-                      >
-                        {loadingTime === 'main' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSlotModalTarget('main')
+                    }}
+                    className="flex items-center gap-1 text-[11px] font-bold text-brand bg-brand/10 hover:bg-brand/20 px-2.5 py-1 rounded-lg transition"
+                  >
+                    <Plus className="w-3 h-3" /> Add Time
+                  </button>
                 </div>
               )}
 
@@ -325,41 +288,110 @@ export function B2cBookingCard({ booking, isLabour }) {
       </div>
     </GlassPanel>
 
-    {/* Confirmation Modal */}
-    {confirmModalData && (
+    {/* Extra Time Slot Selection Modal */}
+    {slotModalTarget && (
       <div 
         className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
         onClick={(e) => {
           e.stopPropagation()
-          setConfirmModalData(null)
+          setSlotModalTarget(null)
+          setSelectedSlotForExtra(null)
         }}
       >
         <div 
           className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl ring-1 ring-slate-900/5"
           onClick={(e) => e.stopPropagation()}
         >
-          <h3 className="text-lg font-bold text-slate-900">Confirm Extra Time</h3>
-          <p className="mt-2 text-sm text-slate-500">
-            Are you sure you want to add <span className="font-bold text-brand">{confirmModalData.hours} extra hour{confirmModalData.hours > 1 ? 's' : ''}</span>? This will increase your final bill.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3 justify-end">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-brand/10 text-brand">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Add Extra Time</h3>
+                <p className="text-xs text-slate-500">Select duration to add</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setSlotModalTarget(null)
+                setSelectedSlotForExtra(null)
+              }}
+              className="text-slate-400 hover:text-slate-600 font-bold p-1 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-4 max-h-48 overflow-y-auto p-1 border border-slate-100 rounded-xl bg-slate-50/50">
+            {[
+              { minutes: 15, label: '15 min' },
+              { minutes: 30, label: '30 min' },
+              { minutes: 45, label: '45 min' },
+              { minutes: 60, label: '1 hr' },
+              { minutes: 90, label: '1 hr 30 min' },
+              { minutes: 120, label: '2 hrs' },
+              { minutes: 180, label: '3 hrs' },
+              { minutes: 240, label: '4 hrs' },
+            ].map((slot) => {
+              const isSel = selectedSlotForExtra?.minutes === slot.minutes
+              return (
+                <button
+                  key={slot.minutes}
+                  type="button"
+                  onClick={() => setSelectedSlotForExtra(slot)}
+                  className={`p-2.5 rounded-xl border text-left transition ${
+                    isSel ? 'border-brand bg-brand/10 ring-2 ring-brand/30' : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <p className={`text-xs font-bold ${isSel ? 'text-brand' : 'text-slate-800'}`}>{slot.label}</p>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex gap-2 justify-end">
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                setConfirmModalData(null)
+                setSlotModalTarget(null)
+                setSelectedSlotForExtra(null)
               }}
-              className="rounded-lg px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 transition"
+              className="rounded-lg px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
             >
               Cancel
             </button>
             <button
-              onClick={(e) => {
+              disabled={!selectedSlotForExtra || loadingTime}
+              onClick={async (e) => {
                 e.stopPropagation()
-                confirmAddExtraTime()
+                if (!selectedSlotForExtra) return
+                const targetId = slotModalTarget
+                setLoadingTime(targetId)
+                try {
+                  await bookingsApi.addExtraTime(booking._id, {
+                    extraMinutes: selectedSlotForExtra.minutes,
+                    extraSlotLabel: selectedSlotForExtra.label,
+                    extraPrice: selectedSlotForExtra.price,
+                    extraHours: +(selectedSlotForExtra.minutes / 60).toFixed(2),
+                    assignmentId: targetId !== 'main' ? targetId : undefined
+                  })
+                  setSlotModalTarget(null)
+                  setSelectedSlotForExtra(null)
+                  if (status === 'COMPLETED' && !isPaid) {
+                    navigate(`/app/booking/flow?bookingId=${booking._id}&step=billing`)
+                  } else {
+                    setSuccessModalOpen(true)
+                  }
+                } catch (err) {
+                  alert(err.message || 'Failed to add extra time')
+                } finally {
+                  setLoadingTime(null)
+                }
               }}
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-600 transition"
+              className="rounded-lg bg-brand px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-brand-600 transition disabled:opacity-50"
             >
-              Confirm
+              {loadingTime ? 'Adding...' : 'Confirm'}
             </button>
           </div>
         </div>

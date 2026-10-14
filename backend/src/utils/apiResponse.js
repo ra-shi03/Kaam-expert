@@ -60,10 +60,12 @@ export function formatValidationErrors(validationResultArray) {
 }
 
 export function sendValidationError(res, validationResultArray) {
+  const formatted = formatValidationErrors(validationResultArray)
+  const details = formatted.map((e) => `${e.field}: ${e.message}`).join(', ')
   return sendError(res, {
-    message: 'Validation failed',
+    message: details ? `Validation failed (${details})` : 'Validation failed',
     statusCode: HTTP_STATUS.UNPROCESSABLE,
     code: 'VALIDATION_ERROR',
-    errors: formatValidationErrors(validationResultArray),
+    errors: formatted,
   })
 }

@@ -1,15 +1,15 @@
 import { Server } from 'socket.io'
 import jwt from 'jsonwebtoken'
 import { User } from './models/User.js'
+import { corsOptions } from './config/cors.js'
 
 let io
 
 export const initSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGIN?.split(',') || '*',
+      ...corsOptions,
       methods: ['GET', 'POST'],
-      credentials: true,
     },
   })
 

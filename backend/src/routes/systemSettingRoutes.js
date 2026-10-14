@@ -8,17 +8,24 @@ import * as settings from '../controllers/systemSettingController.js'
 
 const router = Router()
 
-// Public route — returns only the time slots (no auth required)
+// Public route — returns public settings (no auth required)
 router.get('/public', async (req, res) => {
   try {
     const { SystemSetting } = await import('../models/SystemSetting.js')
     const { sendSuccess } = await import('../utils/apiResponse.js')
-    let settings = await SystemSetting.findOne({ configKey: 'master_config' })
-    const timeSlots = settings?.timeSlots || ['08:00 AM', '10:00 AM', '12:00 PM', '02:00 PM', '04:00 PM', '06:00 PM']
-    const freeTrialMessage = settings?.freeTrialMessage || 'Welcome! Enjoy your free trial period.'
-    const paymentModes = settings?.paymentModes || { cashEnabled: true, onlineEnabled: true }
-    const branding = settings?.branding || { logoUrl: null, faviconUrl: null }
-    return sendSuccess(res, { data: { timeSlots, freeTrialMessage, paymentModes, branding } })
+    let cfg = await SystemSetting.findOne({ configKey: 'master_config' })
+    const timeSlots = cfg?.timeSlots || ['08:00 AM', '10:00 AM', '12:00 PM', '02:00 PM', '04:00 PM', '06:00 PM']
+    const freeTrialMessage = cfg?.freeTrialMessage || 'Welcome! Enjoy your free trial period.'
+    const paymentModes = cfg?.paymentModes || { cashEnabled: true, onlineEnabled: true }
+    const branding = cfg?.branding || { logoUrl: null, faviconUrl: null }
+    const workingHoursPerDay = cfg?.workingHoursPerDay || 8
+    // Only expose active duration options to public
+    const durationOptions = (cfg?.durationOptions || [])
+      .filter((d) => d.isActive)
+      .sort((a, b) => a.minutes - b.minutes)
+    return sendSuccess(res, {
+      data: { timeSlots, freeTrialMessage, paymentModes, branding, workingHoursPerDay, durationOptions },
+    })
   } catch (e) {
     res.status(500).json({ success: false, message: 'Could not load public settings' })
   }
@@ -144,6 +151,41 @@ router.post(
 router.delete(
   '/branding/:type',
   settings.deleteBranding
+)
+
+// ─── Duration Options & Working Hours ─────────────────────────────────────────
+
+// GET all duration options (admin — includes inactive ones too)
+router.get('/duration-options', settings.getDurationOptions)
+
+// POST add a new custom duration slot
+router.post(
+  '/duration-options',
+  [
+    body('minutes').isInt({ min: 1, max: 1440 }).withMessage('Minutes must be between 1 and 1440'),
+    body('label').optional().isString().trim(),
+    body('tag').optional().isString().trim(),
+  ],
+  validateRequest,
+  settings.addDurationOption,
+)
+
+// PATCH toggle active/inactive for a single duration slot by its minutes value
+router.patch('/duration-options/:minutes/toggle', settings.toggleDurationOption)
+
+// DELETE remove a custom duration slot
+router.delete('/duration-options/:minutes', settings.deleteDurationOption)
+
+// PATCH working hours per day (drives Half Day and Full Day slot minutes)
+router.patch(
+  '/working-hours',
+  [
+    body('workingHoursPerDay')
+      .isNumeric().withMessage('workingHoursPerDay must be a number')
+      .isFloat({ min: 1, max: 24 }).withMessage('Must be between 1 and 24'),
+  ],
+  validateRequest,
+  settings.updateWorkingHours,
 )
 
 export default router

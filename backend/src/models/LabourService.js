@@ -17,6 +17,7 @@ const labourServiceSchema = new mongoose.Schema(
       trim: true,
       maxlength: 1000,
     },
+    // basePrice = hourlyPrice — kept in sync, used as fallback for slot price calculation
     basePrice: {
       type: Number,
       default: 0,
@@ -40,10 +41,11 @@ const labourServiceSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Legacy min/max hours — still accepted from API but auto-derived from durationPricing when slots are set
     minHours: {
       type: Number,
       default: 1,
-      min: 0.5, // supports 30-min bookings
+      min: 0,
     },
     maxHours: {
       type: Number,
@@ -73,8 +75,42 @@ const labourServiceSchema = new mongoose.Schema(
         price: {
           type: Number,
           default: 0,
-        }
-      }
+        },
+        durationPricing: [
+          {
+            minutes:  { type: Number, required: true },
+            label:    { type: String },
+            tag:      { type: String, default: null },
+            price:    { type: Number, min: 0, default: 0 },
+            isActive: { type: Boolean, default: true },
+            _id: false,
+          },
+        ],
+      },
+    ],
+
+    /**
+     * Per-service duration slot pricing.
+     * Admin sets a price for each slot that this service supports.
+     * Only slots with isActive=true AND price>0 appear in the booking UI for this service.
+     *
+     * minutes must match a value in SystemSetting.durationOptions[].minutes.
+     * label + tag are denormalized from SystemSetting for display performance.
+     *
+     * Price resolution order in calculateBill:
+     *   1. durationPricing[].price (exact minutes match, isActive=true) ← PRIMARY
+     *   2. zone override: zoneHourlyRate × (minutes / 60)              ← ZONE
+     *   3. basePrice × (minutes / 60)                                  ← FALLBACK
+     */
+    durationPricing: [
+      {
+        minutes:  { type: Number, required: true },
+        label:    { type: String },               // denormalized from SystemSetting
+        tag:      { type: String, default: null }, // 'half_day' | 'full_day' | null
+        price:    { type: Number, min: 0, required: true },
+        isActive: { type: Boolean, default: true },
+        _id: false,
+      },
     ],
   },
   { timestamps: true }

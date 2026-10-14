@@ -13,7 +13,7 @@ export function errorHandler(err, req, res, _next) {
       code: 'MONGOOSE_VALIDATION',
     }))
     return sendError(res, {
-      message: 'Validation failed',
+      message: `Validation failed: ${errors.map((e) => e.message).join(', ')}`,
       statusCode: HTTP_STATUS.UNPROCESSABLE,
       code: 'VALIDATION_ERROR',
       errors,
@@ -38,8 +38,8 @@ export function errorHandler(err, req, res, _next) {
 
   const statusCode = err.statusCode || HTTP_STATUS.SERVER_ERROR
   return sendError(res, {
-    message: err.message || 'Internal server error',
+    message: err.error?.description || err.message || 'Internal server error',
     statusCode,
-    code: err.code || 'SERVER_ERROR',
+    code: err.error?.code || err.code || 'SERVER_ERROR',
   })
 }

@@ -131,6 +131,13 @@ export function AppBillingPage() {
                     </div>
                   </div>
 
+                  <div className="flex items-center justify-between py-1 text-xs text-slate-500 mb-2 border-b border-slate-100">
+                    <span>Duration: <strong className="text-slate-800">{booking.selectedSlotLabel || `${booking.hours || 1} hrs`}</strong></span>
+                    {booking.extraSlotLabel && (
+                      <span className="text-brand font-bold">+{booking.extraSlotLabel} extra</span>
+                    )}
+                  </div>
+
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-semibold text-slate-600">
                       Status: <span className="text-slate-900">{status}</span>

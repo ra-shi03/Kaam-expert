@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ClipboardList, Trash2, Edit2, CheckCircle, XCircle, Eye, Calendar } from 'lucide-react'
+import { ClipboardList, Trash2, Edit2, CheckCircle, XCircle, Eye, Calendar, Clock } from 'lucide-react'
 
 import { AdminLabourDetailsModal } from './components/AdminLabourDetailsModal.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
@@ -502,6 +502,47 @@ function BookingDetailsModal({ booking, onClose }) {
 
   const completedBill = calculateCompletedBookingBill(booking)
 
+  // Compute extra time metrics from booking root or assignments
+  const assignmentExtraMinutes = (booking.assignments || []).reduce(
+    (sum, a) => sum + (Number(a.extraMinutes) || (Number(a.extraHours) ? Math.round(Number(a.extraHours) * 60) : 0)),
+    0
+  )
+  const assignmentExtraAmount = (booking.assignments || []).reduce(
+    (sum, a) => sum + (Number(a.extraAmount) || 0),
+    0
+  )
+  const assignmentExtraHours = (booking.assignments || []).reduce(
+    (sum, a) => sum + (Number(a.extraHours) || 0),
+    0
+  )
+
+  const hasExtraTime = Boolean(
+    (booking.extraMinutes && Number(booking.extraMinutes) > 0) ||
+    (booking.extraHours && Number(booking.extraHours) > 0) ||
+    (booking.extraSlotLabel && String(booking.extraSlotLabel).trim() !== '') ||
+    (booking.extraAmount && Number(booking.extraAmount) > 0) ||
+    assignmentExtraMinutes > 0 ||
+    assignmentExtraHours > 0 ||
+    assignmentExtraAmount > 0 ||
+    (booking.assignments || []).some(
+      a => Boolean((a.extraSlotLabel && String(a.extraSlotLabel).trim() !== '') || (a.extraMinutes && Number(a.extraMinutes) > 0) || (a.extraHours && Number(a.extraHours) > 0) || (a.extraAmount && Number(a.extraAmount) > 0))
+    )
+  )
+
+  const totalExtraMinutes = (Number(booking.extraMinutes) > 0
+    ? Number(booking.extraMinutes)
+    : (Number(booking.extraHours) > 0 ? Math.round(Number(booking.extraHours) * 60) : assignmentExtraMinutes)) || 0
+
+  const totalExtraAmount = (Number(booking.extraAmount) > 0
+    ? Number(booking.extraAmount)
+    : assignmentExtraAmount) || 0
+
+  const primaryExtraLabel = booking.extraSlotLabel || (booking.assignments || []).find(a => a.extraSlotLabel)?.extraSlotLabel || (
+    totalExtraMinutes > 0
+      ? (totalExtraMinutes < 60 ? `${totalExtraMinutes} Min` : `${+(totalExtraMinutes / 60).toFixed(1)} Hr`)
+      : ''
+  )
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
@@ -550,18 +591,52 @@ function BookingDetailsModal({ booking, onClose }) {
             </div>
             <div>
               <p className="text-slate-500 text-xs">Duration</p>
-              <p className="font-semibold">
-                {booking.hours === 0.5
-                  ? '30 Minutes'
-                  : booking.hours
-                  ? `${booking.hours} ${booking.hours === 1 ? 'Hour' : 'Hours'}`
-                  : `${booking.durationDays || ''} ${booking.durationKind || ''}`.trim() || 'N/A'}
-              </p>
+              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                <span className="font-semibold text-slate-900">
+                  {booking.selectedSlotLabel
+                    ? booking.selectedSlotLabel
+                    : booking.hours === 0.5
+                    ? '30 Minutes'
+                    : booking.hours
+                    ? (booking.hours < 1
+                        ? `${Math.round(booking.hours * 60)} Minutes`
+                        : `${+Number(booking.hours).toFixed(1)} ${Number(booking.hours) === 1 ? 'Hour' : 'Hours'}`)
+                    : `${booking.durationDays || ''} ${booking.durationKind || ''}`.trim() || 'N/A'}
+                </span>
+                {hasExtraTime && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 border border-amber-200">
+                    <Clock className="w-3 h-3 text-amber-600" />
+                    +{primaryExtraLabel || `${totalExtraMinutes} Min`} Extra
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <p className="text-slate-500 text-xs">Scheduled At</p>
               <p className="font-semibold">{booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleString() : 'N/A'}</p>
             </div>
+
+            {hasExtraTime && (
+              <div className="col-span-2 rounded-xl bg-amber-50/80 border border-amber-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                      <Clock className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-amber-900">Customer Added Extra Time</p>
+                      <p className="text-[11px] text-amber-700 font-medium">
+                        Extra duration: <strong className="font-bold">+{primaryExtraLabel || `${totalExtraMinutes} Min`}</strong>
+                        {totalExtraAmount > 0 && ` · Extra charge: ₹${totalExtraAmount}`}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-amber-200/80 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-900">
+                    +{primaryExtraLabel || `${totalExtraMinutes} Min`}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="border-t border-slate-100 pt-4">
@@ -611,6 +686,10 @@ function BookingDetailsModal({ booking, onClose }) {
                         return matched?.serviceId?.name || 'N/A';
                       })()
 
+                    const aExtraMins = Number(a.extraMinutes) || (Number(a.extraHours) ? Math.round(Number(a.extraHours) * 60) : 0) || (booking.assignments.length === 1 ? totalExtraMinutes : 0)
+                    const aExtraLabel = a.extraSlotLabel || (booking.assignments.length === 1 ? primaryExtraLabel : '') || (aExtraMins > 0 ? `${aExtraMins} Min` : '')
+                    const aExtraAmount = Number(a.extraAmount) || (booking.assignments.length === 1 ? totalExtraAmount : 0)
+                    const hasAssignmentExtra = Boolean(aExtraMins > 0 || a.extraHours > 0 || (a.extraSlotLabel && a.extraSlotLabel.trim() !== '') || (booking.assignments.length === 1 && hasExtraTime))
 
                     return (
                       <div key={a._id || idx} className="bg-slate-50 border border-slate-200 p-4 rounded-lg flex flex-col gap-3">
@@ -622,7 +701,16 @@ function BookingDetailsModal({ booking, onClose }) {
                               Service: <span className="font-semibold text-slate-700">{assignedServiceName}</span>
                               {a.pricePerHour > 0 && <span className="ml-1 text-slate-400">· ₹{a.pricePerHour}/hr</span>}
                             </p>
-                            <p className="text-xs font-semibold text-brand mt-1 uppercase">{a.status}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              <p className="text-xs font-semibold text-brand uppercase">{a.status}</p>
+                              {hasAssignmentExtra && (
+                                <span className="inline-flex items-center gap-1 rounded bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 text-[10px] font-bold">
+                                  <Clock className="w-3 h-3 text-amber-600" />
+                                  +{aExtraLabel || `${aExtraMins} Min`} Extra
+                                  {aExtraAmount > 0 && ` (+₹${aExtraAmount})`}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="text-right">
                             <p className="text-xs text-slate-500">Labour Share</p>
@@ -642,6 +730,17 @@ function BookingDetailsModal({ booking, onClose }) {
                           <div>
                             <span className="text-slate-500">End Time:</span> <span className="font-semibold">{a.completedAt ? new Date(a.completedAt).toLocaleString() : 'N/A'}</span>
                           </div>
+                          {hasAssignmentExtra && (
+                            <div className="sm:col-span-2 flex items-center justify-between pt-1 border-t border-slate-200/60 text-xs">
+                              <span className="text-slate-500 font-medium flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-amber-600" /> Extra Duration Added:
+                              </span>
+                              <span className="font-bold text-amber-800">
+                                +{aExtraLabel || `${aExtraMins} Min`}
+                                {aExtraAmount > 0 ? ` (+₹${aExtraAmount})` : ''}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         {(a.startWorkImage || a.endWorkImage) && (
                           <div className="grid grid-cols-2 gap-2 mt-2">
@@ -667,12 +766,27 @@ function BookingDetailsModal({ booking, onClose }) {
             </div>
           ) : booking.laborId && (
             <div className="border-t border-slate-100 pt-4">
-              <p className="text-slate-500 text-xs mb-1">Assigned Labour</p>
-              <p className="font-semibold">{booking.laborId?.fullName}</p>
-              <p className="text-slate-600">{booking.laborId?.phone}</p>
-              {booking.laborId?.savedAddress?.text && (
-                <p className="text-slate-600 mt-1 text-xs">Location: {booking.laborId.savedAddress.text}</p>
-              )}
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-slate-500 text-xs mb-1">Assigned Labour</p>
+                  <p className="font-semibold">{booking.laborId?.fullName}</p>
+                  <p className="text-slate-600">{booking.laborId?.phone}</p>
+                  {booking.laborId?.savedAddress?.text && (
+                    <p className="text-slate-600 mt-1 text-xs">Location: {booking.laborId.savedAddress.text}</p>
+                  )}
+                </div>
+                {hasExtraTime && (
+                  <div className="text-right">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 text-[11px] font-bold">
+                      <Clock className="w-3 h-3 text-amber-600" />
+                      +{primaryExtraLabel || `${totalExtraMinutes} Min`} Extra
+                    </span>
+                    {totalExtraAmount > 0 && (
+                      <p className="text-xs font-bold text-emerald-700 mt-1">+₹{totalExtraAmount}</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -722,14 +836,23 @@ function BookingDetailsModal({ booking, onClose }) {
               </div>
             ) : null}
             <div className="flex justify-between text-xs text-slate-600 py-1">
-              <span>Base Price:</span>
+              <span>{hasExtraTime && totalExtraAmount > 0 ? 'Base Price (Initial):' : 'Base Price:'}</span>
               <span className="font-semibold text-slate-900">
-                ₹{completedBill.completedBasePrice}
+                ₹{hasExtraTime && totalExtraAmount > 0 ? Math.max(0, completedBill.completedBasePrice - totalExtraAmount) : completedBill.completedBasePrice}
                 {completedBill.isContractorBooking && completedBill.deductedBasePrice > 0 && (
                   <span className="text-[11px] text-slate-400 line-through ml-1.5">₹{completedBill.originalBasePrice}</span>
                 )}
               </span>
             </div>
+            {hasExtraTime && totalExtraAmount > 0 && (
+              <div className="flex justify-between text-xs text-amber-900 py-1 font-semibold bg-amber-100/70 px-2 rounded">
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  Extra Time Charge ({primaryExtraLabel || `${totalExtraMinutes} Min`}):
+                </span>
+                <span className="font-bold text-amber-900">+₹{totalExtraAmount}</span>
+              </div>
+            )}
             {completedBill.isContractorBooking && completedBill.deductedBasePrice > 0 && (
               <div className="flex justify-between text-xs text-emerald-600 py-1 font-medium">
                 <span>Deductions (Unfulfilled / Pending):</span>
@@ -859,9 +982,23 @@ function BookingsListTab({ type }) {
                   <p className="text-xs text-slate-500 truncate">
                     Location: {b.address?.locationText || 'No location'}
                   </p>
-                  <p className="text-xs text-slate-500">
-                    Date: {new Date(b.createdAt).toLocaleDateString()}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span>Date: {new Date(b.createdAt).toLocaleDateString()}</span>
+                    <span>·</span>
+                    <span>Duration: <strong className="text-slate-800">{b.selectedSlotLabel || (b.hours ? `${b.hours} hr` : 'N/A')}</strong></span>
+                    {(() => {
+                      const aExtra = (b.assignments || []).reduce((sum, a) => sum + (Number(a.extraMinutes) || (Number(a.extraHours) ? Math.round(Number(a.extraHours) * 60) : 0)), 0)
+                      const extraMins = b.extraMinutes || (b.extraHours ? Math.round(b.extraHours * 60) : 0) || aExtra
+                      const extraLbl = b.extraSlotLabel || (b.assignments || []).find(a => a.extraSlotLabel)?.extraSlotLabel || (extraMins > 0 ? `${extraMins} Min` : '')
+                      if (!extraLbl && !extraMins) return null
+                      return (
+                        <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
+                          <Clock className="w-2.5 h-2.5 text-amber-600" />
+                          +{extraLbl || `${extraMins} Min`} Extra
+                        </span>
+                      )
+                    })()}
+                  </div>
                   <div className="pt-2 flex flex-wrap gap-1.5 items-center">
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getStatusBadgeStyle(b.status)}`}>
                       {b.status?.replace(/_/g, ' ')}

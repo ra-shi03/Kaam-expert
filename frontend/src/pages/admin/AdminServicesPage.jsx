@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useMemo } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Plus, Search, RefreshCw, Edit2, Trash2, Wrench, Eye, X, AlertTriangle } from 'lucide-react'
+import { Plus, Search, RefreshCw, Edit2, Trash2, Wrench, Eye, X, AlertTriangle, ChevronDown, ChevronUp, Clock } from 'lucide-react'
 import {
   fetchAdminLabourCategoryTree,
   createAdminLabourService,
@@ -9,6 +9,7 @@ import {
   getAdminLabourServiceById,
 } from '../../api/adminLabourCategoriesApi.js'
 import { adminZonesApi } from '../../api/adminZonesApi.js'
+import { adminSettingsApi } from '../../api/adminSettingsApi.js'
 import { ApiError } from '../../api/http.js'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { SearchableSelect } from '../../components/ui/SearchableSelect.jsx'
@@ -17,6 +18,556 @@ import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { getCategoryImageUrl } from '../../lib/labourCategoryDisplay.js'
 import { UPLOAD_FOLDERS } from '../../constants/uploadFolders.js'
 import { assetUrlFromUpload, uploadMedia } from '../../api/uploadApi.js'
+
+export function getMergedDurationSlots(globalOptions = [], durationPricing = []) {
+  const map = new Map()
+  globalOptions.forEach(opt => {
+    map.set(opt.minutes, { minutes: opt.minutes, label: opt.label, tag: opt.tag, isGlobal: true })
+  })
+  durationPricing.forEach(dp => {
+    if (dp && dp.minutes > 0 && !map.has(dp.minutes)) {
+      map.set(dp.minutes, { minutes: dp.minutes, label: dp.label || `${dp.minutes} min`, tag: dp.tag, isGlobal: false })
+    }
+  })
+  return Array.from(map.values()).sort((a, b) => a.minutes - b.minutes)
+}
+
+function DurationPricingEditor({ globalOptions = [], durationPricing = [], setDurationPricing, baseHourlyPrice = 0 }) {
+  const [showAddCustom, setShowAddCustom] = useState(false)
+  const [customHours, setCustomHours] = useState('')
+  const [customMins, setCustomMins] = useState('')
+  const [customLabel, setCustomLabel] = useState('')
+  const [customPrice, setCustomPrice] = useState('')
+
+  const mergedOptions = useMemo(
+    () => getMergedDurationSlots(globalOptions, durationPricing),
+    [globalOptions, durationPricing]
+  )
+
+  const handlePriceChange = (minutes, newPrice) => {
+    setDurationPricing(prev => {
+      const idx = prev.findIndex(p => p.minutes === minutes)
+      const val = Math.max(0, parseFloat(newPrice) || 0)
+      if (idx >= 0) {
+        const updated = [...prev]
+        updated[idx] = { ...updated[idx], price: val }
+        return updated
+      }
+      const opt = mergedOptions.find(g => g.minutes === minutes)
+      return [...prev, { minutes, label: opt?.label, tag: opt?.tag, price: val, isActive: true }]
+    })
+  }
+
+  const handleActiveToggle = (minutes, isActive) => {
+    setDurationPricing(prev => {
+      const idx = prev.findIndex(p => p.minutes === minutes)
+      if (idx >= 0) {
+        const updated = [...prev]
+        updated[idx] = { ...updated[idx], isActive }
+        return updated
+      }
+      const opt = mergedOptions.find(g => g.minutes === minutes)
+      return [...prev, { minutes, label: opt?.label, tag: opt?.tag, price: 0, isActive }]
+    })
+  }
+
+  const handleRemoveSlot = (minutes) => {
+    setDurationPricing(prev => prev.filter(p => p.minutes !== minutes))
+  }
+
+  const handleAutoFill = () => {
+    const hourly = parseFloat(baseHourlyPrice) || 0
+    if (!hourly) return
+    const filled = mergedOptions.map(opt => {
+      const existing = durationPricing.find(p => p.minutes === opt.minutes)
+      const calculatedPrice = Math.round(hourly * (opt.minutes / 60))
+      return {
+        minutes: opt.minutes,
+        label: opt.label,
+        tag: opt.tag,
+        price: existing?.price && existing.price > 0 ? existing.price : calculatedPrice,
+        isActive: existing ? existing.isActive : true,
+      }
+    })
+    setDurationPricing(filled)
+  }
+
+  const handleAddCustomSlot = (e) => {
+    e.preventDefault()
+    const hrs = parseInt(customHours) || 0
+    const mins = parseInt(customMins) || 0
+    const totalMinutes = hrs * 60 + mins
+    if (totalMinutes <= 0) return
+
+    let label = customLabel.trim()
+    if (!label) {
+      if (hrs > 0 && mins > 0) label = `${hrs} hr ${mins} min`
+      else if (hrs > 0) label = `${hrs} hr`
+      else label = `${mins} min`
+    }
+
+    const price = Math.max(0, parseFloat(customPrice) || 0)
+
+    setDurationPricing(prev => {
+      const existingIdx = prev.findIndex(p => p.minutes === totalMinutes)
+      if (existingIdx >= 0) {
+        const next = [...prev]
+        next[existingIdx] = { ...next[existingIdx], label, price, isActive: true }
+        return next
+      }
+      return [...prev, { minutes: totalMinutes, label, tag: null, price, isActive: true }].sort((a, b) => a.minutes - b.minutes)
+    })
+
+    setCustomHours('')
+    setCustomMins('')
+    setCustomLabel('')
+    setCustomPrice('')
+    setShowAddCustom(false)
+  }
+
+  return (
+    <div className="col-span-2 rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <label className="block text-[11px] font-bold uppercase text-slate-700">
+            Duration-Based Pricing (Dynamic Service Time)
+          </label>
+          <p className="text-[11px] text-slate-500">
+            Set exact custom prices for duration slots. Add custom time slots or auto-fill from base hourly rate.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAddCustom(!showAddCustom)}
+            className="flex items-center gap-1 rounded-lg border border-brand bg-brand px-2.5 py-1 text-xs font-bold text-white hover:bg-brand/90 transition shadow-sm"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {showAddCustom ? 'Close' : 'Add Time Slot'}
+          </button>
+          <button
+            type="button"
+            onClick={handleAutoFill}
+            className="rounded-lg border border-brand/30 bg-brand/5 px-2.5 py-1 text-xs font-bold text-brand hover:bg-brand/10 transition"
+          >
+            Auto-fill from Base Rate
+          </button>
+        </div>
+      </div>
+
+      {showAddCustom && (
+        <form onSubmit={handleAddCustomSlot} className="rounded-xl border border-brand/20 bg-brand/5 p-3 space-y-2">
+          <div className="text-xs font-bold text-slate-800">Add New Dynamic Time Slot</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-slate-500">Hours</label>
+              <input
+                type="number"
+                min="0"
+                max="24"
+                placeholder="0"
+                value={customHours}
+                onChange={(e) => setCustomHours(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold outline-none focus:border-brand"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-slate-500">Minutes</label>
+              <input
+                type="number"
+                min="0"
+                max="59"
+                placeholder="15"
+                value={customMins}
+                onChange={(e) => setCustomMins(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold outline-none focus:border-brand"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-slate-500">Label (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. 1 hr 15 min"
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold outline-none focus:border-brand"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-slate-500">Price (₹)</label>
+              <input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={customPrice}
+                onChange={(e) => setCustomPrice(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold outline-none focus:border-brand"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowAddCustom(false)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-brand px-3 py-1 text-xs font-bold text-white hover:bg-brand/90"
+            >
+              Save Slot
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+        <table className="w-full text-left text-xs">
+          <thead className="sticky top-0 bg-slate-100 text-[10px] font-bold uppercase text-slate-500 border-b border-slate-200">
+            <tr>
+              <th className="px-3 py-2">Duration</th>
+              <th className="px-3 py-2 w-36">Price (₹)</th>
+              <th className="px-3 py-2 w-20 text-center">Enabled</th>
+              <th className="px-2 py-2 w-12 text-center">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+            {mergedOptions.map(opt => {
+              const current = durationPricing.find(p => p.minutes === opt.minutes)
+              const price = current?.price ?? ''
+              const isActive = current?.isActive ?? true
+              const isSpecial = opt.tag === 'half_day' || opt.tag === 'full_day'
+
+              return (
+                <tr key={opt.minutes} className={`hover:bg-slate-50/60 ${isSpecial ? 'bg-emerald-50/30' : ''}`}>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-slate-800">{opt.label}</span>
+                      {isSpecial && (
+                        <span className="text-[9px] font-extrabold uppercase text-emerald-700 bg-emerald-100 px-1 py-0.5 rounded">
+                          {opt.tag === 'half_day' ? 'Half Day' : 'Full Day'}
+                        </span>
+                      )}
+                      {!opt.isGlobal && (
+                        <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 px-1 py-0.5 rounded">
+                          Custom
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={price}
+                        placeholder={baseHourlyPrice ? String(Math.round(baseHourlyPrice * (opt.minutes / 60))) : '0'}
+                        onChange={(e) => handlePriceChange(opt.minutes, e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 pl-6 pr-2 py-1 text-xs font-bold text-slate-900 outline-none focus:border-brand"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-3 py-1.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isActive}
+                      onChange={(e) => handleActiveToggle(opt.minutes, e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand/35 cursor-pointer"
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSlot(opt.minutes)}
+                      className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition"
+                      title="Remove this slot"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function ZonePricingEditor({
+  zones = [],
+  setZones,
+  activeZones = [],
+  availableSlots = [],
+  baseHourlyPrice = 0,
+}) {
+  const [expandedZoneIdx, setExpandedZoneIdx] = useState(null)
+
+  const handleAddZone = () => {
+    setZones(prev => [...prev, { zone: '', price: 0, isActive: true, durationPricing: [] }])
+  }
+
+  const handleRemoveZone = (idx) => {
+    setZones(prev => prev.filter((_, i) => i !== idx))
+    if (expandedZoneIdx === idx) setExpandedZoneIdx(null)
+  }
+
+  const handleZoneChange = (idx, field, value) => {
+    setZones(prev => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
+  }
+
+  const handleZoneSlotPriceChange = (zoneIdx, minutes, price, opt) => {
+    setZones(prev => {
+      const next = [...prev]
+      const currentZone = { ...next[zoneIdx] }
+      const slots = Array.isArray(currentZone.durationPricing) ? [...currentZone.durationPricing] : []
+      const idx = slots.findIndex(s => s.minutes === minutes)
+      const numPrice = Math.max(0, parseFloat(price) || 0)
+      if (idx >= 0) {
+        slots[idx] = { ...slots[idx], price: numPrice }
+      } else {
+        slots.push({
+          minutes,
+          label: opt.label || `${minutes} min`,
+          tag: opt.tag || null,
+          price: numPrice,
+          isActive: true,
+        })
+      }
+      currentZone.durationPricing = slots
+      next[zoneIdx] = currentZone
+      return next
+    })
+  }
+
+  const handleZoneSlotActiveToggle = (zoneIdx, minutes, isActive, opt) => {
+    setZones(prev => {
+      const next = [...prev]
+      const currentZone = { ...next[zoneIdx] }
+      const slots = Array.isArray(currentZone.durationPricing) ? [...currentZone.durationPricing] : []
+      const idx = slots.findIndex(s => s.minutes === minutes)
+      if (idx >= 0) {
+        slots[idx] = { ...slots[idx], isActive }
+      } else {
+        slots.push({
+          minutes,
+          label: opt.label || `${minutes} min`,
+          tag: opt.tag || null,
+          price: 0,
+          isActive,
+        })
+      }
+      currentZone.durationPricing = slots
+      next[zoneIdx] = currentZone
+      return next
+    })
+  }
+
+  const handleAutoFillZone = (zoneIdx) => {
+    const currentZone = zones[zoneIdx]
+    const hourly = parseFloat(currentZone.price) || parseFloat(baseHourlyPrice) || 0
+    if (!hourly) return
+    const filled = availableSlots.map(opt => {
+      const existing = (currentZone.durationPricing || []).find(p => p.minutes === opt.minutes)
+      const calculated = Math.round(hourly * (opt.minutes / 60))
+      return {
+        minutes: opt.minutes,
+        label: opt.label,
+        tag: opt.tag,
+        price: existing?.price && existing.price > 0 ? existing.price : calculated,
+        isActive: existing ? existing.isActive : true,
+      }
+    })
+    setZones(prev => {
+      const next = [...prev]
+      next[zoneIdx] = { ...next[zoneIdx], durationPricing: filled }
+      return next
+    })
+  }
+
+  return (
+    <div className="col-span-2 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <label className="block text-[11px] font-bold uppercase text-slate-700">
+            Zone Availability & Zone-Wise Time Pricing
+          </label>
+          <p className="text-[11px] text-slate-500">
+            Set zone hourly rates and custom prices for each duration slot per zone.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleAddZone}
+          className="flex items-center gap-1 rounded-lg border border-brand/30 bg-brand/5 px-2.5 py-1 text-xs font-bold text-brand hover:bg-brand/10 transition"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Zone
+        </button>
+      </div>
+
+      {zones.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 bg-slate-50/50">
+          No zone-specific pricing added yet. Base service rate applies to all zones.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {zones.map((zoneItem, idx) => {
+            const isExpanded = expandedZoneIdx === idx
+            const zoneId = typeof zoneItem.zone === 'object' ? zoneItem.zone._id : (zoneItem.zone || '')
+            const configuredSlotCount = (zoneItem.durationPricing || []).filter(s => s.price > 0).length
+
+            return (
+              <div key={idx} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <select
+                      value={zoneId}
+                      onChange={(e) => handleZoneChange(idx, 'zone', e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:ring-2 focus:ring-brand/35 bg-white"
+                    >
+                      <option value="">Select Zone</option>
+                      {activeZones.map(z => (
+                        <option key={z._id} value={z._id}>{z.name} ({z.city})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="w-32">
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">₹/hr</span>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Hourly Rate"
+                        value={zoneItem.price ?? ''}
+                        onChange={(e) => handleZoneChange(idx, 'price', Number(e.target.value))}
+                        className="w-full rounded-xl border border-slate-200 pl-10 pr-2 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-brand/35"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setExpandedZoneIdx(isExpanded ? null : idx)}
+                    className={`flex items-center gap-1 rounded-xl px-2.5 py-2 text-xs font-bold transition border ${
+                      isExpanded
+                        ? 'bg-brand text-white border-brand'
+                        : configuredSlotCount > 0
+                        ? 'bg-brand/10 text-brand border-brand/20'
+                        : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                    }`}
+                    title="Configure individual duration prices for this zone"
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>Times ({configuredSlotCount}/{availableSlots.length})</span>
+                    {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveZone(idx)}
+                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition"
+                    title="Remove Zone"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {isExpanded && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase text-slate-700">
+                          Zone Time Slots (Showing All Times)
+                        </span>
+                        <p className="text-[10px] text-slate-500">
+                          Set exact custom price for this zone for each duration slot.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAutoFillZone(idx)}
+                        className="rounded-lg border border-brand/30 bg-brand/5 px-2 py-1 text-[11px] font-bold text-brand hover:bg-brand/10 transition"
+                      >
+                        Auto-fill from Zone Rate
+                      </button>
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                      <table className="w-full text-left text-xs">
+                        <thead className="sticky top-0 bg-slate-100 text-[10px] font-bold uppercase text-slate-500 border-b border-slate-200">
+                          <tr>
+                            <th className="px-3 py-1.5">Duration</th>
+                            <th className="px-3 py-1.5 w-32">Zone Price (₹)</th>
+                            <th className="px-3 py-1.5 w-20 text-center">Active</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                          {availableSlots.map(opt => {
+                            const current = (zoneItem.durationPricing || []).find(p => p.minutes === opt.minutes)
+                            const price = current?.price ?? ''
+                            const isActive = current?.isActive ?? true
+                            const isSpecial = opt.tag === 'half_day' || opt.tag === 'full_day'
+                            const fallbackCalc = zoneItem.price ? Math.round(zoneItem.price * (opt.minutes / 60)) : 0
+
+                            return (
+                              <tr key={opt.minutes} className={`hover:bg-slate-50/60 ${isSpecial ? 'bg-emerald-50/30' : ''}`}>
+                                <td className="px-3 py-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-slate-800">{opt.label}</span>
+                                    {isSpecial && (
+                                      <span className="text-[9px] font-extrabold uppercase text-emerald-700 bg-emerald-100 px-1 py-0.5 rounded">
+                                        {opt.tag === 'half_day' ? 'Half Day' : 'Full Day'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-1">
+                                  <div className="relative">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={price}
+                                      placeholder={fallbackCalc ? String(fallbackCalc) : '0'}
+                                      onChange={(e) => handleZoneSlotPriceChange(idx, opt.minutes, e.target.value, opt)}
+                                      className="w-full rounded-lg border border-slate-200 pl-6 pr-2 py-1 text-xs font-bold text-slate-900 outline-none focus:border-brand"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="px-3 py-1 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isActive}
+                                    onChange={(e) => handleZoneSlotActiveToggle(idx, opt.minutes, e.target.checked, opt)}
+                                    className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand/35 cursor-pointer"
+                                  />
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSaved, busy, setBusy }) {
   const [name, setName] = useState('')
@@ -32,6 +583,8 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
   const [isActive, setIsActive] = useState(true)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [error, setError] = useState('')
+  const [durationOptions, setDurationOptions] = useState([])
+  const [durationPricing, setDurationPricing] = useState([])
 
   useEffect(() => {
     if (open) {
@@ -47,8 +600,19 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
       setIconUrl('')
       setIsActive(true)
       setError('')
+      setDurationPricing([])
+      adminSettingsApi.getDurationOptions().then((res) => {
+        if (Array.isArray(res.data?.durationOptions)) {
+          setDurationOptions(res.data.durationOptions)
+        }
+      }).catch(() => {})
     }
   }, [open, subcategories])
+
+  const availableSlots = useMemo(
+    () => getMergedDurationSlots(durationOptions, durationPricing),
+    [durationOptions, durationPricing]
+  )
 
   if (!open) return null
 
@@ -92,7 +656,17 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
         discountType,
         discountValue: Number(discountValue),
         isAllZones: zones.length === activeZones.length,
-        zones,
+        zones: zones
+          .filter(z => (typeof z.zone === 'object' ? z.zone?._id : z.zone))
+          .map(z => ({
+            zone: typeof z.zone === 'object' ? z.zone?._id : z.zone,
+            price: Number(z.price) || 0,
+            isActive: z.isActive !== false,
+            durationPricing: Array.isArray(z.durationPricing)
+              ? z.durationPricing.filter(d => (Number(d.price) > 0 || d.isActive))
+              : []
+          })),
+        durationPricing: durationPricing.filter(dp => (dp.price > 0 || dp.isActive)),
         iconUrl: iconUrl.trim() || undefined,
         isActive
       }
@@ -115,7 +689,7 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
       <motion.div
         initial={{ opacity: 0, y: 10, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+        className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl"
       >
         <div className="border-b border-slate-100 px-5 py-4 flex justify-between items-center">
           <h3 className="text-lg font-extrabold text-slate-900">Add Service</h3>
@@ -123,7 +697,7 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
             <X className="h-5 w-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4 p-5 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="space-y-4 p-5 max-h-[85vh] overflow-y-auto">
           {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>}
           
           <div className="grid grid-cols-2 gap-4">
@@ -217,61 +791,20 @@ function AddServiceModal({ open, subcategories, activeZones = [], onClose, onSav
               />
             </div>
 
-            <div className="col-span-2 space-y-3">
-              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Zone Availability & Pricing</label>
-              {zones.map((zoneItem, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <select
-                      value={typeof zoneItem.zone === 'object' ? zoneItem.zone._id : (zoneItem.zone || '')}
-                      onChange={(e) => {
-                        const newZones = [...zones];
-                        newZones[idx].zone = e.target.value;
-                        setZones(newZones);
-                      }}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white"
-                    >
-                      <option value="">Select Zone</option>
-                      {activeZones.map(z => (
-                        <option key={z._id} value={z._id}>{z.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="w-32">
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="Price"
-                      value={zoneItem.price}
-                      onChange={(e) => {
-                        const newZones = [...zones];
-                        newZones[idx].price = Number(e.target.value);
-                        setZones(newZones);
-                      }}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newZones = zones.filter((_, i) => i !== idx);
-                      setZones(newZones);
-                    }}
-                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => setZones([...zones, { zone: '', price: 0 }])}
-                className="flex items-center gap-1 text-sm font-semibold text-brand hover:text-brand/80"
-              >
-                <Plus className="h-4 w-4" />
-                Add Zone Price
-              </button>
-            </div>
+            <DurationPricingEditor
+              globalOptions={durationOptions}
+              durationPricing={durationPricing}
+              setDurationPricing={setDurationPricing}
+              baseHourlyPrice={hourlyPrice}
+            />
+
+            <ZonePricingEditor
+              zones={zones}
+              setZones={setZones}
+              activeZones={activeZones}
+              availableSlots={availableSlots}
+              baseHourlyPrice={hourlyPrice}
+            />
 
             <div className="flex items-center pt-5">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -357,6 +890,8 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
   const [isActive, setIsActive] = useState(true)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [error, setError] = useState('')
+  const [durationOptions, setDurationOptions] = useState([])
+  const [durationPricing, setDurationPricing] = useState([])
 
   useEffect(() => {
     if (open && service) {
@@ -370,16 +905,33 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
       setDiscountValue(service.discountValue ?? 0)
       
       const safeZones = (service.zones ?? []).map(z => {
-        if (typeof z === 'string') return { zone: z, price: service.hourlyPrice ?? 0 }
-        return z
+        if (typeof z === 'string') return { zone: z, price: service.hourlyPrice ?? 0, isActive: true, durationPricing: [] }
+        return {
+          zone: typeof z.zone === 'object' ? z.zone?._id : (z.zone || ''),
+          price: z.price ?? service.hourlyPrice ?? 0,
+          isActive: z.isActive !== false,
+          durationPricing: Array.isArray(z.durationPricing) ? z.durationPricing : []
+        }
       })
       setZones(safeZones)
       
       setIconUrl(service.iconUrl || '')
       setIsActive(service.isActive ?? true)
       setError('')
+      setDurationPricing(Array.isArray(service.durationPricing) ? service.durationPricing : [])
+
+      adminSettingsApi.getDurationOptions().then((res) => {
+        if (Array.isArray(res.data?.durationOptions)) {
+          setDurationOptions(res.data.durationOptions)
+        }
+      }).catch(() => {})
     }
   }, [open, service, subcategories])
+
+  const availableSlots = useMemo(
+    () => getMergedDurationSlots(durationOptions, durationPricing),
+    [durationOptions, durationPricing]
+  )
 
   if (!open || !service) return null
 
@@ -423,7 +975,17 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
         discountType,
         discountValue: Number(discountValue),
         isAllZones: zones.length === activeZones.length,
-        zones,
+        zones: zones
+          .filter(z => (typeof z.zone === 'object' ? z.zone?._id : z.zone))
+          .map(z => ({
+            zone: typeof z.zone === 'object' ? z.zone?._id : z.zone,
+            price: Number(z.price) || 0,
+            isActive: z.isActive !== false,
+            durationPricing: Array.isArray(z.durationPricing)
+              ? z.durationPricing.filter(d => (Number(d.price) > 0 || d.isActive))
+              : []
+          })),
+        durationPricing: durationPricing.filter(dp => (dp.price > 0 || dp.isActive)),
         iconUrl: iconUrl.trim() || undefined,
         isActive
       }
@@ -446,7 +1008,7 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
       <motion.div
         initial={{ opacity: 0, y: 10, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="relative w-full max-w-lg rounded-2xl bg-white shadow-2xl"
+        className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl"
       >
         <div className="border-b border-slate-100 px-5 py-4 flex justify-between items-center">
           <h3 className="text-lg font-extrabold text-slate-900">Edit Service</h3>
@@ -454,7 +1016,7 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
             <X className="h-5 w-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4 p-5 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="space-y-4 p-5 max-h-[85vh] overflow-y-auto">
           {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{error}</p>}
           
           <div className="grid grid-cols-2 gap-4">
@@ -548,61 +1110,20 @@ function EditServiceModal({ open, service, subcategories, activeZones = [], onCl
               />
             </div>
 
-            <div className="col-span-2 space-y-3">
-              <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Zone Availability & Pricing</label>
-              {zones.map((zoneItem, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <select
-                      value={typeof zoneItem.zone === 'object' ? zoneItem.zone._id : (zoneItem.zone || '')}
-                      onChange={(e) => {
-                        const newZones = [...zones];
-                        newZones[idx].zone = e.target.value;
-                        setZones(newZones);
-                      }}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35 bg-white"
-                    >
-                      <option value="">Select Zone</option>
-                      {activeZones.map(z => (
-                        <option key={z._id} value={z._id}>{z.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="w-32">
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="Price"
-                      value={zoneItem.price}
-                      onChange={(e) => {
-                        const newZones = [...zones];
-                        newZones[idx].price = Number(e.target.value);
-                        setZones(newZones);
-                      }}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand/35"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newZones = zones.filter((_, i) => i !== idx);
-                      setZones(newZones);
-                    }}
-                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => setZones([...zones, { zone: '', price: 0 }])}
-                className="flex items-center gap-1 text-sm font-semibold text-brand hover:text-brand/80"
-              >
-                <Plus className="h-4 w-4" />
-                Add Zone Price
-              </button>
-            </div>
+            <DurationPricingEditor
+              globalOptions={durationOptions}
+              durationPricing={durationPricing}
+              setDurationPricing={setDurationPricing}
+              baseHourlyPrice={hourlyPrice}
+            />
+
+            <ZonePricingEditor
+              zones={zones}
+              setZones={setZones}
+              activeZones={activeZones}
+              availableSlots={availableSlots}
+              baseHourlyPrice={hourlyPrice}
+            />
 
             <div className="flex items-center pt-5">
               <label className="flex items-center gap-2 cursor-pointer">
