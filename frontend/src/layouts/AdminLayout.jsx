@@ -7,11 +7,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  ExternalLink,
   LogOut,
   Mail,
   Menu,
-  PanelLeftClose,
+  Search,
+  X,
   PanelLeft,
   User,
 } from 'lucide-react'
@@ -37,6 +37,7 @@ export function AdminLayout() {
     }
   })
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [profileOpen, setProfileOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
 
@@ -91,101 +92,117 @@ export function AdminLayout() {
   const lastLoginFull = formatLastLoginDisplay(lastLoginRaw)
   const initials = adminInitials(user)
 
+  const query = searchQuery.trim().toLowerCase()
+  const filteredSections = query
+    ? ADMIN_NAV_SECTIONS.map((section) => ({
+        ...section,
+        items: section.items.filter((item) => item.label.toLowerCase().includes(query)),
+      })).filter((section) => section.items.length > 0)
+    : ADMIN_NAV_SECTIONS
+
   const sidebarInner = (
     <>
-      <div
-        className={`relative flex h-17 shrink-0 items-center border-b border-white/15 bg-transparent px-3 ${collapsed ? 'md:justify-center' : 'justify-between gap-2'}`}
-      >
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-white/0 via-white/20 to-white/0" aria-hidden />
-        <Link
-          to="/admin"
-          className={`relative z-10 flex min-w-0 items-center gap-2.5 rounded-xl px-1.5 py-1.5 font-extrabold tracking-tight text-white transition hover:bg-white/10 hover:shadow-sm active:scale-95 ${collapsed ? 'md:justify-center' : ''}`}
-          title="Dashboard"
-        >
-          <img src="/logo-transparent.png" alt="KaamExpert" className="h-8 w-auto brightness-0 invert" />
-          <span className={`min-w-0 truncate ${collapsed ? 'md:sr-only' : ''}`}>
-            <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-              Control panel
+      <div className="shrink-0 border-b border-neutral-800 bg-black/20 px-3 py-3">
+        <div className={`flex items-center ${collapsed ? 'md:justify-center' : 'justify-between'} ${!collapsed ? 'mb-3' : ''}`}>
+          <Link
+            to="/admin"
+            className={`flex min-w-0 items-center gap-2 px-1 ${collapsed ? 'md:justify-center' : ''}`}
+            title="Dashboard"
+          >
+            <img src="/logo-transparent.png" alt="KaamExpert" className="h-9 w-auto max-w-[9.5rem] shrink-0 object-contain brightness-0 invert" />
+            <span className={`min-w-0 ${collapsed ? 'md:sr-only' : ''}`}>
+              <span className="block text-[10px] uppercase tracking-wider text-white/50">Control panel</span>
             </span>
-          </span>
-        </Link>
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          className="relative z-10 hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white shadow-sm transition hover:bg-white/20 active:scale-95 md:flex"
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </button>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            className="hidden rounded-lg p-1.5 text-white/80 transition hover:scale-110 hover:bg-white/10 hover:text-white md:block"
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        </div>
+
+        <div className={`relative ${collapsed ? 'md:hidden' : ''}`}>
+          <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-white/60" aria-hidden />
+          <input
+            type="text"
+            placeholder="Search menu..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className={`h-9 w-full rounded-md border border-white/20 bg-white/10 pl-9 text-sm text-white outline-none transition placeholder:text-white/50 focus-visible:ring-2 focus-visible:ring-white/40 ${searchQuery ? 'pr-9' : 'pr-3'}`}
+          />
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 text-white/60 transition hover:text-white"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <nav
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2.5 py-4 scrollbar-thin [scrollbar-color:rgba(148,163,184,0.5)_transparent]"
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-3 scrollbar-thin [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
         aria-label="Admin navigation"
       >
-        {ADMIN_NAV_SECTIONS.map((section, si) => (
-          <div
-            key={section.title ?? 'main'}
-            className={`${si > 0 ? 'mt-5 border-t border-slate-100 pt-5' : ''} mb-1 last:mb-0`}
-          >
-            {section.title ? (
-              <div className={`mb-2.5 flex items-center gap-2 px-3 ${collapsed ? 'md:hidden' : ''}`}>
-                <span className="h-px w-4 shrink-0 rounded-full bg-white/30" aria-hidden />
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-blue-100">{section.title}</p>
-              </div>
-            ) : null}
-            <ul className="space-y-1">
-              {section.items.map(({ to, label, icon: Icon, end }) => (
-                <li key={to}>
-                  <NavLink
-                    to={to}
-                    end={Boolean(end)}
-                    title={label}
-                    className={({ isActive }) =>
-                      `group relative flex items-center gap-3 rounded-xl py-2.5 text-sm font-semibold transition-all duration-200 active:scale-[0.98] md:px-2 ${collapsed ? 'md:justify-center md:px-0' : 'px-3'
-                      } ${isActive
-                        ? 'bg-white text-brand shadow-md'
-                        : 'text-blue-100 hover:bg-white/15 hover:text-white'
-                      } ${collapsed && isActive ? 'md:ring-2 md:ring-white/50 md:ring-offset-2 md:ring-offset-brand' : ''
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <span
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors duration-200 ${isActive
-                              ? 'bg-brand/10 text-brand'
-                              : 'bg-white/10 text-blue-100 group-hover:text-white group-hover:bg-white/20'
-                            }`}
-                        >
-                          <Icon className="h-[18px] w-[18px]" aria-hidden />
-                        </span>
-                        <span className={`min-w-0 flex-1 truncate ${collapsed ? 'md:sr-only' : ''}`}>{label}</span>
-                        {!collapsed ? (
-                          <ChevronRight
-                            className={`h-4 w-4 shrink-0 transition-all duration-200 ${isActive ? 'translate-x-0 text-brand opacity-100' : 'text-blue-200 opacity-0 group-hover:translate-x-0.5 group-hover:opacity-100'}`}
+        {filteredSections.length === 0 ? (
+          <div className="px-3 py-10 text-center">
+            <p className="text-sm font-medium text-white/60">No menu items found</p>
+            <p className="mt-1 text-xs text-white/40">Try a different search term</p>
+          </div>
+        ) : (
+          filteredSections.map((section, si) => (
+            <div key={section.title ?? 'main'} className={si > 0 ? 'mt-4' : ''}>
+              {section.title ? (
+                <div className={`mb-1 px-3 py-1.5 ${collapsed ? 'md:hidden' : ''}`}>
+                  <span className="text-sm font-bold uppercase tracking-wider text-white/60">{section.title}</span>
+                </div>
+              ) : null}
+              <ul className="space-y-1">
+                {section.items.map(({ to, label, icon: Icon, end }) => (
+                  <li key={to}>
+                    <NavLink
+                      to={to}
+                      end={Boolean(end)}
+                      title={label}
+                      className={({ isActive }) =>
+                        `relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all duration-300 ease-out ${collapsed ? 'md:justify-center md:px-2' : ''} ${
+                          isActive
+                            ? 'bg-white font-semibold text-neutral-950 shadow-md shadow-black/10'
+                            : 'text-white/90 hover:bg-white/10 hover:text-white'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <Icon
+                            className={`h-4 w-4 shrink-0 transition-all duration-300 ${isActive ? 'scale-110 text-neutral-950' : 'text-white/85'}`}
                             aria-hidden
                           />
-                        ) : null}
-                      </>
-                    )}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+                          <span className={`min-w-0 flex-1 truncate ${collapsed ? 'md:sr-only' : ''}`}>{label}</span>
+                        </>
+                      )}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        )}
       </nav>
-
-
     </>
   )
 
   const sidebarClassName = `
-    flex h-dvh max-h-dvh shrink-0 flex-col overflow-hidden border-r border-blue-800/50 bg-gradient-to-b from-[#001a38] to-brand shadow-[6px_0_32px_-12px_rgba(37,99,235,0.3)] transition-[transform,width] duration-300 ease-out
-    w-[min(18rem,88vw)] max-md:max-w-[18rem]
-    ${collapsed ? 'md:w-19' : 'md:w-64'}
+    flex h-dvh max-h-dvh shrink-0 flex-col overflow-hidden border-r border-neutral-900 bg-black transition-[transform,width] duration-300 ease-out
+    w-[min(20rem,88vw)] max-md:max-w-[20rem]
+    ${collapsed ? 'md:w-20' : 'md:w-80'}
     fixed inset-y-0 left-0 z-50 md:relative md:z-20
     ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
   `

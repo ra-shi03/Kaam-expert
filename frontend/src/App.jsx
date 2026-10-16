@@ -70,6 +70,8 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           {bootRoutes}
           <Route path="/auth" element={<Navigate to="/users/auth" replace />} />
+          <Route path="/user" element={<Navigate to="/users/auth" replace />} />
+          <Route path="/labour" element={<Navigate to="/labours/auth" replace />} />
           <Route path="/users/auth" element={<AuthEntryPage authGroup="users" />} />
           <Route path="/labours/auth" element={<AuthEntryPage authGroup="labours" />} />
           <Route
@@ -100,7 +102,7 @@ function App() {
           <Route
             path="/admin"
             element={
-              <ProtectedRoute roles={[USER_ROLES.ADMIN]}>
+              <ProtectedRoute roles={[USER_ROLES.ADMIN]} loginPath="/admin/login">
                 <ErrorBoundary>
                   <AdminLayout />
                 </ErrorBoundary>

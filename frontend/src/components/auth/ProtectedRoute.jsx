@@ -4,7 +4,7 @@ import { BOOT_ROUTES } from '../../constants/bootFlow.js'
 import { getRoleHomePath } from '../../lib/roleHomePath.js'
 import { AppRouteLoader } from '../app/AppRouteLoader.jsx'
 
-export function ProtectedRoute({ children, roles, allowGuest }) {
+export function ProtectedRoute({ children, roles, allowGuest, loginPath }) {
   const { isAuthenticated, user, loading } = useAuth()
   const location = useLocation()
   const role = user?.role
@@ -14,7 +14,7 @@ export function ProtectedRoute({ children, roles, allowGuest }) {
   }
 
   if (!isAuthenticated && !allowGuest) {
-    return <Navigate to={BOOT_ROUTES.SPLASH} replace state={{ from: location.pathname + location.search }} />
+    return <Navigate to={loginPath || BOOT_ROUTES.SPLASH} replace state={{ from: location.pathname + location.search }} />
   }
 
   if (isAuthenticated && roles?.length && role && !roles.includes(role)) {
