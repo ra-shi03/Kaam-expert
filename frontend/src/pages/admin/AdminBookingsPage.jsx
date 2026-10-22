@@ -6,6 +6,7 @@ import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { PipelineTimeline } from '../../components/shared/PipelineTimeline.jsx'
 import { calculateCompletedBookingBill } from '../../lib/completedBillingHelper.js'
+import { formatTime12 } from '../../lib/bookingTimeUtils.js'
 import {
   useGetAdminRequestsQuery,
   useLazyGetAdminRequestByIdQuery,
@@ -613,7 +614,10 @@ function BookingDetailsModal({ booking, onClose }) {
             </div>
             <div>
               <p className="text-slate-500 text-xs">Scheduled At</p>
-              <p className="font-semibold">{booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleString() : 'N/A'}</p>
+              <p className="font-semibold">
+                {booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'N/A'}
+                {booking.timeSlot ? ` (${formatTime12(booking.timeSlot)}${booking.endTime ? ` – ${formatTime12(booking.endTime)}` : ''})` : ''}
+              </p>
             </div>
 
             {hasExtraTime && (

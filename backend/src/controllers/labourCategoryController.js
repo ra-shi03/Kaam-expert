@@ -54,9 +54,63 @@ export const listGrouped = asyncHandler(async (req, res) => {
   for (const s of services) {
     if (userZoneId && s.zones && s.zones.length > 0) {
       const zonePricing = s.zones.find(z => String(z.zone) === userZoneId)
-      if (zonePricing && typeof zonePricing.price === 'number') {
-        s.hourlyPrice = zonePricing.price
+      if (zonePricing) {
+        if (typeof zonePricing.price === 'number' && zonePricing.price > 0) {
+          s.hourlyPrice = zonePricing.price
+        }
+        if (zonePricing.discountValue != null) {
+          s.discountType = zonePricing.discountType || 'PERCENTAGE'
+          s.discountValue = Number(zonePricing.discountValue) || 0
+        }
+        if (Array.isArray(zonePricing.durationPricing) && zonePricing.durationPricing.length > 0) {
+          const zoneSlotMap = new Map(zonePricing.durationPricing.map(z => [Number(z.minutes), z]))
+          s.durationPricing = (s.durationPricing || []).map(dp => {
+            const zSlot = zoneSlotMap.get(Number(dp.minutes))
+            if (zSlot && Number(zSlot.price) > 0) {
+              const effectiveDiscType = Number(zSlot.discountValue) > 0
+                ? (zSlot.discountType || 'PERCENTAGE')
+                : (Number(dp.discountValue) > 0 ? (dp.discountType || 'PERCENTAGE') : (zonePricing.discountType || 'PERCENTAGE'))
+              const effectiveDiscVal = Number(zSlot.discountValue) > 0
+                ? Number(zSlot.discountValue)
+                : (Number(dp.discountValue) > 0 ? Number(dp.discountValue) : (Number(zonePricing.discountValue) || 0))
+
+              return {
+                ...dp,
+                price: Number(zSlot.price),
+                discountType: effectiveDiscType,
+                discountValue: effectiveDiscVal,
+                isActive: zSlot.isActive !== false,
+              }
+            }
+            return dp
+          })
+        }
+      } else {
+        s.discountValue = 0
       }
+    }
+    if (Array.isArray(s.durationPricing)) {
+      s.durationPricing = s.durationPricing
+        .filter(dp => dp && Number(dp.minutes) > 0 && dp.isActive !== false)
+        .map(dp => {
+          const slotPrice = Number(dp.price) || 0
+          const discVal = Number(dp.discountValue) || 0
+          const discType = dp.discountType || 'PERCENTAGE'
+          let discountedPrice = slotPrice
+          if (discVal > 0) {
+            const discAmt = discType === 'FIXED'
+              ? discVal
+              : Math.round((slotPrice * discVal) / 100)
+            discountedPrice = Math.max(0, slotPrice - discAmt)
+          }
+          return {
+            ...dp,
+            price: slotPrice,
+            discountType: discType,
+            discountValue: discVal,
+            discountedPrice,
+          }
+        })
     }
     delete s.basePrice
     const k = String(s.subcategoryId)

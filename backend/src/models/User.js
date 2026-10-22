@@ -169,6 +169,16 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: []
     },
+    /** Own shareable referral code (assigned at signup, or lazily for older accounts) */
+    referralCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      unique: true,
+      sparse: true,
+    },
+    /** User whose referral code was used at signup */
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
     labourProfile: labourProfileSchema,
     contractorProfile: contractorProfileSchema,
   },

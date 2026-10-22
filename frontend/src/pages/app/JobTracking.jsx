@@ -18,6 +18,7 @@ import { setActiveBooking, updateBookingStatus as updateBookingStatusAction, cle
 import { AppStackScreenHeader } from '../../components/app/AppStackScreenHeader.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { BookingReviewModal } from '../../components/app/booking/BookingReviewModal.jsx'
+import { calculateEndTime, formatTime12 } from '../../lib/bookingTimeUtils.js'
 
 const BOOKING_STEPS = [
   { id: 'CREATED', label: 'Booking Created' },
@@ -208,12 +209,27 @@ export function JobTracking() {
         <div className="space-y-2 text-sm text-slate-700">
           <div className="flex justify-between">
             <span className="font-semibold text-slate-500">Date</span>
-            <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? new Date(booking.scheduledAt).toLocaleDateString() : 'ASAP'}</span>
+            <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? (booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'Today') : 'ASAP'}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="font-semibold text-slate-500">Time</span>
-            <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? booking.timeSlot : 'Earliest available'}</span>
-          </div>
+          {booking.type === 'SCHEDULED' ? (
+            <>
+              <div className="flex justify-between">
+                <span className="font-semibold text-slate-500">Start Time</span>
+                <span className="font-medium text-slate-900">{formatTime12(booking.timeSlot) || '10:00 AM'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-semibold text-slate-500">End Time</span>
+                <span className="font-medium text-brand">
+                  {formatTime12(booking.endTime || calculateEndTime(booking.timeSlot, booking.durationMinutes || (booking.hours ? booking.hours * 60 : 60))) || 'N/A'}
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between">
+              <span className="font-semibold text-slate-500">Time</span>
+              <span className="font-medium text-slate-900">Earliest available</span>
+            </div>
+          )}
           <div className="flex flex-col">
             <span className="font-semibold text-slate-500">Location</span>
             <span className="text-right line-clamp-2 mt-0.5 text-slate-900 font-medium">{booking.address?.locationText}</span>

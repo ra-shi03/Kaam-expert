@@ -7,8 +7,8 @@ import { Reveal } from '../ui/Reveal'
 import { SectionHeading } from '../ui/SectionHeading'
 
 const tabs = [
-  { id: 'users', label: 'For hirers', data: howItWorksUsers },
-  { id: 'labour', label: 'For labour partners', data: howItWorksLabourers },
+  { id: 'users', label: 'For Customers & Contractors', data: howItWorksUsers },
+  { id: 'labour', label: 'For Labour Partners', data: howItWorksLabourers },
 ]
 
 export function HowItWorks() {
@@ -32,13 +32,14 @@ export function HowItWorks() {
           align="center"
         />
 
-        <Reveal className="mx-auto mb-10 flex max-w-md rounded-2xl border border-slate-200 bg-slate-50/80 p-1 shadow-inner">
+        <Reveal className="mx-auto mb-8 flex max-w-md rounded-2xl border border-slate-200 bg-slate-50/80 p-1 shadow-inner sm:mb-10">
           {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={`relative flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+              aria-pressed={tab === t.id}
+              className={`relative min-h-11 flex-1 rounded-xl px-2 py-2.5 text-xs font-semibold leading-tight transition-colors duration-200 sm:px-4 sm:text-sm ${
                 tab === t.id ? 'text-white' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -54,30 +55,29 @@ export function HowItWorks() {
           ))}
         </Reveal>
 
-        <div className="relative grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={tab}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={{ opacity: 0, y: -8, transition: { duration: 0.18 } }}
               transition={{ duration: 0.3 }}
-              className="contents"
+              className="relative grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4"
             >
               {active.data.map((step, i) => (
                 <motion.article
                   key={step.step}
-                  layout
-                  initial={reduce ? false : { opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: reduce ? 0 : i * 0.06 }}
-                  className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm"
+                  initial={reduce ? false : { opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.3 }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: reduce ? 0 : i * 0.08 }}
+                  className="group relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6 lp-hover-t hover:-translate-y-1.5 hover:border-brand/40 hover:shadow-[0_22px_50px_-24px_rgba(37,99,235,0.28)]"
                 >
                   <div className="mb-5 flex items-center justify-between">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/12 text-brand ring-1 ring-brand/20">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/12 text-brand ring-1 ring-brand/20 lp-hover-t group-hover:scale-110 group-hover:bg-brand group-hover:text-white group-hover:ring-brand">
                       <LandingIcon name={step.icon} className="h-6 w-6" />
                     </span>
-                    <span className="text-4xl font-black text-brand/15">0{step.step}</span>
+                    <span className="lp-hover-t text-4xl font-black text-brand/15 group-hover:-translate-y-0.5 group-hover:text-brand/30">0{step.step}</span>
                   </div>
                   <h3 className="text-lg font-bold text-slate-900">{step.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">{step.description}</p>
@@ -91,7 +91,6 @@ export function HowItWorks() {
               ))}
             </motion.div>
           </AnimatePresence>
-        </div>
       </Container>
     </section>
   )

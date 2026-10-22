@@ -98,6 +98,14 @@ const bookingSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    zoneDiscount: {
+      type: Number,
+      default: 0,
+    },
+    discount: {
+      type: Number,
+      default: 0,
+    },
     address: {
       locationText: { type: String, required: true, trim: true },
       coordinates: {

@@ -1,13 +1,10 @@
-import { motion, useReducedMotion } from 'framer-motion'
-import { Star } from 'lucide-react'
+import { Quote, Star } from 'lucide-react'
 import { testimonials } from '../../data/landingContent'
 import { Container } from '../ui/Container'
 import { Reveal } from '../ui/Reveal'
 import { SectionHeading } from '../ui/SectionHeading'
 
 export function TestimonialsSection() {
-  const reduce = useReducedMotion()
-
   return (
     <section
       id="testimonials"
@@ -23,20 +20,23 @@ export function TestimonialsSection() {
           align="center"
         />
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
           {testimonials.map((t, i) => (
-            <Reveal key={t.name} delay={i * 0.06}>
-              <motion.figure
-                className="h-full rounded-3xl border border-slate-200/90 bg-page p-6 shadow-sm"
-                whileHover={reduce ? undefined : { y: -4 }}
+            <Reveal key={t.name} delay={(i % 2) * 0.08} className="h-full">
+              <figure
+                className="group relative h-full overflow-hidden rounded-3xl border border-slate-200/90 bg-page p-5 shadow-sm sm:p-6 lp-hover-t hover:-translate-y-1.5 hover:border-brand/40 hover:shadow-[0_22px_50px_-24px_rgba(37,99,235,0.28)]"
               >
+                <Quote
+                  className="lp-hover-t pointer-events-none absolute right-5 top-5 h-10 w-10 text-brand/10 group-hover:-rotate-6 group-hover:scale-110 group-hover:text-brand/20"
+                  aria-hidden
+                />
                 <div className="flex items-start gap-4">
                   <img
                     src={t.avatar}
                     alt=""
                     width={56}
                     height={56}
-                    className="h-14 w-14 rounded-2xl border border-slate-200 bg-white object-cover"
+                    className="lp-hover-t h-14 w-14 rounded-2xl border border-slate-200 bg-white object-cover group-hover:scale-105 group-hover:border-brand/30"
                     loading="lazy"
                     decoding="async"
                   />
@@ -63,7 +63,7 @@ export function TestimonialsSection() {
                 <blockquote className="mt-4 text-sm leading-relaxed text-slate-600">
                   “{t.quote}”
                 </blockquote>
-              </motion.figure>
+              </figure>
             </Reveal>
           ))}
         </div>

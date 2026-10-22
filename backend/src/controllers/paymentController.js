@@ -1,10 +1,14 @@
 import { PaymentTransaction } from '../models/PaymentTransaction.js'
 import { Booking } from '../models/Booking.js'
-import { Wallet } from '../models/Wallet.js'
-import { WalletTransaction } from '../models/WalletTransaction.js'
 import { createOrder, verifyPaymentSignature } from '../services/paymentService.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
+import { qualifyReferralsInBackground } from '../services/referralService.js'
+import { creditEarnings, getCashWalletSettings, rechargeWallet, runInTransaction } from '../services/walletService.js'
+import { USER_ROLES } from '../constants/roles.js'
+
+/** Paid top-ups of the labour wallet. WALLET_CLEARANCE is the legacy "pay dues" purpose — same behaviour. */
+const WALLET_TOPUP_PURPOSES = new Set(['WALLET_RECHARGE', 'WALLET_CLEARANCE'])
 
 export const initPayment = asyncHandler(async (req, res) => {
   const { amount, purpose, bookingId } = req.body
@@ -20,6 +24,20 @@ export const initPayment = asyncHandler(async (req, res) => {
   }
   if (purpose === 'WORKFORCE_REQUEST' && !req.body.requestId) {
     return sendError(res, { message: 'requestId is required for WORKFORCE_REQUEST purpose', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+  if (purpose === 'WALLET_RECHARGE') {
+    if (req.user.role !== USER_ROLES.LABOUR) {
+      return sendError(res, { message: 'Only labour accounts can recharge a wallet', statusCode: HTTP_STATUS.FORBIDDEN })
+    }
+    const { minRecharge, maxRecharge } = await getCashWalletSettings()
+    const value = Number(amount)
+    if (!Number.isInteger(value) || value < minRecharge || value > maxRecharge) {
+      return sendError(res, {
+        message: `Recharge amount must be a whole number between ₹${minRecharge} and ₹${maxRecharge}`,
+        statusCode: HTTP_STATUS.BAD_REQUEST,
+        code: 'INVALID_RECHARGE_AMOUNT',
+      })
+    }
   }
 
   const numericAmount = Math.max(1, Math.round(Number(amount) || 0))
@@ -55,26 +73,56 @@ export const verifyPayment = asyncHandler(async (req, res) => {
   const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature)
 
   if (!isValid) {
-    pTx.status = 'FAILED'
-    await pTx.save()
+    // Never downgrade a payment that was already captured
+    if (pTx.status !== 'CAPTURED') {
+      pTx.status = 'FAILED'
+      await pTx.save()
+    }
     return sendError(res, { message: 'Payment verification failed', statusCode: HTTP_STATUS.BAD_REQUEST })
   }
 
-  pTx.razorpayPaymentId = razorpayPaymentId
-  pTx.razorpaySignature = razorpaySignature
-  pTx.status = 'CAPTURED'
-  await pTx.save()
+  const claim = (session) =>
+    PaymentTransaction.findOneAndUpdate(
+      { _id: pTx._id, status: { $ne: 'CAPTURED' } },
+      { $set: { status: 'CAPTURED', razorpayPaymentId, razorpaySignature } },
+      { new: true, session },
+    )
+
+  // Wallet top-up: capture + credit atomically, so a replayed verify can never credit twice
+  if (WALLET_TOPUP_PURPOSES.has(pTx.purpose)) {
+    if (String(pTx.userId) !== String(req.user._id)) {
+      return sendError(res, { message: 'This payment belongs to another account', statusCode: HTTP_STATUS.FORBIDDEN })
+    }
+    const credited = await runInTransaction(async (session) => {
+      const claimed = await claim(session)
+      if (!claimed) return null
+      const { summary } = await rechargeWallet({ userId: pTx.userId, amount: pTx.amount, referenceId: pTx._id, session })
+      return { claimed, summary }
+    })
+    return sendSuccess(res, {
+      message: credited ? 'Wallet recharged successfully' : 'Payment already verified',
+      data: { pTx: credited?.claimed ?? pTx, walletSummary: credited?.summary ?? null },
+    })
+  }
+
+  // Claim first so a replayed verify can never run the side effects below twice
+  const captured = await claim()
+  if (!captured) {
+    return sendSuccess(res, { message: 'Payment already verified', data: { pTx } })
+  }
 
   // Handle side-effects based on purpose
   if (pTx.purpose === 'BOOKING' && pTx.bookingId) {
     const booking = await Booking.findById(pTx.bookingId)
     if (booking) {
+      const alreadyPaid = booking.paymentStatus === 'PAID'
       booking.paymentStatus = 'PAID'
       await booking.save()
       
       // In Phase 4, Online Payment commission handling:
       // Since platform receives the money, the labor's selfWallet is credited the laborShare
-      if (booking.status === 'COMPLETED') {
+      // (skipped if an earlier order already paid this booking, so the worker is never paid twice)
+      if (booking.status === 'COMPLETED' && !alreadyPaid) {
          if (booking.assignments && booking.assignments.length > 0) {
            for (const a of booking.assignments) {
              if (a.status === 'COMPLETED' && a.labourId) {
@@ -88,16 +136,10 @@ export const verifyPayment = asyncHandler(async (req, res) => {
                  }
                }
                if (workerShare > 0) {
-                 let wallet = await Wallet.findOne({ userId: lid })
-                 if (!wallet) wallet = new Wallet({ userId: lid })
-                 wallet.selfBalance += workerShare
-                 await wallet.save()
-
-                 await WalletTransaction.create({
-                   walletId: wallet._id,
+                 // Credits recover any outstanding cash-job dues first (Rapido-style single wallet)
+                 await creditEarnings({
+                   userId: lid,
                    amount: workerShare,
-                   type: 'CREDIT',
-                   targetWallet: 'SELF',
                    context: 'PAYOUT',
                    referenceId: booking._id,
                    description: 'Online Payment Payout for Completed Assignment'
@@ -105,20 +147,13 @@ export const verifyPayment = asyncHandler(async (req, res) => {
                }
              }
            }
-         } else if (booking.laborId) {
-           let wallet = await Wallet.findOne({ userId: booking.laborId })
-           if (!wallet) wallet = new Wallet({ userId: booking.laborId })
-           wallet.selfBalance += booking.laborShare
-           await wallet.save()
-
-           await WalletTransaction.create({
-              walletId: wallet._id,
-              amount: booking.laborShare,
-              type: 'CREDIT',
-              targetWallet: 'SELF',
-              context: 'PAYOUT',
-              referenceId: booking._id,
-              description: 'Online Payment Payout for Booking'
+         } else if (booking.laborId && booking.laborShare > 0) {
+           await creditEarnings({
+             userId: booking.laborId,
+             amount: booking.laborShare,
+             context: 'PAYOUT',
+             referenceId: booking._id,
+             description: 'Online Payment Payout for Booking'
            })
          }
          
@@ -134,29 +169,6 @@ export const verifyPayment = asyncHandler(async (req, res) => {
            }
          }).catch(err => console.error('Failed to emit payment status socket', err))
       }
-    }
-  } else if (pTx.purpose === 'WALLET_CLEARANCE') {
-    let wallet = await Wallet.findOne({ userId: req.user._id })
-    if (wallet) {
-      wallet.adminBalance = Math.max(0, wallet.adminBalance - pTx.amount)
-      await wallet.save()
-
-      await WalletTransaction.create({
-        walletId: wallet._id,
-        amount: pTx.amount,
-        type: 'DEBIT',
-        targetWallet: 'ADMIN',
-        context: 'CLEARANCE',
-        referenceId: pTx._id,
-        description: 'Online Payment Clearance'
-      })
-
-      // Mark all pending cash bookings for this labourer as settled for the admin dues
-      const Booking = (await import('../models/Booking.js')).Booking
-      await Booking.updateMany(
-        { laborId: req.user._id, paymentMethod: 'CASH', adminSettlementStatus: 'PENDING' },
-        { $set: { adminSettlementStatus: 'SETTLED' } }
-      )
     }
   } else if (pTx.purpose === 'INVOICE' && pTx.invoiceId) {
     const Invoice = (await import('../models/Invoice.js')).Invoice
@@ -227,6 +239,9 @@ export const verifyPayment = asyncHandler(async (req, res) => {
       
       await Assignment.updateMany({ requestId: request._id }, { status: 'COMPLETED' })
 
+      const workerIds = await Assignment.distinct('labourId', { requestId: request._id })
+      qualifyReferralsInBackground(request.clientId, ...workerIds)
+
       if (request.sourceType === 'contractor') {
         const UserSubscription = (await import('../models/UserSubscription.js')).UserSubscription
         const activeSub = await UserSubscription.findOne({ user: request.clientId, status: 'active' })
@@ -238,5 +253,5 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     }
   }
 
-  return sendSuccess(res, { message: 'Payment verified successfully', data: { pTx } })
+  return sendSuccess(res, { message: 'Payment verified successfully', data: { pTx: captured } })
 })

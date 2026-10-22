@@ -54,7 +54,7 @@ const paymentTransactionSchema = new mongoose.Schema(
     },
     purpose: {
       type: String,
-      enum: ['BOOKING', 'WALLET_CLEARANCE', 'INVOICE', 'SUBSCRIPTION', 'WORKFORCE_REQUEST'],
+      enum: ['BOOKING', 'WALLET_CLEARANCE', 'WALLET_RECHARGE', 'INVOICE', 'SUBSCRIPTION', 'WORKFORCE_REQUEST'],
       required: true,
     },
   },

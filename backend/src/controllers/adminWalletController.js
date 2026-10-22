@@ -4,6 +4,114 @@ import { WalletTransaction } from '../models/WalletTransaction.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import mongoose from 'mongoose'
+import { User } from '../models/User.js'
+import { USER_ROLES } from '../constants/roles.js'
+import { getCashWalletSettings, listWalletTransactions, summarizeWallet } from '../services/walletService.js'
+
+function escapeRegex(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * GET /admin/wallets/labours?search=&filter=all|dues|low|recharged&page=&limit=
+ * Labour wallets with their Rapido-style balance. `stats` cover all labour wallets (ignores filter/search).
+ */
+export const listLabourWallets = asyncHandler(async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1)
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20))
+  const filter = ['dues', 'low', 'recharged'].includes(req.query.filter) ? req.query.filter : 'all'
+  const { minBalance, isEnabled: cashRuleEnabled } = await getCashWalletSettings()
+
+  const searchMatch = {}
+  const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 80) : ''
+  if (search) {
+    const or = [{ fullName: new RegExp(escapeRegex(search), 'i') }]
+    const digits = search.replace(/\D/g, '')
+    if (digits.length >= 2) or.push({ phone: { $regex: digits } })
+    searchMatch.$or = or
+  }
+
+  const filterStage = {
+    all: {},
+    dues: { _balance: { $lt: 0 } },
+    low: { _balance: { $lte: minBalance } },
+    recharged: { _recharge: { $gt: 0 } },
+  }[filter]
+
+  const [result] = await User.aggregate([
+    { $match: { role: USER_ROLES.LABOUR } },
+    { $lookup: { from: Wallet.collection.name, localField: '_id', foreignField: 'userId', as: 'wallet' } },
+    { $unwind: { path: '$wallet', preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        _earnings: { $ifNull: ['$wallet.selfBalance', 0] },
+        _recharge: { $ifNull: ['$wallet.rechargeBalance', 0] },
+        _dues: { $ifNull: ['$wallet.adminBalance', 0] },
+      },
+    },
+    { $addFields: { _balance: { $subtract: [{ $add: ['$_earnings', '$_recharge'] }, '$_dues'] } } },
+    {
+      $facet: {
+        stats: [
+          {
+            $group: {
+              _id: null,
+              rechargeHeld: { $sum: '$_recharge' },
+              outstandingDues: { $sum: { $cond: [{ $lt: ['$_balance', 0] }, { $multiply: ['$_balance', -1] }, 0] } },
+              inDues: { $sum: { $cond: [{ $lt: ['$_balance', 0] }, 1, 0] } },
+              cannotTakeCash: { $sum: { $cond: [{ $lte: ['$_balance', minBalance] }, 1, 0] } },
+            },
+          },
+        ],
+        items: [
+          { $match: { ...searchMatch, ...filterStage } },
+          { $sort: { _balance: 1, fullName: 1 } },
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+          {
+            $project: {
+              fullName: 1,
+              phone: 1,
+              isActive: 1,
+              'labourProfile.kycStatus': 1,
+              wallet: { selfBalance: 1, rechargeBalance: 1, adminBalance: 1, updatedAt: 1 },
+            },
+          },
+        ],
+        total: [{ $match: { ...searchMatch, ...filterStage } }, { $count: 'n' }],
+      },
+    },
+  ])
+
+  const total = result.total[0]?.n || 0
+  const stats = result.stats[0] || { rechargeHeld: 0, outstandingDues: 0, inDues: 0, cannotTakeCash: 0 }
+  delete stats._id
+
+  return sendSuccess(res, {
+    data: {
+      items: result.items.map((u) => ({ ...u, summary: summarizeWallet(u.wallet) })),
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      stats,
+      minBalance,
+      cashRuleEnabled,
+    },
+  })
+})
+
+/** GET /admin/wallets/labours/:userId/transactions — one labourer's wallet statement */
+export const getLabourWalletTransactions = asyncHandler(async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1)
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20))
+  const [labour, wallet, ledger] = await Promise.all([
+    User.findById(req.params.userId).select('fullName phone role').lean(),
+    Wallet.findOne({ userId: req.params.userId }).lean(),
+    listWalletTransactions(req.params.userId, { page, limit }),
+  ])
+  if (!labour) return sendError(res, { message: 'User not found', statusCode: HTTP_STATUS.NOT_FOUND })
+  return sendSuccess(res, { data: { labour, summary: summarizeWallet(wallet), ...ledger } })
+})
 
 export const getAllWithdrawalRequests = asyncHandler(async (req, res) => {
   const { status, page = 1, limit = 20 } = req.query

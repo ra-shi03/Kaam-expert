@@ -11,13 +11,14 @@ import {
   validateFullNameRequired,
   validateAdminLogin,
   validateAuthGroup,
+  validateReferralCodeOptional,
 } from '../validators/authValidators.js'
 
 const router = Router()
 
 router.post(
   '/register/request-otp',
-  [validatePhoneBody, validateRoleRegister, validateFullNameOptional, validateAuthGroup],
+  [validatePhoneBody, validateRoleRegister, validateFullNameOptional, validateAuthGroup, validateReferralCodeOptional],
   validateRequest,
   auth.registerRequestOtp,
 )
@@ -30,6 +31,7 @@ router.post(
     validateOtpChallengeId,
     validateOtpCode,
     validateFullNameRequired,
+    validateReferralCodeOptional,
   ],
   validateRequest,
   auth.registerVerify,

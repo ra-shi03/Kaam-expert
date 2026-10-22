@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AppPromoSection } from '../components/landing/AppPromoSection'
+import { BackToTop } from '../components/landing/BackToTop'
 import { FAQSection } from '../components/landing/FAQSection'
 import { FeaturesSection } from '../components/landing/FeaturesSection'
 import { FinalCTA } from '../components/landing/FinalCTA'
@@ -10,6 +11,7 @@ import { Navbar } from '../components/landing/Navbar'
 import { ProblemSection } from '../components/landing/ProblemSection'
 import { SEOMeta } from '../components/landing/SEOMeta'
 import { ServicesGrid } from '../components/landing/ServicesGrid'
+import { InteractiveServiceTools } from '../components/landing/InteractiveServiceTools'
 import { SafetySection } from '../components/landing/SafetySection'
 import { StatsSection } from '../components/landing/StatsSection'
 import { TestimonialsSection } from '../components/landing/TestimonialsSection'
@@ -25,7 +27,7 @@ export function LandingPage() {
   }, [])
 
   return (
-    <>
+    <div className="lp-root">
       <SEOMeta />
       <PageSkeleton visible={boot} />
       <a
@@ -37,9 +39,10 @@ export function LandingPage() {
       <Navbar />
       <main id="main-content">
         <Hero />
+        <ServicesGrid />
+        <InteractiveServiceTools />
         <ProblemSection />
         <HowItWorks />
-        <ServicesGrid />
         <FeaturesSection />
         <UserTypesSection />
         <StatsSection />
@@ -50,6 +53,7 @@ export function LandingPage() {
         <FinalCTA />
       </main>
       <Footer />
-    </>
+      <BackToTop />
+    </div>
   )
 }

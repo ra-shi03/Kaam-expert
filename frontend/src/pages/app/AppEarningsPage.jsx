@@ -1,27 +1,16 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Wallet, CheckCircle2, UploadCloud, Landmark, FileText, UserCircle, QrCode } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Wallet, CheckCircle2, UploadCloud, Landmark, FileText, UserCircle, QrCode } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { bookingsApi } from '../../api/bookingsApi.js'
 import { uploadDocument, assetUrlFromUpload } from '../../api/uploadApi.js'
 import { withdrawalsApi } from '../../api/withdrawalsApi.js'
 import { walletsApi } from '../../api/walletsApi.js'
-import { paymentsApi } from '../../api/paymentsApi.js'
 import { useSelector } from 'react-redux'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { formatInrFromPaise } from '../../lib/labourEarningsFlow.js'
-
-function loadRazorpay() {
-  return new Promise((resolve) => {
-    if (window.Razorpay) { resolve(true); return }
-    const script = document.createElement('script')
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-    script.onload = () => resolve(true)
-    script.onerror = () => resolve(false)
-    document.body.appendChild(script)
-  })
-}
+import { formatRupees } from '../../lib/walletLabels.js'
 
 export function AppEarningsPage() {
   const user = useSelector((state) => state.auth.user)
@@ -29,10 +18,10 @@ export function AppEarningsPage() {
   const [totalCashEarnings, setTotalCashEarnings] = useState(0)
   const [totalRefunds, setTotalRefunds] = useState(0)
   const [totalPaid, setTotalPaid] = useState(0)
-  const [dueAmount, setDueAmount] = useState(0)
+  const [rewardsPaise, setRewardsPaise] = useState(0)
   const [maxWithdrawable, setMaxWithdrawable] = useState(0)
   const [withdrawals, setWithdrawals] = useState([])
-  const [adminDues, setAdminDues] = useState(0)
+  const [wallet, setWallet] = useState(null)
   const [loading, setLoading] = useState(true)
 
   // Form State
@@ -116,17 +105,16 @@ export function AppEarningsPage() {
         }
       })
 
-      // Add Refunds from Wallet Summary
-      let refundAmountPaise = 0
+      // Refunds, bonuses, referral rewards and the withdrawable amount come from the wallet ledger
       const summaryRes = await walletsApi.getEarningsSummary().catch(() => null)
-      if (summaryRes?.data?.earnings?.refundsPaise) {
-        refundAmountPaise = summaryRes.data.earnings.refundsPaise
-        onlineSum += refundAmountPaise
-      }
+      const summary = summaryRes?.data?.earnings || {}
+      const refundAmountPaise = summary.refundsPaise || 0
+      onlineSum += refundAmountPaise
 
       setTotalRefunds(refundAmountPaise)
       setTotalEarnings(onlineSum)
       setTotalCashEarnings(cashSum)
+      setRewardsPaise((summary.bonusPaise || 0) + (summary.referralPaise || 0))
 
       // Fetch withdrawal history
       const withdrawalsRes = await withdrawalsApi.getWithdrawals().catch(() => null)
@@ -136,84 +124,18 @@ export function AppEarningsPage() {
       const paid = wList
         .filter(w => w.status === 'APPROVED')
         .reduce((acc, curr) => acc + (curr.amount || 0), 0)
-      
-      const pending = wList
-        .filter(w => w.status === 'PENDING')
-        .reduce((acc, curr) => acc + (curr.amount || 0), 0)
-        
+
       setTotalPaid(paid)
-      
-      const totalEarnedInr = Math.floor(onlineSum / 100)
-      const calculatedDue = totalEarnedInr - paid
-      setDueAmount(calculatedDue)
-      
-      // Prevent overdrawing if there are pending requests
-      setMaxWithdrawable(Math.max(0, calculatedDue - pending))
-      // Fetch wallet for admin dues
+
+      // Server-side limit: earnings + bonuses − cash-job dues, with pending requests already held back
+      setMaxWithdrawable(Math.floor((summary.availablePaise || 0) / 100))
+
       const walletRes = await walletsApi.getMyWallet().catch(() => null)
-      setAdminDues(walletRes?.data?.wallet?.adminBalance || 0)
+      setWallet(walletRes?.data || null)
 
     } catch (err) {
       console.error('Failed to load wallet data:', err)
     } finally {
-      setLoading(false)
-    }
-  }
-
-  const handlePayAdmin = async () => {
-    if (adminDues <= 0) return
-    
-    setLoading(true)
-    try {
-      const razorpayLoaded = await loadRazorpay()
-      if (!razorpayLoaded) {
-        alert('Payment gateway failed to load')
-        setLoading(false)
-        return
-      }
-
-      const payRes = await paymentsApi.initPayment({
-        amount: adminDues,
-        purpose: 'WALLET_CLEARANCE',
-      })
-
-      const order = payRes.data?.order
-      if (!order) throw new Error('Payment initialization failed')
-
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_8sYbzHWidwe5Zw',
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        order_id: order.id,
-        name: 'KaamExpert',
-        description: 'Clear wallet dues',
-        handler: async function (response) {
-          try {
-            await paymentsApi.verifyPayment({
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-            })
-            // Refetch wallet
-            await fetchEarnings()
-          } catch {
-            alert('Payment verification failed. Contact support.')
-          } finally {
-            setLoading(false)
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setLoading(false)
-          },
-        },
-        theme: { color: '#002b5c' },
-      }
-
-      const rzp = new window.Razorpay(options)
-      rzp.open()
-    } catch (err) {
-      alert('Payment failed: ' + (err.message || 'Unknown error'))
       setLoading(false)
     }
   }
@@ -349,6 +271,9 @@ export function AppEarningsPage() {
                     {formatInrFromPaise(totalEarnings)}
                   </p>
                 )}
+                {!loading && totalRefunds > 0 ? (
+                  <p className="mt-0.5 text-[9px] font-medium text-blue-200/70">incl. {formatInrFromPaise(totalRefunds)} refunds</p>
+                ) : null}
               </div>
               
               <div className="flex flex-col items-center px-1">
@@ -363,23 +288,23 @@ export function AppEarningsPage() {
               </div>
               
               <div className="flex flex-col items-center px-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200 text-center">Refund<br/>Amount</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200 text-center">Bonus &amp;<br/>Rewards</p>
                 {loading ? (
                   <div className="mt-1 h-6 w-12 animate-pulse rounded bg-white/10"></div>
                 ) : (
                   <p className="mt-1 font-mono text-base font-black tracking-tight text-purple-300">
-                    ₹{Math.floor(totalRefunds / 100).toLocaleString('en-IN')}
+                    ₹{Math.floor(rewardsPaise / 100).toLocaleString('en-IN')}
                   </p>
                 )}
               </div>
 
               <div className="flex flex-col items-center">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200 text-center">Due<br/>Amount</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-blue-200 text-center">With-<br/>drawable</p>
                 {loading ? (
                   <div className="mt-1 h-6 w-12 animate-pulse rounded bg-white/10"></div>
                 ) : (
                   <p className="mt-1 font-mono text-base font-black tracking-tight text-amber-400">
-                    ₹{dueAmount.toLocaleString('en-IN')}
+                    ₹{maxWithdrawable.toLocaleString('en-IN')}
                   </p>
                 )}
               </div>
@@ -425,30 +350,34 @@ export function AppEarningsPage() {
               </div>
             </div>
               
-              {(adminDues > 0 || !loading) && (
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-linear-to-br from-rose-500/10 to-rose-900/20 p-3 border border-rose-500/20 shadow-inner mt-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-extrabold uppercase tracking-widest text-rose-300 truncate">
-                      Admin Dues (Cash)
+              {!loading && wallet?.summary ? (
+                <Link
+                  to={wallet.summary.outstandingDues > 0 ? `/app/wallet?recharge=${Math.ceil(wallet.summary.outstandingDues)}` : '/app/wallet'}
+                  className={`mt-2 flex items-center justify-between gap-3 rounded-xl p-3 border shadow-inner transition hover:bg-white/5 ${
+                    wallet.summary.outstandingDues > 0
+                      ? 'bg-linear-to-br from-rose-500/10 to-rose-900/20 border-rose-500/20'
+                      : 'bg-black/20 border-white/10'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-extrabold uppercase tracking-widest text-blue-200 truncate">Cash wallet</p>
+                    <p className={`mt-1 font-mono text-xl font-black tracking-tight ${wallet.summary.balance < 0 ? 'text-rose-400' : 'text-white'}`}>
+                      {formatRupees(wallet.summary.balance)}
                     </p>
-                    <p className="mt-1 text-[10px] font-medium text-rose-300/60 truncate">
-                      Remaining amount to be paid
-                    </p>
-                    <p className="mt-1 font-mono text-xl font-black tracking-tight text-rose-400 drop-shadow-sm">
-                      ₹{adminDues.toLocaleString('en-IN')}
+                    <p className="mt-0.5 text-[10px] font-medium text-white/60 truncate">
+                      {wallet.summary.outstandingDues > 0
+                        ? `You owe ${formatRupees(wallet.summary.outstandingDues)} in cash-job fees`
+                        : wallet.cashWallet?.canTakeCashJobs
+                          ? 'Cash jobs on · fees are deducted from here'
+                          : 'Recharge to take cash jobs'}
                     </p>
                   </div>
-                  {adminDues > 0 && (
-                    <button 
-                      onClick={handlePayAdmin}
-                      disabled={loading}
-                      className="shrink-0 rounded-xl bg-linear-to-b from-rose-500 to-rose-600 px-5 py-2.5 text-sm font-extrabold text-white shadow-lg shadow-rose-500/20 ring-1 ring-white/10 transition-all hover:scale-105 hover:shadow-rose-500/40 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
-                    >
-                      Pay Admin
-                    </button>
-                  )}
-                </div>
-              )}
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-linear-to-b from-blue-500 to-blue-600 px-4 py-2 text-sm font-extrabold text-white shadow-lg shadow-blue-500/20 ring-1 ring-white/10">
+                    {wallet.summary.outstandingDues > 0 ? 'Recharge' : 'Wallet'}
+                    <ArrowRight className="h-4 w-4" aria-hidden />
+                  </span>
+                </Link>
+              ) : null}
             </div>
           </motion.div>
         </section>

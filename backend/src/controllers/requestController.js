@@ -11,6 +11,7 @@ import { Allocation } from '../models/Allocation.js'
 import { emitToUser } from '../socket.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
+import { qualifyReferralsInBackground } from '../services/referralService.js'
 
 import { User } from '../models/User.js'
 
@@ -571,6 +572,9 @@ export const mockPayRequest = asyncHandler(async (req, res) => {
   }
   
   await Assignment.updateMany({ requestId: request._id }, { status: 'COMPLETED' });
+
+  const workerIds = await Assignment.distinct('labourId', { requestId: request._id });
+  qualifyReferralsInBackground(request.clientId, ...workerIds);
 
   if (request.sourceType === 'contractor') {
     const { UserSubscription } = await import('../models/UserSubscription.js');

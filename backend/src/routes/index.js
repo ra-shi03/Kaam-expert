@@ -30,6 +30,9 @@ import policyRoutes from './policyRoutes.js'
 import fcmTokenRoutes from './fcmTokenRoutes.js'
 import adminProfileRoutes from './adminProfileRoutes.js'
 import notificationsRoutes from './notificationsRoutes.js'
+import referralRoutes from './referralRoutes.js'
+import adminReferralRoutes from './adminReferralRoutes.js'
+import adminBonusRoutes from './adminBonusRoutes.js'
 
 const router = Router()
 
@@ -50,6 +53,7 @@ router.use('/user-subscriptions', userSubscriptionRoutes)
 router.use('/policies', policyRoutes)
 router.use('/fcm-tokens', fcmTokenRoutes)
 router.use('/notifications', notificationsRoutes)
+router.use('/referrals', referralRoutes)
 
 router.use('/admin/settings', systemSettingRoutes)
 router.use('/admin/zones', adminZoneRoutes)
@@ -62,6 +66,8 @@ router.use('/admin/reports', adminReportsRoutes)
 router.use('/admin/bookings', adminBookingRoutes)
 router.use('/admin/labour-subscriptions', adminSubscriptionRoutes)
 router.use('/admin/profile', adminProfileRoutes)
+router.use('/admin/referrals', adminReferralRoutes)
+router.use('/admin/bonuses', adminBonusRoutes)
 router.use('/admin', adminLabourCategoryRoutes)
 
 router.use('/labour/location', locationRoutes)

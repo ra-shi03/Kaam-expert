@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { AlertCircle, Calendar, Check, Clock, IndianRupee, Loader2, MapPin, X, Zap } from 'lucide-react'
+import { AlertCircle, Banknote, Calendar, Check, Clock, IndianRupee, Loader2, MapPin, Wallet, X, Zap } from 'lucide-react'
 import { useSelector } from 'react-redux'
 import { broadcastsApi } from '../../api/broadcastsApi.js'
 import { ApiError } from '../../api/http.js'
@@ -21,6 +21,8 @@ export function BroadcastPopup() {
   const [responding, setResponding] = useState(false)
   const [error, setError] = useState('')
   const [selectedServiceId, setSelectedServiceId] = useState(null)
+  /** { bookingId, amount } when the server refused the accept because the wallet can't cover the fee / dues */
+  const [rechargePrompt, setRechargePrompt] = useState(null)
 
   // Only render for labour and contractor users
   const isWorkerOrContractor = user?.role === USER_ROLES.LABOUR || user?.role === 'labour' || user?.role === USER_ROLES.CONTRACTOR || user?.role === 'contractor'
@@ -138,6 +140,7 @@ export function BroadcastPopup() {
 
     setResponding(true)
     setError('')
+    setRechargePrompt(null)
     try {
       const payload = selectedServiceId ? { serviceId: selectedServiceId } : {}
       await broadcastsApi.acceptBroadcast(incoming.bookingId, payload)
@@ -147,9 +150,22 @@ export function BroadcastPopup() {
       navigate(`/app/active-job/${bookingId}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to accept')
+      if (err instanceof ApiError && ['LOW_WALLET_BALANCE', 'DUES_LIMIT_REACHED'].includes(err.code)) {
+        setRechargePrompt({ bookingId: incoming.bookingId, amount: Math.max(1, Math.ceil(err.data?.shortfall || 0)) })
+      }
       setResponding(false)
     }
   }, [incoming, navigate, selectedServiceId])
+
+  // Hide the offer (without rejecting it) and go recharge — scheduled offers stay in the pending list
+  const handleGoRecharge = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    const amount = rechargePrompt?.amount || 0
+    setIncoming(null)
+    setRechargePrompt(null)
+    setError('')
+    navigate(`/app/wallet?recharge=${amount}`)
+  }, [navigate, rechargePrompt])
 
   const handleReject = useCallback(async () => {
     if (!incoming) return
@@ -303,6 +319,19 @@ export function BroadcastPopup() {
                     }
                   </span>
                 </div>
+                {incoming.paymentMethod ? (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Payment</span>
+                    {incoming.paymentMethod === 'CASH' ? (
+                      <span className="flex items-center gap-1 font-bold text-amber-800">
+                        <Banknote className="h-3.5 w-3.5" aria-hidden />
+                        Cash{incoming.cashPlatformFee > 0 ? ` · ₹${incoming.cashPlatformFee} fee from wallet` : ''}
+                      </span>
+                    ) : (
+                      <span className="font-bold text-slate-800">Online</span>
+                    )}
+                  </div>
+                ) : null}
                 {(incoming.date || incoming.time) && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">Schedule</span>
@@ -356,6 +385,16 @@ export function BroadcastPopup() {
                 <p className="mt-2 flex items-center gap-1 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {error}
                 </p>
+              )}
+              {rechargePrompt && rechargePrompt.bookingId === incoming.bookingId && (
+                <button
+                  type="button"
+                  onClick={handleGoRecharge}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-sm font-extrabold text-white shadow-lg shadow-amber-500/25 transition hover:bg-amber-600 active:scale-[0.97]"
+                >
+                  <Wallet className="h-4 w-4" aria-hidden />
+                  Recharge ₹{rechargePrompt.amount} to accept
+                </button>
               )}
 
               {/* Actions */}

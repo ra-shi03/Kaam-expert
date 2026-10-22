@@ -99,6 +99,7 @@ function formatPunchTime(iso) {
 const QUICK_ACTIONS = [
   { to: '/app/subscription', label: 'Subscription', icon: Crown, bg: 'from-amber-500/15 to-amber-50', iconTone: 'text-amber-700' },
   { to: '/app/earnings', label: 'Earnings', icon: IndianRupee, bg: 'from-blue-600/15 to-blue-50', iconTone: 'text-blue-700' },
+  { to: '/app/wallet', label: 'Wallet', icon: Wallet, bg: 'from-sky-500/15 to-sky-50', iconTone: 'text-sky-700' },
   { to: '/app/jobs', label: 'My jobs', icon: HardHat, bg: 'from-emerald-500/15 to-emerald-50', iconTone: 'text-emerald-800' },
   { to: '/app/jobs', label: 'Site details', icon: MapPin, bg: 'from-violet-500/15 to-violet-50', iconTone: 'text-violet-700' },
   { to: '/app/work-categories', label: 'Skills', icon: Wrench, bg: 'from-orange-500/15 to-orange-50', iconTone: 'text-orange-800' },
@@ -350,6 +351,12 @@ export function LabourHomeScreen({ user }) {
       loadBookings() // Refresh active jobs
       showToast('Job accepted — see Active in My Jobs.')
     } catch (err) {
+      // Wallet can't cover the cash-job fee (or dues are too high): keep the offer and go recharge
+      if (['LOW_WALLET_BALANCE', 'DUES_LIMIT_REACHED'].includes(err?.code)) {
+        showToast(err.message)
+        navigate(`/app/wallet?recharge=${Math.max(1, Math.ceil(err.data?.shortfall || 0))}`)
+        return
+      }
       removeOfferLocal(offerId)
       showToast(err.message || 'Failed to accept job. It might have expired.')
     }

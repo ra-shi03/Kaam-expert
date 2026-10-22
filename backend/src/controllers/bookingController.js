@@ -3,17 +3,18 @@ import { LabourSubcategory } from '../models/LabourSubcategory.js'
 import { LabourService } from '../models/LabourService.js'
 import { SystemSetting } from '../models/SystemSetting.js'
 import { Zone } from '../models/Zone.js'
-import { Wallet } from '../models/Wallet.js'
 import { AdminWallet } from '../models/AdminWallet.js'
 import { Invoice } from '../models/Invoice.js'
 import { INVOICE_STATUS } from '../constants/workforceConstants.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
-import { parseISTDateTime } from '../utils/dateHelper.js'
+import { parseISTDateTime, calculateEndTime } from '../utils/dateHelper.js'
+import { qualifyReferralsInBackground } from '../services/referralService.js'
+import { creditEarnings, settleCashBooking } from '../services/walletService.js'
 
 /**
  * Resolve price for a specific slot duration.
- * Priority: matchedZone.durationPricing[exact minutes] → zone hourly × fraction → service.durationPricing[exact minutes] → basePrice × fraction
+ * Priority: matchedZone.durationPricing[exact minutes] → service.durationPricing[exact minutes] → zone hourly × fraction → basePrice × fraction
  */
 function resolveSlotPrice(service, durationMinutes, matchedZone) {
   // 1. Zone-specific duration slot price
@@ -25,17 +26,20 @@ function resolveSlotPrice(service, durationMinutes, matchedZone) {
       )
       if (zoneSlot) return zoneSlot.price
     }
-    // 2. Zone hourly rate fallback
-    if (zonePricing && typeof zonePricing.price === 'number' && zonePricing.price > 0) {
-      return zonePricing.price * (durationMinutes / 60)
-    }
   }
-  // 3. Service duration pricing
+  // 2. Service duration pricing (exact minutes match)
   if (Array.isArray(service.durationPricing) && service.durationPricing.length > 0) {
     const slotEntry = service.durationPricing.find(
       (d) => d.minutes === durationMinutes && d.isActive && d.price > 0
     )
     if (slotEntry) return slotEntry.price
+  }
+  // 3. Zone hourly rate fallback
+  if (matchedZone && Array.isArray(service.zones) && service.zones.length > 0) {
+    const zonePricing = service.zones.find((z) => String(z.zone) === String(matchedZone._id))
+    if (zonePricing && typeof zonePricing.price === 'number' && zonePricing.price > 0) {
+      return zonePricing.price * (durationMinutes / 60)
+    }
   }
   // 4. Fallback: base hourly rate × fraction
   return (service.basePrice || 0) * (durationMinutes / 60)
@@ -49,6 +53,7 @@ export const calculateBill = asyncHandler(async (req, res) => {
     quantity = 1,
     address,
     contractorServices,
+    timeSlot,
   } = req.body
 
   // Accept durationMinutes (new) OR hours (legacy) — always work in minutes internally
@@ -135,13 +140,88 @@ export const calculateBill = asyncHandler(async (req, res) => {
   const slotDef = (settings.durationOptions || []).find((d) => d.minutes === durationMinutes)
   const selectedSlotLabel = slotDef?.label || `${hours.toFixed(1)} hr(s)`
 
+  // Zone-specific & Time-specific discount
+  let zoneDiscount = 0
+  let zoneDiscountLabel = ''
+  let zoneDiscountDetails = null
+
+  if (serviceId) {
+    const primarySrv = await LabourService.findById(serviceId).lean()
+    if (primarySrv) {
+      let slotDisc = null
+      if (matchedZone && Array.isArray(primarySrv.zones)) {
+        const zoneItem = primarySrv.zones.find(
+          (z) => String(z.zone?._id || z.zone) === String(matchedZone._id)
+        )
+        if (zoneItem) {
+          // 1. Time-specific slot discount in this zone (Zone + Time based)
+          const zoneSlot = (zoneItem.durationPricing || []).find(
+            (d) => d.minutes === durationMinutes && d.isActive && Number(d.discountValue) > 0
+          )
+          if (zoneSlot) {
+            slotDisc = {
+              type: zoneSlot.discountType || 'PERCENTAGE',
+              value: Number(zoneSlot.discountValue),
+              source: 'zone_slot',
+            }
+          }
+        }
+      }
+
+      // 2. Service-level duration slot discount fallback
+      if (!slotDisc && Array.isArray(primarySrv.durationPricing)) {
+        const serviceSlot = primarySrv.durationPricing.find(
+          (d) => d.minutes === durationMinutes && d.isActive && Number(d.discountValue) > 0
+        )
+        if (serviceSlot) {
+          slotDisc = {
+            type: serviceSlot.discountType || 'PERCENTAGE',
+            value: Number(serviceSlot.discountValue),
+            source: 'service_slot',
+          }
+        }
+      }
+
+      // 3. Zone-level discount fallback
+      if (!slotDisc && matchedZone && Array.isArray(primarySrv.zones)) {
+        const zoneItem = primarySrv.zones.find(
+          (z) => String(z.zone?._id || z.zone) === String(matchedZone._id)
+        )
+        if (zoneItem && Number(zoneItem.discountValue) > 0) {
+          slotDisc = {
+            type: zoneItem.discountType || 'PERCENTAGE',
+            value: Number(zoneItem.discountValue),
+            source: 'zone',
+          }
+        }
+      }
+
+      if (slotDisc && slotDisc.value > 0) {
+        if (slotDisc.type === 'FIXED') {
+          zoneDiscount = Math.min(subTotal, Math.round(slotDisc.value))
+          zoneDiscountLabel = `₹${slotDisc.value} Off`
+        } else {
+          zoneDiscount = Math.round((subTotal * slotDisc.value) / 100)
+          zoneDiscountLabel = `${slotDisc.value}% Off`
+        }
+        zoneDiscountDetails = {
+          type: slotDisc.type,
+          value: slotDisc.value,
+          zoneName: matchedZone?.name || 'Time Slot',
+          amount: zoneDiscount,
+        }
+      }
+    }
+  }
+
   // Max hour discount triggers at 480 min (8 hrs) or above
   let maxHourDiscount = 0
   if (durationMinutes >= 480 && settings.maxHourDiscountPercentage > 0) {
     maxHourDiscount = Math.round((subTotal * settings.maxHourDiscountPercentage) / 100)
   }
 
-  let basePrice = Math.round(subTotal - maxHourDiscount)
+  const totalDiscount = zoneDiscount + maxHourDiscount
+  let basePrice = Math.max(0, Math.round(subTotal - totalDiscount))
   let platformFee = 0
   if (settings.platformFee.isActive) {
     platformFee =
@@ -178,35 +258,32 @@ export const calculateBill = asyncHandler(async (req, res) => {
   let availableSlots = []
   if (serviceId) {
     const primaryService = await LabourService.findById(serviceId).lean()
-    if (primaryService && Array.isArray(primaryService.durationPricing)) {
-      const activeGlobalMinutes = new Set(
-        (settings.durationOptions || [])
-          .filter((d) => d.isActive)
-          .map((d) => d.minutes)
-      )
+    if (primaryService && Array.isArray(primaryService.durationPricing) && primaryService.durationPricing.length > 0) {
       availableSlots = primaryService.durationPricing
-        .filter((dp) => dp.isActive && dp.price > 0 && activeGlobalMinutes.has(dp.minutes))
-        .map((dp) => {
-          const globalOpt = (settings.durationOptions || []).find(
-            (d) => d.minutes === dp.minutes
-          )
-          return {
-            minutes: dp.minutes,
-            label: globalOpt?.label || dp.label || `${dp.minutes} min`,
-            tag: globalOpt?.tag || dp.tag || null,
-            price: dp.price,
-          }
-        })
+        .filter((dp) => dp.isActive && dp.price > 0)
+        .map((dp) => ({
+          minutes: dp.minutes,
+          label: dp.label || `${dp.minutes} min`,
+          tag: dp.tag || null,
+          price: dp.price,
+        }))
         .sort((a, b) => a.minutes - b.minutes)
     }
   }
+
+  const computedEndTime = timeSlot && durationMinutes ? calculateEndTime(timeSlot, durationMinutes) : ''
 
   return sendSuccess(res, {
     data: {
       durationMinutes,
       selectedSlotLabel,
+      endTime: computedEndTime,
       subTotal,
+      zoneDiscount,
+      zoneDiscountLabel,
+      zoneDiscountDetails,
       maxHourDiscount,
+      discount: totalDiscount,
       basePrice,
       platformFee,
       taxes,
@@ -297,13 +374,71 @@ export const createBooking = asyncHandler(async (req, res) => {
     subTotal = sp * quantity
   }
 
+  // Zone-specific & Time-specific discount
+  let zoneDiscount = 0
+  if (service) {
+    let slotDisc = null
+    if (matchingZone && Array.isArray(service.zones)) {
+      const zoneItem = service.zones.find(
+        (z) => String(z.zone?._id || z.zone) === String(matchingZone._id)
+      )
+      if (zoneItem) {
+        // 1. Time-specific slot discount in this zone (Zone + Time based)
+        const zoneSlot = (zoneItem.durationPricing || []).find(
+          (d) => d.minutes === durationMinutes && d.isActive && Number(d.discountValue) > 0
+        )
+        if (zoneSlot) {
+          slotDisc = {
+            type: zoneSlot.discountType || 'PERCENTAGE',
+            value: Number(zoneSlot.discountValue),
+          }
+        }
+      }
+    }
+
+    // 2. Service-level duration slot discount fallback
+    if (!slotDisc && Array.isArray(service.durationPricing)) {
+      const serviceSlot = service.durationPricing.find(
+        (d) => d.minutes === durationMinutes && d.isActive && Number(d.discountValue) > 0
+      )
+      if (serviceSlot) {
+        slotDisc = {
+          type: serviceSlot.discountType || 'PERCENTAGE',
+          value: Number(serviceSlot.discountValue),
+        }
+      }
+    }
+
+    // 3. Zone-level discount fallback
+    if (!slotDisc && matchingZone && Array.isArray(service.zones)) {
+      const zoneItem = service.zones.find(
+        (z) => String(z.zone?._id || z.zone) === String(matchingZone._id)
+      )
+      if (zoneItem && Number(zoneItem.discountValue) > 0) {
+        slotDisc = {
+          type: zoneItem.discountType || 'PERCENTAGE',
+          value: Number(zoneItem.discountValue),
+        }
+      }
+    }
+
+    if (slotDisc && slotDisc.value > 0) {
+      if (slotDisc.type === 'FIXED') {
+        zoneDiscount = Math.min(subTotal, Math.round(slotDisc.value))
+      } else {
+        zoneDiscount = Math.round((subTotal * slotDisc.value) / 100)
+      }
+    }
+  }
+
   // Max hour discount: 480 min (8 hrs) threshold
   let maxHourDiscount = 0
   if (durationMinutes >= 480 && settings?.maxHourDiscountPercentage > 0) {
     maxHourDiscount = Math.round((subTotal * settings.maxHourDiscountPercentage) / 100)
   }
 
-  const basePrice = Math.round(subTotal - maxHourDiscount)
+  const totalDiscount = zoneDiscount + maxHourDiscount
+  const basePrice = Math.max(0, Math.round(subTotal - totalDiscount))
   let platformFee = 0
   if (settings?.platformFee?.isActive) {
     platformFee = settings.platformFee.type === 'fixed'
@@ -363,7 +498,7 @@ export const createBooking = asyncHandler(async (req, res) => {
     type,
     scheduledAt: type === 'SCHEDULED' ? parseISTDateTime(scheduledAt, timeSlot) : undefined,
     timeSlot: type === 'SCHEDULED' ? timeSlot : (type === 'INSTANT' ? timeSlot : undefined),
-    endTime: type === 'SCHEDULED' ? endTime : undefined,
+    endTime: type === 'SCHEDULED' ? (endTime || calculateEndTime(timeSlot, durationMinutes) || undefined) : undefined,
     images: Array.isArray(imageNames) ? imageNames : [],
     notes,
     hours,               // backward compat (= durationMinutes / 60)
@@ -374,6 +509,8 @@ export const createBooking = asyncHandler(async (req, res) => {
     quantity: totalQuantity,
     contractorInfo,
     maxHourDiscount,
+    zoneDiscount,
+    discount: totalDiscount,
     address: {
       locationText,
       coordinates: {
@@ -529,6 +666,11 @@ export const updatePaymentMethod = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'Not authorized', statusCode: HTTP_STATUS.FORBIDDEN })
   }
 
+  // Settlement already happened for the current method (cash fee deducted / online payout made)
+  if (booking.paymentStatus === 'PAID' && booking.paymentMethod !== paymentMethod) {
+    return sendError(res, { message: 'Payment is already completed for this booking', statusCode: HTTP_STATUS.CONFLICT })
+  }
+
   booking.paymentMethod = paymentMethod
   await booking.save()
 
@@ -623,11 +765,16 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
 
   await booking.save()
 
+  // Refer & earn: the worker who just finished qualifies; the customer qualifies once the whole booking is done
+  if (status === 'COMPLETED') {
+    qualifyReferralsInBackground(
+      isLabourer ? req.user._id : null,
+      booking.status === 'COMPLETED' ? booking.userId : null,
+    )
+  }
+
   // Phase 4: Handle Commission if Cash Payment and Completed
   if (status === 'COMPLETED') {
-    let wallet = await Wallet.findOne({ userId: booking.laborId })
-    if (!wallet) wallet = new Wallet({ userId: booking.laborId })
-
     if (booking.paymentMethod === 'CASH') {
       // NOTE: Admin dues for CASH bookings are now collected only when the customer explicitly clicks "Paid",
       // and are processed inside confirmCashPayment to prevent charging the labourer before they collect the cash.
@@ -635,21 +782,16 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
       // ONLY payout if the customer has actually completed the online payment.
       // If they haven't paid yet, the paymentController will handle this payout later once they pay.
       if (booking.paymentStatus === 'PAID') {
-        // Add laborShare to labor's self wallet
-        wallet.selfBalance += booking.laborShare
-        await wallet.save()
-
-        import('../models/WalletTransaction.js').then(({ WalletTransaction }) => {
-          WalletTransaction.create({
-            walletId: wallet._id,
+        // Add laborShare to labor's wallet — recovers any outstanding cash-job dues first
+        if (booking.laborId && booking.laborShare > 0) {
+          await creditEarnings({
+            userId: booking.laborId,
             amount: booking.laborShare,
-            type: 'CREDIT',
-            targetWallet: 'SELF',
             context: 'PAYOUT',
             referenceId: booking._id,
             description: 'Payout for Online Booking'
-          }).catch(err => console.error('WalletTx error:', err))
-        })
+          })
+        }
 
         // Log splits to AdminWallet for Platform Fee, Commission and total business
         if (booking.platformFee > 0 || booking.commissionAmount > 0 || booking.basePrice > 0 || booking.taxes > 0) {
@@ -734,42 +876,24 @@ export const confirmCashPayment = asyncHandler(async (req, res) => {
     return sendSuccess(res, { message: 'Already paid', data: { booking } })
   }
 
+  // Rapido-style: the labourer kept the full cash, so the platform's cut is deducted from their wallet
+  // (recharge first, then earnings; anything uncovered becomes dues). PAID flip + deduction are one transaction.
+  const settled = await settleCashBooking(booking._id)
+  if (!settled) {
+    return sendSuccess(res, { message: 'Already paid', data: { booking: await Booking.findById(id) } })
+  }
   booking.paymentStatus = 'PAID'
-  await booking.save()
+  booking.adminSettlementStatus = settled.booking.adminSettlementStatus
 
-  // Charge Admin Dues to the Labourer's Wallet NOW that the cash has been collected!
-  import('../models/Wallet.js').then(async ({ Wallet }) => {
-    let wallet = await Wallet.findOne({ userId: booking.laborId })
-    if (!wallet) wallet = new Wallet({ userId: booking.laborId })
-    
-    const adminDues = (booking.platformFee || 0) + (booking.taxes || 0) + (booking.commissionAmount || 0)
-    wallet.adminBalance += adminDues
-    await wallet.save()
-
-    import('../models/WalletTransaction.js').then(({ WalletTransaction }) => {
-      WalletTransaction.create({
-        walletId: wallet._id,
-        amount: adminDues,
-        type: 'CREDIT',
-        targetWallet: 'ADMIN',
-        context: 'BOOKING',
-        referenceId: booking._id,
-        description: 'Platform fees, taxes & commission for Cash Booking'
-      }).catch(err => console.error('WalletTx error:', err))
-    })
-
-    // Log splits to AdminWallet for Platform Fee and Commission
-    if (booking.platformFee > 0 || booking.commissionAmount > 0 || booking.basePrice > 0 || booking.taxes > 0) {
-      import('../models/AdminWallet.js').then(async ({ AdminWallet }) => {
-        let adminWallet = await AdminWallet.findOne()
-        if (!adminWallet) adminWallet = new AdminWallet()
-        
-        adminWallet.totalPlatformFeesCollected += (booking.platformFee || 0)
-        adminWallet.totalCommissionsCollected += (booking.commissionAmount || 0)
-        adminWallet.totalTaxesCollected += (booking.taxes || 0)
-        adminWallet.totalServiceAmountCollected += (booking.basePrice || 0)
-        await adminWallet.save()
-      }).catch(err => console.error('AdminWallet error:', err))
+  import('../utils/pushNotificationHelper.js').then(({ sendNotificationToUser }) => {
+    for (const c of settled.charges) {
+      sendNotificationToUser(c.labourId, {
+        title: 'Cash job settled',
+        body: c.balance < 0
+          ? `₹${c.amount} platform fee deducted. Wallet is at -₹${Math.abs(c.balance)} — recharge to keep taking cash jobs.`
+          : `₹${c.amount} platform fee deducted from your wallet. Balance: ₹${c.balance}.`,
+        data: { type: 'cash_fee_deducted', bookingId: String(booking._id) }
+      }).catch(() => {})
     }
   }).catch(err => console.error(err))
 

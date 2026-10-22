@@ -4,16 +4,13 @@ import { SystemSetting } from '../models/SystemSetting.js'
 import { WithdrawalRequest } from '../models/WithdrawalRequest.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
+import { Bonus } from '../models/Bonus.js'
+import { getCashWalletSettings, listWalletTransactions, summarizeWallet } from '../services/walletService.js'
 import mongoose from 'mongoose'
 
 export const getMyWallet = asyncHandler(async (req, res) => {
-  let wallet = await Wallet.findOne({ userId: req.user._id })
-  
-  if (!wallet) {
-    wallet = await Wallet.create({ userId: req.user._id })
-  }
-
-  return sendSuccess(res, { data: { wallet } })
+  await Wallet.updateOne({ userId: req.user._id }, { $setOnInsert: { userId: req.user._id } }, { upsert: true })
+  return sendSuccess(res, { data: await buildWalletView(req.user._id) })
 })
 
 function calculateLabourBookingShare(b, userId) {
@@ -101,20 +98,12 @@ export const getEarningsSummary = asyncHandler(async (req, res) => {
   let weekPaise = 0
   let monthPaise = 0
 
-  // Track refunds separately (do NOT include in work earnings)
-  let refundsPaise = 0
+  // Non-work credits are tracked separately (do NOT include in work earnings)
   const wallet = await Wallet.findOne({ userId })
-  if (wallet) {
-    const refundTransactions = await WalletTransaction.find({
-      walletId: wallet._id,
-      type: 'CREDIT',
-      context: 'REFUND'
-    })
-
-    refundTransactions.forEach(t => {
-      refundsPaise += t.amount * 100
-    })
-  }
+  const ledgerTotals = await sumLedgerByContext(wallet?._id)
+  const refundsPaise = Math.round((ledgerTotals.REFUND || 0) * 100)
+  const referralPaise = Math.round((ledgerTotals.REFERRAL || 0) * 100)
+  const bonusPaise = Math.round(((ledgerTotals.BONUS || 0) - (ledgerTotals.BONUS_REVERSAL || 0)) * 100)
 
   completedBookings.forEach(b => {
     const share = calculateLabourBookingShare(b, userId)
@@ -161,8 +150,10 @@ export const getEarningsSummary = asyncHandler(async (req, res) => {
   ])
   const paidInr = paidRequests.length > 0 ? paidRequests[0].total : 0
 
-  const availableInr = Math.floor(earnedPaise / 100) - paidInr - pendingInr
-  const availablePaise = Math.max(0, availableInr * 100)
+  // The wallet ledger is the source of truth for what can be withdrawn: pending requests are already
+  // held out of selfBalance, and cash-job dues are recovered from earnings before anything is withdrawable.
+  const walletSummary = summarizeWallet(wallet)
+  const availablePaise = walletSummary.withdrawable * 100
   const pendingPaise = pendingInr * 100
 
   return sendSuccess(res, {
@@ -174,55 +165,80 @@ export const getEarningsSummary = asyncHandler(async (req, res) => {
         monthPaise,
         availablePaise,
         pendingPaise,
-        refundsPaise
+        withdrawnPaise: paidInr * 100,
+        refundsPaise,
+        referralPaise,
+        bonusPaise,
+        walletBalancePaise: Math.round(walletSummary.balance * 100),
+        rechargePaise: Math.round(walletSummary.rechargeBalance * 100),
+        duesPaise: Math.round(walletSummary.outstandingDues * 100),
       }
     }
   })
 })
 
+/** Sum of ledger amounts per context for one wallet (credits minus debits within each context) */
+async function sumLedgerByContext(walletId) {
+  if (!walletId) return {}
+  const rows = await WalletTransaction.aggregate([
+    { $match: { walletId } },
+    {
+      $group: {
+        _id: '$context',
+        total: { $sum: { $cond: [{ $eq: ['$type', 'CREDIT'] }, '$amount', { $multiply: ['$amount', -1] }] } },
+      },
+    },
+  ])
+  return Object.fromEntries(rows.map((r) => [r._id, Math.abs(r.total)]))
+}
+
+async function buildWalletView(userId) {
+  const [wallet, settings] = await Promise.all([Wallet.findOne({ userId }).lean(), getCashWalletSettings()])
+  const summary = summarizeWallet(wallet)
+  return {
+    wallet: wallet || { userId, selfBalance: 0, rechargeBalance: 0, adminBalance: 0 },
+    summary,
+    cashWallet: {
+      isEnabled: settings.isEnabled,
+      minBalance: settings.minBalance,
+      minRecharge: settings.minRecharge,
+      maxRecharge: settings.maxRecharge,
+      // Every cash job's fee must fit above the minimum balance, so at/below it no cash job can be accepted
+      canTakeCashJobs: !settings.isEnabled || summary.balance > settings.minBalance,
+      blockedByDues: summary.outstandingDues > 0 && summary.outstandingDues >= settings.labourCashLimit,
+      labourCashLimit: settings.labourCashLimit,
+    },
+  }
+}
+
+/** GET /wallets/transactions — the labourer's own wallet statement */
+export const getMyTransactions = asyncHandler(async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1)
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20))
+  const data = await listWalletTransactions(req.user._id, { page, limit })
+  return sendSuccess(res, { data })
+})
+
+/** GET /wallets/bonuses — the labourer's own bonuses (no admin-only fields) */
+export const getMyBonuses = asyncHandler(async (req, res) => {
+  const bonuses = await Bonus.find({ labourId: req.user._id })
+    .select('bonusCode amount bonusType reason status createdAt reversedAt reversalReason')
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .lean()
+  return sendSuccess(res, { data: { bonuses } })
+})
+
+/**
+ * POST /wallets/clear — retired. It reduced dues without any payment; dues are now cleared only by a
+ * paid wallet recharge (POST /payments/init with purpose WALLET_RECHARGE), which settles dues first.
+ */
 export const clearAdminDues = asyncHandler(async (req, res) => {
-  const { amount } = req.body
-  const numAmount = Number(amount)
-
-  if (isNaN(numAmount) || numAmount <= 0) {
-    return sendError(res, { message: 'Valid positive amount is required', statusCode: HTTP_STATUS.BAD_REQUEST })
-  }
-
-  const wallet = await Wallet.findOne({ userId: req.user._id })
-  if (!wallet || wallet.adminBalance <= 0) {
-    return sendError(res, { message: 'No pending dues to clear', statusCode: HTTP_STATUS.BAD_REQUEST })
-  }
-
-  if (numAmount > wallet.adminBalance) {
-    return sendError(res, { message: `Cannot pay more than the pending due amount: ${wallet.adminBalance}`, statusCode: HTTP_STATUS.BAD_REQUEST })
-  }
-
-  // Simulate payment gateway logic here (In Phase 4 this would be replaced with actual gateway integration)
-  const session = await mongoose.startSession()
-  session.startTransaction()
-
-  try {
-    wallet.adminBalance -= numAmount
-    await wallet.save({ session })
-
-    await WalletTransaction.create([{
-      walletId: wallet._id,
-      amount: numAmount,
-      type: 'DEBIT',
-      targetWallet: 'ADMIN',
-      context: 'CLEARANCE',
-      description: 'Cleared admin dues via online payment'
-    }], { session })
-
-    await session.commitTransaction()
-  } catch (error) {
-    await session.abortTransaction()
-    throw error
-  } finally {
-    session.endSession()
-  }
-
-  return sendSuccess(res, { message: 'Admin dues cleared successfully', data: { wallet } })
+  return sendError(res, {
+    message: 'Dues are cleared by recharging your wallet. Open Wallet → Recharge.',
+    statusCode: 410,
+    code: 'USE_WALLET_RECHARGE',
+  })
 })
 
 
@@ -250,10 +266,11 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
       throw new Error('Wallet not found')
     }
 
-    // For testing/demo purposes, we bypass the strict balance check
-    // if (wallet.selfBalance < numAmount) {
-    //   throw new Error(`Insufficient wallet balance. You have ₹${wallet.selfBalance}`)
-    // }
+    // Only earnings are withdrawable, after any cash-job dues are recovered (see walletService)
+    const { withdrawable } = summarizeWallet(wallet)
+    if (numAmount > withdrawable) {
+      throw new Error(`You can withdraw up to ₹${withdrawable} right now`)
+    }
 
     // Deduct amount immediately to hold it
     wallet.selfBalance -= numAmount

@@ -87,6 +87,36 @@ const systemSettingSchema = new mongoose.Schema(
     subscriptionEndHour: { type: Number, default: 20 },   // 8 PM
     maxHourDiscountPercentage: { type: Number, default: 10 },
     isUserSubscriptionEnabled: { type: Boolean, default: false },
+    /**
+     * Refer & earn program. Rewards (INR) are credited to both wallets.
+     * rewardTrigger: SIGNUP → credit immediately on registration;
+     *                FIRST_COMPLETED_JOB → credit when the new user's first booking/job completes.
+     */
+    referral: {
+      isEnabled: { type: Boolean, default: true },
+      referrerReward: { type: Number, min: 0, default: 50 },
+      refereeReward: { type: Number, min: 0, default: 25 },
+      rewardTrigger: {
+        type: String,
+        enum: ['SIGNUP', 'FIRST_COMPLETED_JOB'],
+        default: 'FIRST_COMPLETED_JOB',
+      },
+    },
+    /**
+     * Rapido-style prepaid cash rule for individual labour.
+     * When enabled, a labourer can only accept a CASH booking if their wallet balance covers that job's
+     * platform fee (+ minBalance). The fee is deducted from the wallet once the customer pays cash.
+     */
+    cashWallet: {
+      isEnabled: { type: Boolean, default: true },
+      minBalance: { type: Number, min: 0, default: 0 },
+      minRecharge: { type: Number, min: 1, default: 100 },
+      maxRecharge: { type: Number, min: 1, default: 10000 },
+    },
+    bonus: {
+      /** Upper limit for a single admin bonus (₹) */
+      maxAmount: { type: Number, min: 1, default: 10000 },
+    },
     branding: {
       logoUrl: { type: String, default: null },
       faviconUrl: { type: String, default: null },

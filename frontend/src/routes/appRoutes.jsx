@@ -26,6 +26,7 @@ import { AppFAQsPage } from '../pages/app/AppFAQsPage.jsx'
 import { AppCancellationPolicyPage } from '../pages/app/AppCancellationPolicyPage.jsx'
 import { AppRefundPolicyPage } from '../pages/app/AppRefundPolicyPage.jsx'
 import { AppBillingPage } from '../pages/app/AppBillingPage.jsx'
+import { AppReferralPage } from '../pages/app/AppReferralPage.jsx'
 import { USER_ROLES } from '../constants/userRoles.js'
 
 
@@ -162,6 +163,14 @@ export const appShellChildRoutes = (
     <Route path="cancellation-policy" element={<AppCancellationPolicyPage />} />
     <Route path="refund-policy" element={<AppRefundPolicyPage />} />
     <Route path="support" element={<AppSupportPage />} />
+    <Route
+      path="refer"
+      element={
+        <RoleRoute allow={[USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR, USER_ROLES.LABOUR]}>
+          <AppReferralPage />
+        </RoleRoute>
+      }
+    />
     <Route path="profile" element={<AppProfilePage />} />
     <Route
       path="earnings"

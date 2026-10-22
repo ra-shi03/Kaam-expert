@@ -9,6 +9,14 @@ const router = Router()
 
 router.use(protect, restrictTo(USER_ROLES.ADMIN))
 
+router.get('/labours', adminWallet.listLabourWallets)
+router.get(
+  '/labours/:userId/transactions',
+  [param('userId').isMongoId().withMessage('Invalid user id')],
+  validateRequest,
+  adminWallet.getLabourWalletTransactions,
+)
+
 router.get('/withdrawals', adminWallet.getAllWithdrawalRequests)
 router.get('/vendor-withdrawals', adminWallet.getAllVendorWithdrawalRequests)
 router.get('/vendor-stats', adminWallet.getVendorWalletStats)

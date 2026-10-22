@@ -3,6 +3,7 @@
 @import "./themes/splash.css";
 @import "./themes/individual-home.css";
 @import "./themes/booking-flow.css";
+@import "./themes/landing.css";
 
 /* KaamExpert theme · brand #2563eb (blue) · clean & professional */
 @theme {
@@ -23,6 +24,7 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 5.25rem;
   overscroll-behavior-y: none;
 }
 

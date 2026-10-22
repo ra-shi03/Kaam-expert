@@ -2,6 +2,20 @@ import { apiRequest } from './http.js'
 
 export const adminWalletsApi = {
   /**
+   * Labour wallets with balance / recharge / dues
+   * @param {{ search?: string, filter?: 'all' | 'dues' | 'low' | 'recharged', page?: number, limit?: number }} params
+   */
+  getLabourWallets: ({ search = '', filter = 'all', page = 1, limit = 15 } = {}) => {
+    const params = new URLSearchParams({ filter, page: String(page), limit: String(limit) })
+    if (search) params.set('search', search)
+    return apiRequest(`/admin/wallets/labours?${params.toString()}`, { method: 'GET' })
+  },
+
+  getLabourWalletTransactions: (userId, { page = 1, limit = 20 } = {}) => {
+    return apiRequest(`/admin/wallets/labours/${userId}/transactions?page=${page}&limit=${limit}`, { method: 'GET' })
+  },
+
+  /**
    * Get all withdrawal requests for admin
    */
   getAllWithdrawals: () => {

@@ -31,6 +31,8 @@ router.post(
 router.post(
   '/withdraw',
   restrictTo(USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR),
+  [body('amount').isInt({ min: 1 }).withMessage('Withdrawal amount must be a whole number of rupees')],
+  validateRequest,
   wallet.requestWithdrawal,
 )
 
@@ -39,5 +41,13 @@ router.get(
   restrictTo(USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR),
   wallet.getMyWithdrawals,
 )
+
+router.get(
+  '/transactions',
+  restrictTo(USER_ROLES.LABOUR, USER_ROLES.CONTRACTOR),
+  wallet.getMyTransactions,
+)
+
+router.get('/bonuses', restrictTo(USER_ROLES.LABOUR), wallet.getMyBonuses)
 
 export default router

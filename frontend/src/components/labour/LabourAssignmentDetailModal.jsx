@@ -242,41 +242,36 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
             <div className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-900/85 to-slate-900/60" aria-hidden />
 
             <div className="relative px-4 pb-5 pt-[max(0.75rem,env(safe-area-inset-top))]">
-              <motion.div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/25 bg-white/10 backdrop-blur-sm"
-                  aria-label="Close"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-white/70">Assignment details</p>
-                  <h1 id="assignment-detail-title" className="truncate text-lg font-extrabold">
-                    {detail.job.siteName || detail.job.title}
-                  </h1>
+              <motion.div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/20 active:scale-95"
+                    aria-label="Back"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-white/70">Assignment details</p>
+                    <h1 id="assignment-detail-title" className="truncate text-lg font-extrabold text-white">
+                      {detail?.job?.siteName || detail?.job?.title || 'Job Assignment'}
+                    </h1>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl text-white/80 hover:bg-white/10"
-                  aria-label="Dismiss"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+
+                <span className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white backdrop-blur-md border border-white/10">
+                  {displayKind === 'active' ? 'Active project' : 'Scheduled'}
+                </span>
               </motion.div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm">
-                  {displayKind === 'active' ? 'Active project' : 'Scheduled'}
-                </span>
-                {detail.job.projectCode ? (
+                {detail?.job?.projectCode ? (
                   <span className="rounded-full bg-brand/30 px-2.5 py-1 text-[10px] font-bold ring-1 ring-brand/40">
                     {detail.job.projectCode}
                   </span>
                 ) : null}
-                {detail.isMultiDay ? (
+                {detail?.isMultiDay ? (
                   <span className="rounded-full bg-amber-400/90 px-2.5 py-1 text-[10px] font-black text-amber-950">
                     Day {detail.dayIndex} of {detail.durationDays}
                   </span>
@@ -311,10 +306,10 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
           <motion.div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <GlassPanel className="grid grid-cols-2 gap-3 border-slate-200/90 p-4 sm:grid-cols-4">
               {[
-                { label: 'Role', value: detail.job.role, icon: HardHat },
-                { label: 'Rate', value: detail.job.rateLabel || '—', icon: CheckCircle2 },
-                { label: 'Shift', value: detail.job.shiftLabel, icon: Clock },
-                { label: 'Total time', value: detail.totalWorkTime, icon: Timer },
+                { label: 'Role', value: detail?.job?.role || '—', icon: HardHat },
+                { label: 'Rate', value: detail?.job?.rateLabel || '—', icon: CheckCircle2 },
+                { label: 'Shift', value: detail?.job?.shiftLabel || '—', icon: Clock },
+                { label: 'Total time', value: detail?.totalWorkTime || '—', icon: Timer },
               ].map((cell) => {
                 const Icon = cell.icon
                 return (

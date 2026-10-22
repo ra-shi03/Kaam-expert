@@ -8,6 +8,7 @@ import { Review } from '../models/Review.js'
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 import { emitToUser, getIo } from '../socket.js'
 import { LabourService } from '../models/LabourService.js'
+import { perLabourCashCut } from './walletService.js'
 
 // Track active broadcast timeouts (shared with cron for orphan recovery)
 export const activeBroadcastTimeouts = new Set()
@@ -477,6 +478,9 @@ export async function startBroadcastCycle(bookingId) {
         approximateDistance: labor.approximateDistance,
         estimatedEarnings: singleShare,
         laborShare: singleShare,
+        paymentMethod: booking.paymentMethod,
+        // Cash jobs: the customer pays the worker directly and this fee is deducted from the worker's wallet
+        cashPlatformFee: booking.paymentMethod === 'CASH' ? perLabourCashCut(booking) : 0,
         timeoutMs: timeoutMs
       }
 

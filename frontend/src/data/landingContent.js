@@ -4,8 +4,8 @@ export const SITE = {
   name: 'KaamExpert',
   tagline: 'India’s trusted on-demand construction workforce',
   url: 'https://kaamexpert.com',
-  contactEmail: 'hello@kaamexpert.com',
-  phone: '+91 98765 43210',
+  contactEmail: 'kaamexpertservice@gmail.com',
+  phone: '6267752613',
 }
 
 export const trustBadges = [
@@ -47,27 +47,27 @@ export const comparisonRows = [
   {
     aspect: 'Discovery & booking',
     traditional: 'Phone chains & word-of-mouth',
-    labourchowck: 'Search, filter, and book in minutes',
+    kaamexpert: 'Search, filter, and book in minutes',
   },
   {
     aspect: 'Verification',
     traditional: 'Informal references only',
-    labourchowck: 'Aadhaar-linked profiles & skill tags',
+    kaamexpert: 'Aadhaar-linked profiles & skill tags',
   },
   {
     aspect: 'Pricing',
     traditional: 'Negotiated case-by-case',
-    labourchowck: 'Transparent slabs & estimates upfront',
+    kaamexpert: 'Transparent slabs & estimates upfront',
   },
   {
     aspect: 'Reliability',
     traditional: 'High variance, hard to replace',
-    labourchowck: 'Ratings, backups & priority support',
+    kaamexpert: 'Ratings, backups & priority support',
   },
   {
     aspect: 'Payments',
     traditional: 'Mostly cash, limited records',
-    labourchowck: 'UPI, cards & secure escrow-style flow',
+    kaamexpert: 'UPI, cards & secure escrow-style flow',
   },
 ]
 
@@ -137,7 +137,7 @@ export const services = [
   {
     id: 'electrician',
     title: 'Electrician',
-    description: 'Wiring, fittings, DB work, and site electrification with safety compliance.',
+    description: 'Wiring, fittings, switchboard work, and site electrification with safety compliance.',
     priceFrom: 750,
     availability: 'High demand',
     icon: 'zap',
@@ -255,47 +255,39 @@ export const features = [
 
 export const userTypes = [
   {
-    title: 'Homeowners',
+    role: 'customer',
+    title: 'For Customers (Homeowners & Residents)',
+    badge: 'Individual Bookings',
     description:
-      'Renovating a flat or building a home? Book verified trades for civil, electrical, and finishing work—without chasing local middlemen.',
-    perks: ['Fixed-slot visits', 'Transparent day rates', 'Replacement if no-show'],
+      'Book verified electricians, plumbers, carpenters, masons, painters, and appliance experts for quick fixes or home renovations without dealing with unverified middlemen.',
+    perks: ['Transparent slot & day rates', 'Zero advance fee guarantee', 'Aadhaar verified workers', 'Free replacement if unsatisfied'],
     icon: 'home',
   },
   {
-    title: 'Builders',
+    role: 'contractor',
+    title: 'For Contractors (Builders & Site Managers)',
+    badge: 'Workforce & Projects',
     description:
-      'Scale site staffing across phases with predictable labour supply, attendance visibility, and digital payment trails.',
-    perks: ['Bulk shift planning', 'Supervisor-friendly handoffs', 'City-wide coverage'],
-    icon: 'building-2',
-  },
-  {
-    title: 'Contractors',
-    description:
-      'Win more projects knowing you can staff up fast with rated workers and emergency backup pools.',
-    perks: ['Priority labour pool', 'Skill-tagged search', 'Overtime tracking'],
+      'Scale your site operations with on-demand construction gangs, bar benders, shuttering experts, helpers, and machine operators with full attendance tracking and GST invoices.',
+    perks: ['Multi-day shift scheduling', 'Bulk workforce matching', 'Digital milestone attendance', 'GST-compliant digital invoices'],
     icon: 'hard-hat',
   },
   {
-    title: 'Companies',
+    role: 'labour',
+    title: 'For Labour Partners (Karigars & Helpers)',
+    badge: 'Direct Daily Payouts',
     description:
-      'Compliant hiring for infra, warehouses, and plant projects with audit-friendly records.',
-    perks: ['Invoicing support', 'Dedicated account manager', 'Custom SLAs'],
-    icon: 'landmark',
-  },
-  {
-    title: 'Labourers',
-    description:
-      'Get steady, dignified work near you—fair pay, digital records, and growth through ratings.',
-    perks: ['Free registration', 'Skill badges', 'Faster payouts'],
+      'Get consistent, dignified work directly on your mobile phone. Transparent earnings credited to your in-app wallet without paying cuts to thekedars.',
+    perks: ['Free registration & Aadhaar KYC', 'Instant wallet withdrawal', 'Direct daily payouts', 'Fair rating-based promotions'],
     icon: 'user-check',
   },
 ]
 
 export const stats = [
-  { label: 'Verified workers on platform', value: 12500, suffix: '+' },
-  { label: 'Cities covered', value: 38, suffix: '+' },
-  { label: 'Jobs completed', value: 240000, suffix: '+' },
-  { label: 'Active contractors', value: 4900, suffix: '+' },
+  { label: 'Verified Trade Services', value: 240, suffix: '+' },
+  { label: 'Active Service Regions', value: 5, suffix: ' Zones' },
+  { label: 'Verified Workers in Network', value: 12500, suffix: '+' },
+  { label: 'Aadhaar Verified Partners', value: 100, suffix: '%' },
 ]
 
 export const testimonials = [
@@ -391,14 +383,12 @@ export const faqs = [
 export const footerLinks = {
   product: [
     { label: 'How it works', href: '#how-it-works' },
-    { label: 'Services', href: '#services' },
+    { label: 'Services & Rates', href: '#services-pricing' },
     { label: 'Safety', href: '#safety' },
     { label: 'FAQ', href: '#faq' },
   ],
   company: [
     { label: 'About', href: '#problem' },
-    { label: 'Careers', href: '#footer' },
-    { label: 'Press', href: '#footer' },
   ],
   legal: [
     { label: 'Terms', href: '#footer' },

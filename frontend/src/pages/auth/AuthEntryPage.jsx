@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Building2,
   ClipboardList,
+  Gift,
   HardHat,
   Home,
   Phone,
@@ -22,6 +23,12 @@ import { requestLoginOtp, requestRegisterOtp, verifyLogin, verifyRegister } from
 import { useAuth } from '../../hooks/useAuth.js'
 import { useBranding } from '../../context/BrandingContext.jsx'
 import { ApiError } from '../../api/http.js'
+import {
+  clearPendingReferralCode,
+  normalizeReferralCode,
+  readPendingReferralCode,
+  savePendingReferralCode,
+} from '../../lib/referralStorage.js'
 
 const ROLE_OPTIONS = [
   {
@@ -88,7 +95,15 @@ export function AuthEntryPage({ authGroup = 'users' }) {
   const reduce = useReducedMotion()
   const otpInputRefs = useRef([])
 
-  const [mode, setMode] = useState('login')
+  // Referral code from an invite link (?ref=CODE) or one remembered from the /r/:code landing page
+  const [invitedCode] = useState(() => {
+    const fromQuery = normalizeReferralCode(new URLSearchParams(location.search).get('ref'))
+    if (fromQuery) savePendingReferralCode(fromQuery)
+    return fromQuery || readPendingReferralCode()
+  })
+  const [referralCode, setReferralCode] = useState(invitedCode)
+
+  const [mode, setMode] = useState(invitedCode ? 'register' : 'login')
   const [step, setStep] = useState('form')
   const allowedRoles = authGroup === 'labours' ? [USER_ROLES.LABOUR] : [USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]
   const [role, setRole] = useState(location.state?.defaultRole && allowedRoles.includes(location.state.defaultRole) ? location.state.defaultRole : allowedRoles[0])
@@ -180,6 +195,7 @@ export function AuthEntryPage({ authGroup = 'users' }) {
           phone: p,
           role,
           fullName: fullName.trim() || undefined,
+          referralCode: referralCode || undefined,
         })
         setChallengeId(res.data?.challengeId ?? null)
       }
@@ -221,6 +237,7 @@ export function AuthEntryPage({ authGroup = 'users' }) {
       if (mode === 'login') {
         const res = await verifyLogin({ phone: p, code, challengeId })
         const { token, user } = res.data
+        clearPendingReferralCode()
         applySession(token, user)
         signedInUser = user
       } else {
@@ -235,9 +252,11 @@ export function AuthEntryPage({ authGroup = 'users' }) {
           code,
           challengeId,
           fullName: fullName.trim(),
+          referralCode: referralCode || undefined,
         }
         const res = await verifyRegister(body)
         const { token, user } = res.data
+        clearPendingReferralCode()
         applySession(token, user)
         signedInUser = user
       }
@@ -442,6 +461,31 @@ export function AuthEntryPage({ authGroup = 'users' }) {
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="As on your ID"
                         autoComplete="name"
+                      />
+                    </AuthField>
+                    <AuthField
+                      label="Referral code (optional)"
+                      hint={
+                        invitedCode && referralCode === invitedCode ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-bold text-brand">
+                            <Gift className="h-3.5 w-3.5" aria-hidden />
+                            From your invite
+                          </span>
+                        ) : null
+                      }
+                    >
+                      <input
+                        type="text"
+                        className={`${inputClass} font-mono uppercase tracking-widest`}
+                        value={referralCode}
+                        onChange={(e) => {
+                          setReferralCode(normalizeReferralCode(e.target.value))
+                          if (banner?.variant === 'error') setBanner(null)
+                        }}
+                        placeholder="e.g. RAHU7K3MX"
+                        autoComplete="off"
+                        autoCapitalize="characters"
+                        spellCheck={false}
                       />
                     </AuthField>
                   </>

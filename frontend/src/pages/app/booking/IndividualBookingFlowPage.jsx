@@ -25,7 +25,7 @@ import { AppButton } from '../../../components/app-ui/buttons/AppButton.jsx'
 import { AppTextInput } from '../../../components/app-ui/inputs/AppTextInput.jsx'
 import { AppSearchableSelect } from '../../../components/app-ui/inputs/AppSearchableSelect.jsx'
 import { GlassPanel } from '../../../components/ui/GlassPanel.jsx'
-import { fetchLabourCategoriesGrouped } from '../../../api/labourCategoriesApi.js'
+import { fetchLabourCategoriesGrouped, getCachedLabourCategoriesGrouped } from '../../../api/labourCategoriesApi.js'
 import { bookingsApi } from '../../../api/bookingsApi.js'
 import { paymentsApi } from '../../../api/paymentsApi.js'
 import { getPublicSettings } from '../../../api/adminSettingsApi.js'
@@ -70,6 +70,7 @@ import {
   BOOKING_FLOW_PATH,
   buildBookingFlowPath,
 } from '../../../lib/bookingFlowNavigation.js'
+import { calculateEndTime, getDraftDurationMinutes, formatTime12 } from '../../../lib/bookingTimeUtils.js'
 
 const TIME_SLOTS = ['9:00 AM – 12:00 PM', '12:00 PM – 3:00 PM', '3:00 PM – 6:00 PM', '6:00 PM – 9:00 PM']
 
@@ -103,7 +104,18 @@ export function IndividualBookingFlowPage() {
   const groupIdParam = searchParams.get('groupId')?.trim() || ''
   const bookingIdParam = searchParams.get('bookingId')?.trim() || ''
 
-  const [draft, setDraft] = useState(() => readBookingDraft() || {})
+  const [draft, setDraft] = useState(() => {
+    const d = readBookingDraft() || {}
+    if (!d.address) {
+      const saved = readAppUserLocation()
+      if (saved && (saved.address || (saved.lat && saved.lng))) {
+        d.address = saved.address || `GPS ${saved.lat.toFixed(5)}, ${saved.lng.toFixed(5)}`
+        d.lat = saved.lat
+        d.lng = saved.lng
+      }
+    }
+    return d
+  })
   const [formError, setFormError] = useState('')
   const [typeSheetOpen, setTypeSheetOpen] = useState(false)
   const [activeBookingId, setActiveBookingId] = useState(() => bookingIdParam || readBookingDraft()?.lastRef || null)
@@ -117,7 +129,25 @@ export function IndividualBookingFlowPage() {
 
   const [noMatch, setNoMatch] = useState(false)
   const [imageFiles, setImageFiles] = useState([])
-  const [availableServicesList, setAvailableServicesList] = useState([])
+  const [availableServicesList, setAvailableServicesList] = useState(() => {
+    const cached = getCachedLabourCategoriesGrouped()
+    if (!cached?.data?.groups) return []
+    const allServices = []
+    for (const g of cached.data.groups) {
+      for (const c of (g.categories || [])) {
+        for (const s of (c.services || [])) {
+          allServices.push({ 
+            ...s, 
+            categoryName: c.name, 
+            groupName: g.name,
+            label: `${s.name} - ₹${s.minHours === 0.5 ? Math.round((s.hourlyPrice || s.basePrice || 0) / 2) + '/30min' : (s.hourlyPrice || s.basePrice || 0) + '/hr'}`,
+            value: String(s._id)
+          })
+        }
+      }
+    }
+    return allServices
+  })
 
   const contractorServiceNames = useMemo(() => {
     if (realUser?.role !== 'contractor' || !draft.contractorServices) return ''
@@ -137,6 +167,19 @@ export function IndividualBookingFlowPage() {
   const [reviewQueue, setReviewQueue] = useState([])
   const [currentReviewIndex, setCurrentReviewIndex] = useState(0)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
+
+  const calculatedEndTime = useMemo(() => {
+    const isScheduled = draft.bookingType === 'scheduled' || Boolean(draft.timeSlot) || realUser?.role === 'contractor'
+    if (!isScheduled) return ''
+    const slot = draft.timeSlot || '10:00'
+    const mins = getDraftDurationMinutes(draft)
+    return calculateEndTime(slot, mins, true)
+  }, [draft.bookingType, draft.timeSlot, draft.durationMinutes, draft.hours, draft.durationKind, draft.durationDays, realUser?.role])
+
+  const displayEndTime = useMemo(() => {
+    if (draft.endTime) return formatTime12(draft.endTime)
+    return calculatedEndTime
+  }, [draft.endTime, calculatedEndTime])
 
   const handleOpenReview = useCallback(() => {
     if (realUser?.role === 'contractor' && activeBooking?.assignments?.length > 0) {
@@ -167,10 +210,14 @@ export function IndividualBookingFlowPage() {
   const inputRef = useRef(null)
   const autocompleteRef = useRef(null)
   const [mapsLoaded, setMapsLoaded] = useState(false)
-  const [forceInput, setForceInput] = useState(false)
+  const [forceInput, setForceInput] = useState(() => Boolean(readBookingDraft()?.address || readAppUserLocation()?.address))
   const mapRef = useRef(null)
   const mapInstance = useRef(null)
   const markerInstance = useRef(null)
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [step])
 
 
   const { bookingEvent } = useBookingSocket(activeBookingId)
@@ -352,12 +399,42 @@ export function IndividualBookingFlowPage() {
   const [addingExtraTime, setAddingExtraTime] = useState(false)
 
   const currentServiceObj = useMemo(() => {
+    if (draft.service && (draft.service.durationPricing?.length > 0 || String(draft.service._id) === String(draft.serviceId))) {
+      return draft.service
+    }
     const sId = draft.serviceId || draft.categoryId
     if (!sId) return null
     return availableServicesList.find(s => String(s._id) === String(sId) || String(s.value) === String(sId)) || null
-  }, [availableServicesList, draft.serviceId, draft.categoryId])
+  }, [draft.service, draft.serviceId, draft.categoryId, availableServicesList])
 
   const availableDurationSlots = useMemo(() => {
+    const isContractor = realUser?.role === 'contractor'
+    const contractorList = draft.contractorServices?.length
+      ? draft.contractorServices
+      : (isContractor ? [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }] : [])
+
+    if (!isContractor && currentServiceObj) {
+      // Check if service has custom duration slots configured by admin
+      const serviceSlots = Array.isArray(currentServiceObj.durationPricing)
+        ? currentServiceObj.durationPricing.filter(p => p && p.isActive !== false && Number(p.price) > 0)
+        : []
+
+      if (serviceSlots.length > 0) {
+        // Return ONLY the time slots configured for this particular service
+        return serviceSlots.map(slot => {
+          const unitPrice = Number(slot.price) || 0
+          const price = unitPrice * (draft.quantity || 1)
+          return {
+            minutes: slot.minutes,
+            label: slot.label || `${slot.minutes} min`,
+            tag: slot.tag || null,
+            price
+          }
+        }).sort((a, b) => a.minutes - b.minutes)
+      }
+    }
+
+    // Fallback for contractor multi-service mode or services without durationPricing configured yet
     const baseSlots = (globalDurationOptions && globalDurationOptions.length > 0)
       ? globalDurationOptions.filter(o => o.isActive !== false)
       : [
@@ -378,11 +455,6 @@ export function IndividualBookingFlowPage() {
           { minutes: 480, label: '8 hrs', tag: 'hourly', isActive: true },
           { minutes: 720, label: 'Full Day (12 hrs)', tag: 'full_day', isActive: true },
         ]
-
-    const isContractor = realUser?.role === 'contractor'
-    const contractorList = draft.contractorServices?.length
-      ? draft.contractorServices
-      : (isContractor ? [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }] : [])
 
     return baseSlots.map(slot => {
       let price = 0
@@ -413,16 +485,19 @@ export function IndividualBookingFlowPage() {
   }, [globalDurationOptions, realUser, draft.contractorServices, draft.serviceId, draft.categoryId, draft.quantity, availableServicesList, currentServiceObj])
 
   useEffect(() => {
-    if (availableDurationSlots.length > 0 && !draft.durationMinutes) {
-      const targetMin = draft.hours ? Math.round(draft.hours * 60) : 60
-      const matched = availableDurationSlots.find(s => s.minutes === targetMin) || availableDurationSlots[0]
-      if (matched) {
-        syncDraft({
-          durationMinutes: matched.minutes,
-          selectedSlotLabel: matched.label,
-          hours: Math.max(0.5, +(matched.minutes / 60).toFixed(2)),
-          durationKind: matched.tag === 'half_day' ? 'half_day' : matched.tag === 'full_day' ? 'full_day' : 'few_hours'
-        })
+    if (availableDurationSlots.length > 0) {
+      const isCurrentValid = availableDurationSlots.some(s => s.minutes === draft.durationMinutes)
+      if (!isCurrentValid) {
+        const targetMin = draft.hours ? Math.round(draft.hours * 60) : 60
+        const matched = availableDurationSlots.find(s => s.minutes === targetMin) || availableDurationSlots[0]
+        if (matched) {
+          syncDraft({
+            durationMinutes: matched.minutes,
+            selectedSlotLabel: matched.label,
+            hours: Math.max(0.5, +(matched.minutes / 60).toFixed(2)),
+            durationKind: matched.tag === 'half_day' ? 'half_day' : matched.tag === 'full_day' ? 'full_day' : 'few_hours'
+          })
+        }
       }
     }
   }, [availableDurationSlots, draft.durationMinutes, draft.hours, syncDraft])
@@ -437,6 +512,12 @@ export function IndividualBookingFlowPage() {
     }).catch(() => {})
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    if (realUser?.role === 'contractor' && draft.bookingType !== 'scheduled') {
+      syncDraft({ bookingType: 'scheduled' })
+    }
+  }, [realUser?.role, draft.bookingType, syncDraft])
 
   useEffect(() => {
     if (location.pathname !== BOOKING_FLOW_PATH) return
@@ -463,7 +544,7 @@ export function IndividualBookingFlowPage() {
 
   useEffect(() => {
     if (step !== 'details') return
-    if (window.google?.maps?.places && window.google?.maps?.Map) {
+    if (window.google?.maps?.Map) {
       initMaps()
       return
     }
@@ -471,7 +552,8 @@ export function IndividualBookingFlowPage() {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
     if (!apiKey) return
 
-    if (!document.querySelector('#google-maps-script')) {
+    const existingScript = document.querySelector('#google-maps-script')
+    if (!existingScript) {
       const script = document.createElement('script')
       script.id = 'google-maps-script'
       script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
@@ -479,17 +561,21 @@ export function IndividualBookingFlowPage() {
       script.onload = initMaps
       document.head.appendChild(script)
     } else {
-      const script = document.querySelector('#google-maps-script')
-      script.addEventListener('load', initMaps)
+      if (window.google?.maps?.Map) {
+        initMaps()
+      } else {
+        existingScript.addEventListener('load', initMaps)
+      }
     }
 
     function initMaps() {
       setMapsLoaded(true)
 
-      if (mapRef.current && !mapInstance.current) {
+      if (mapRef.current && !mapInstance.current && window.google?.maps?.Map) {
+        const savedLoc = readAppUserLocation()
         const currentPos = {
-          lat: draft.lat || 28.7041,
-          lng: draft.lng || 77.1025
+          lat: draft.lat || savedLoc?.lat || 22.7196,
+          lng: draft.lng || savedLoc?.lng || 75.8577
         }
 
         mapInstance.current = new window.google.maps.Map(mapRef.current, {
@@ -608,14 +694,6 @@ export function IndividualBookingFlowPage() {
 
   const validateDetails = () => {
     if (realUser?.role === 'contractor') {
-      if (!draft.companyName?.trim()) {
-        setFormError('Please enter a Company Name.')
-        return false
-      }
-      if (!draft.gstNumber?.trim()) {
-        setFormError('Please enter a GST Number.')
-        return false
-      }
       if (!draft.projectName?.trim()) {
         setFormError('Please enter a Project Name.')
         return false
@@ -767,10 +845,12 @@ export function IndividualBookingFlowPage() {
         selectedSlotLabel: draft.selectedSlotLabel,
         quantity: draft.quantity || 1,
         address: draft.address,
+        timeSlot: draft.timeSlot,
         ...(realUser?.role === 'contractor' ? { contractorServices: draft.contractorServices } : {})
       })
+      const computedEnd = draft.bookingType === 'scheduled' ? calculateEndTime(draft.timeSlot, durationMinutes) : ''
       setCalculatedBill(res.data)
-      syncDraft({ billAmount: res.data.totalAmount })
+      syncDraft({ billAmount: res.data.totalAmount, endTime: computedEnd })
 
       const modes = res.data.paymentModes || { cashEnabled: true, onlineEnabled: true }
       let currentPaymentMethod = draft.paymentMethod || 'CASH'
@@ -818,6 +898,7 @@ export function IndividualBookingFlowPage() {
       const fallbackHours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
       const durationMinutes = draft.durationMinutes || Math.round(fallbackHours * 60)
       const hours = +(durationMinutes / 60).toFixed(2)
+      const computedEnd = draft.bookingType === 'scheduled' ? calculateEndTime(draft.timeSlot, durationMinutes) : undefined
       const resolvedPaymentMethod = realUser?.role === 'contractor'
         ? 'ONLINE'
         : String(draft.paymentMethod || 'CASH').toUpperCase()
@@ -836,6 +917,7 @@ export function IndividualBookingFlowPage() {
         selectedSlotLabel: draft.selectedSlotLabel || `${hours} hrs`,
         quantity: draft.quantity || 1,
         timeSlot: draft.timeSlot,
+        endTime: computedEnd,
         scheduledAt: draft.serviceDate,
         imageNames: uploadedImageUrls,
         ...(realUser?.role === 'contractor' ? {
@@ -882,12 +964,18 @@ export function IndividualBookingFlowPage() {
           <div className="mt-4 text-left rounded-xl bg-slate-50 border border-slate-100 p-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-slate-500 font-semibold">Date</span>
-              <span className="text-slate-900 font-bold">{new Date(draft.serviceDate).toLocaleDateString()}</span>
+              <span className="text-slate-900 font-bold">{draft.serviceDate ? new Date(draft.serviceDate).toLocaleDateString() : 'Today'}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500 font-semibold">Time</span>
-              <span className="text-slate-900 font-bold">{draft.timeSlot}</span>
+              <span className="text-slate-500 font-semibold">Start Time</span>
+              <span className="text-slate-900 font-bold">{formatTime12(draft.timeSlot) || '10:00 AM'}</span>
             </div>
+            {displayEndTime ? (
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500 font-semibold">End Time</span>
+                <span className="text-brand font-bold">{formatTime12(displayEndTime)}</span>
+              </div>
+            ) : null}
           </div>
           <motion.div className="mt-6 flex flex-col gap-2">
             <BookingPrimaryButton type="button" onClick={() => { window.scrollTo(0, 0); clearBookingDraft(); navigate('/app/my-bookings', { replace: true }) }}>
@@ -914,12 +1002,25 @@ export function IndividualBookingFlowPage() {
             <div className="space-y-2 text-sm text-slate-700">
               <div className="flex justify-between">
                 <span className="font-semibold text-slate-500">Date</span>
-                <span className="font-medium text-slate-900">{draft.bookingType === 'scheduled' ? new Date(draft.serviceDate).toLocaleDateString() : 'ASAP'}</span>
+                <span className="font-medium text-slate-900">{draft.bookingType === 'scheduled' ? (draft.serviceDate ? new Date(draft.serviceDate).toLocaleDateString() : 'Today') : 'ASAP'}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="font-semibold text-slate-500">Time</span>
-                <span className="font-medium text-slate-900">{draft.bookingType === 'scheduled' ? draft.timeSlot : 'Earliest available'}</span>
-              </div>
+              {draft.bookingType === 'scheduled' || draft.timeSlot ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-slate-500">Start Time</span>
+                    <span className="font-medium text-slate-900">{formatTime12(draft.timeSlot) || '10:00 AM'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-slate-500">End Time</span>
+                    <span className="font-medium text-brand">{formatTime12(displayEndTime) || '--:--'}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-500">Time</span>
+                  <span className="font-medium text-slate-900">Earliest available</span>
+                </div>
+              )}
               <div className="flex flex-col">
                 <span className="font-semibold text-slate-500">Location</span>
                 <span className="line-clamp-2 mt-0.5 text-slate-900 font-medium">{draft.address}</span>
@@ -1159,12 +1260,27 @@ export function IndividualBookingFlowPage() {
                 )}
                 <div className="flex justify-between">
                   <span className="font-semibold text-slate-500">Date</span>
-                  <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? new Date(booking.scheduledAt).toLocaleDateString() : 'ASAP'}</span>
+                  <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? (booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'N/A') : 'ASAP'}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-semibold text-slate-500">Time</span>
-                  <span className="font-medium text-slate-900">{booking.type === 'SCHEDULED' ? booking.timeSlot : 'Earliest available'}</span>
-                </div>
+                {booking.type === 'SCHEDULED' ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-slate-500">Start Time</span>
+                      <span className="font-medium text-slate-900">{formatTime12(booking.timeSlot) || '10:00 AM'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-slate-500">End Time</span>
+                      <span className="font-medium text-brand">
+                        {formatTime12(booking.endTime || calculateEndTime(booking.timeSlot, booking.durationMinutes || (booking.hours ? booking.hours * 60 : 60))) || 'N/A'}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-slate-500">Time</span>
+                    <span className="font-medium text-slate-900">Earliest available</span>
+                  </div>
+                )}
                 <div className="flex flex-col">
                   <span className="font-semibold text-slate-500">Location</span>
                   <span className="line-clamp-2 mt-0.5 text-slate-900 font-medium">{booking.address?.locationText}</span>
@@ -1249,12 +1365,27 @@ export function IndividualBookingFlowPage() {
                       {booking?.type === 'INSTANT' ? 'Today (ASAP)' : booking?.scheduledAt ? new Date(booking.scheduledAt).toLocaleDateString() : 'N/A'}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="lc-booking-flow-muted">Time</span>
-                    <span className="font-bold text-black">
-                      {booking?.type === 'INSTANT' ? 'Earliest Available' : booking?.timeSlot || 'N/A'}
-                    </span>
-                  </div>
+                  {booking?.type === 'SCHEDULED' ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="lc-booking-flow-muted">Start Time</span>
+                        <span className="font-bold text-black">{formatTime12(booking?.timeSlot) || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="lc-booking-flow-muted">End Time</span>
+                        <span className="font-bold text-brand">
+                          {formatTime12(booking?.endTime || calculateEndTime(booking?.timeSlot, booking?.durationMinutes || (booking?.hours ? booking?.hours * 60 : 60))) || 'N/A'}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between">
+                      <span className="lc-booking-flow-muted">Time</span>
+                      <span className="font-bold text-black">
+                        {booking?.type === 'INSTANT' ? 'Earliest Available' : (booking?.timeSlot || 'N/A')}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="lc-booking-flow-muted">Duration</span>
                     <span className="font-bold text-black">
@@ -1759,7 +1890,7 @@ export function IndividualBookingFlowPage() {
               {realUser?.role === 'contractor' ? (
                 <>
                   <motion.div className="mb-4">
-                    <FieldLabel>Company Name *</FieldLabel>
+                    <FieldLabel>Company Name <span className="text-slate-400 font-normal">(optional)</span></FieldLabel>
                     <input
                       value={draft.companyName || ''}
                       onChange={(e) => syncDraft({ companyName: e.target.value })}
@@ -1768,7 +1899,7 @@ export function IndividualBookingFlowPage() {
                     />
                   </motion.div>
                   <motion.div className="mb-4">
-                    <FieldLabel>GST Number *</FieldLabel>
+                    <FieldLabel>GST Number <span className="text-slate-400 font-normal">(optional)</span></FieldLabel>
                     <input
                       value={draft.gstNumber || ''}
                       onChange={(e) => syncDraft({ gstNumber: e.target.value })}
@@ -1936,7 +2067,7 @@ export function IndividualBookingFlowPage() {
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black"
                   />
                 </motion.div>
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <motion.div>
                     <FieldLabel htmlFor="scheduled-time">Start Time</FieldLabel>
                     <input
@@ -1948,7 +2079,27 @@ export function IndividualBookingFlowPage() {
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-black outline-none focus:border-brand focus:ring-1"
                     />
                   </motion.div>
+                  <motion.div>
+                    <FieldLabel htmlFor="scheduled-end-time">End Time</FieldLabel>
+                    <div
+                      id="scheduled-end-time"
+                      className="flex h-[46px] items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-800"
+                    >
+                      <span className={calculatedEndTime ? 'text-brand' : 'text-slate-400 font-normal'}>
+                        {calculatedEndTime || '--:--'}
+                      </span>
+                      <Clock className="h-4 w-4 text-slate-400" />
+                    </div>
+                  </motion.div>
                 </div>
+                {draft.timeSlot && calculatedEndTime ? (
+                  <div className="flex items-center gap-2 rounded-xl bg-blue-50/70 border border-blue-100 px-3 py-2 text-xs text-blue-900 font-medium">
+                    <Clock className="h-3.5 w-3.5 text-brand shrink-0" />
+                    <span>
+                      Service window: <strong className="font-bold">{formatTime12(draft.timeSlot)}</strong> to <strong className="font-bold text-brand">{calculatedEndTime}</strong> ({draft.selectedSlotLabel || formatDurationMinutes(getDraftDurationMinutes(draft))})
+                    </span>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -1986,22 +2137,48 @@ export function IndividualBookingFlowPage() {
                     ) : null}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="lc-booking-flow-muted">Booking</span>
-                  <span className="font-bold capitalize text-black">{draft.bookingType}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold capitalize text-black">{draft.bookingType || 'scheduled'}</span>
+                    {realUser?.role !== 'contractor' && (
+                      <button
+                        type="button"
+                        onClick={() => setTypeSheetOpen(true)}
+                        className="text-xs font-semibold text-brand hover:underline"
+                      >
+                        Change
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between">
                   <span className="lc-booking-flow-muted">Date</span>
                   <span className="font-bold text-black">
-                    {draft.bookingType === 'instant' ? 'Today (ASAP)' : new Date(draft.serviceDate).toLocaleDateString()}
+                    {draft.bookingType === 'instant' ? 'Today (ASAP)' : (draft.serviceDate ? new Date(draft.serviceDate).toLocaleDateString() : 'Today')}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="lc-booking-flow-muted">Time</span>
-                  <span className="font-bold text-black">
-                    {draft.bookingType === 'instant' ? 'Earliest Available' : draft.timeSlot}
-                  </span>
-                </div>
+                {draft.bookingType === 'scheduled' || draft.timeSlot ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="lc-booking-flow-muted">Start Time</span>
+                      <span className="font-bold text-black">
+                        {formatTime12(draft.timeSlot) || '10:00 AM'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="lc-booking-flow-muted">End Time</span>
+                      <span className="font-bold text-brand">
+                        {formatTime12(displayEndTime) || (draft.timeSlot ? calculateEndTime(draft.timeSlot, getDraftDurationMinutes(draft), true) : '--:--')}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="lc-booking-flow-muted">Time</span>
+                    <span className="font-bold text-black">Earliest Available</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="lc-booking-flow-muted">Duration</span>
                   <span className="font-bold text-black">
@@ -2056,10 +2233,12 @@ export function IndividualBookingFlowPage() {
                       <span>{formatInr(calculatedBill.subTotal || calculatedBill.basePrice)}</span>
                     </div>
                   )}
-                  {calculatedBill.maxHourDiscount > 0 ? (
+                  {((calculatedBill.discount || calculatedBill.zoneDiscount || calculatedBill.maxHourDiscount) > 0) ? (
                     <div className="mt-1 flex justify-between font-semibold text-emerald-600">
-                      <span>Discount</span>
-                      <span>-{formatInr(calculatedBill.maxHourDiscount)}</span>
+                      <span>
+                        Discount {calculatedBill.zoneDiscount > 0 ? (calculatedBill.zoneDiscountLabel ? `(${calculatedBill.zoneDiscountLabel})` : '(Zone Discount)') : ''}
+                      </span>
+                      <span>-{formatInr(calculatedBill.discount || ((calculatedBill.zoneDiscount || 0) + (calculatedBill.maxHourDiscount || 0)))}</span>
                     </div>
                   ) : null}
                   <div className="mt-1 flex justify-between lc-booking-flow-muted">

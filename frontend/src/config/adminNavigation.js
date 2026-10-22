@@ -24,6 +24,7 @@ import {
   ClipboardCheck,
   Star,
   CalendarDays,
+  Gift,
 } from 'lucide-react'
 
 /**
@@ -58,6 +59,7 @@ export const ADMIN_NAV_SECTIONS = [
     title: 'Users',
     items: [
       { to: '/admin/users', label: 'Users', icon: Users },
+      { to: '/admin/referrals', label: 'Referrals', icon: Gift },
     ],
   },
   {
@@ -90,6 +92,7 @@ export const ADMIN_NAV_SECTIONS = [
       { to: '/admin/platform-fee', label: 'Platform Fee', icon: HandCoins },
       { to: '/admin/commission-fee', label: 'Commission Fee', icon: HandCoins },
       { to: '/admin/labour-wallet', label: 'Labour Wallet', icon: Wallet },
+      { to: '/admin/bonuses', label: 'Bonuses', icon: BadgeIndianRupee },
       { to: '/admin/cash-management', label: 'Cash Management', icon: Wallet },
       { to: '/admin/labour-subscriptions', label: 'Labour Subscriptions', icon: CalendarDays },
       { to: '/admin/free-trials', label: 'Free Trials', icon: CalendarDays },
@@ -134,6 +137,7 @@ const ROUTE_TITLES = [
   { prefix: '/admin/platform-fee', title: 'Platform Fee' },
   { prefix: '/admin/commission-fee', title: 'Commission Fee' },
   { prefix: '/admin/labour-wallet', title: 'Labour Wallet' },
+  { prefix: '/admin/bonuses', title: 'Bonuses' },
   { prefix: '/admin/cash-management', title: 'Cash Management' },
   { prefix: '/admin/billing', title: 'Payments & billing' },
   { prefix: '/admin/labour-subscriptions', title: 'Labour Subscriptions' },
@@ -150,6 +154,7 @@ const ROUTE_TITLES = [
   { prefix: '/admin/categories', title: 'Categories' },
   { prefix: '/admin/labour', title: 'KYC' },
   { prefix: '/admin/users', title: 'Users' },
+  { prefix: '/admin/referrals', title: 'Referrals' },
   { prefix: '/admin/zone-management', title: 'Zone Management' },
   { prefix: '/admin/zones', title: 'Manage Radius' },
   { prefix: '/admin', title: 'Dashboard' },

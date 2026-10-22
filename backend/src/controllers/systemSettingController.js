@@ -144,6 +144,57 @@ export const updatePaymentModes = asyncHandler(async (req, res) => {
   return sendSuccess(res, { message: 'Payment modes updated', data: { settings } })
 })
 
+export const updateReferralSettings = asyncHandler(async (req, res) => {
+  const { isEnabled, referrerReward, refereeReward, rewardTrigger } = req.body
+  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
+
+  if (!settings.referral) settings.referral = {}
+
+  if (isEnabled !== undefined) settings.referral.isEnabled = Boolean(isEnabled)
+  if (referrerReward !== undefined) settings.referral.referrerReward = Number(referrerReward)
+  if (refereeReward !== undefined) settings.referral.refereeReward = Number(refereeReward)
+  if (rewardTrigger !== undefined) settings.referral.rewardTrigger = rewardTrigger
+
+  await settings.save()
+  return sendSuccess(res, { message: 'Referral settings updated', data: { settings } })
+})
+
+export const updateCashWalletSettings = asyncHandler(async (req, res) => {
+  const { isEnabled, minBalance, minRecharge, maxRecharge } = req.body
+  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
+
+  if (!settings.cashWallet) settings.cashWallet = {}
+  const next = {
+    minRecharge: minRecharge !== undefined ? Number(minRecharge) : settings.cashWallet.minRecharge ?? 100,
+    maxRecharge: maxRecharge !== undefined ? Number(maxRecharge) : settings.cashWallet.maxRecharge ?? 10000,
+  }
+  if (next.minRecharge > next.maxRecharge) {
+    return sendError(res, { message: 'Minimum recharge cannot be more than maximum recharge', statusCode: HTTP_STATUS.BAD_REQUEST })
+  }
+
+  if (isEnabled !== undefined) settings.cashWallet.isEnabled = Boolean(isEnabled)
+  if (minBalance !== undefined) settings.cashWallet.minBalance = Number(minBalance)
+  settings.cashWallet.minRecharge = next.minRecharge
+  settings.cashWallet.maxRecharge = next.maxRecharge
+
+  await settings.save()
+  return sendSuccess(res, { message: 'Cash wallet settings updated', data: { settings } })
+})
+
+export const updateBonusSettings = asyncHandler(async (req, res) => {
+  const { maxAmount } = req.body
+  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
+
+  if (!settings.bonus) settings.bonus = {}
+  if (maxAmount !== undefined) settings.bonus.maxAmount = Number(maxAmount)
+
+  await settings.save()
+  return sendSuccess(res, { message: 'Bonus settings updated', data: { settings } })
+})
+
 export const uploadBranding = asyncHandler(async (req, res) => {
   const { type } = req.body // 'logo' or 'favicon'
   if (!['logo', 'favicon'].includes(type)) {

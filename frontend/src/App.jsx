@@ -6,6 +6,7 @@ import { AppShell } from './layouts/AppShell.jsx'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
 import { LandingPage } from './pages/LandingPage'
 import { AuthEntryPage } from './pages/auth/AuthEntryPage.jsx'
+import { ReferralLandingPage } from './pages/ReferralLandingPage.jsx'
 import { LabourCategoriesPage } from './pages/app/LabourCategoriesPage.jsx'
 import { appShellChildRoutes } from './routes/appRoutes.jsx'
 import { bootRoutes } from './routes/bootRoutes.jsx'
@@ -39,6 +40,8 @@ import { AdminTermsConditionsPage } from './pages/admin/AdminTermsConditionsPage
 import { AdminFAQsPage } from './pages/admin/AdminFAQsPage.jsx'
 import { AdminCancellationPolicyPage } from './pages/admin/AdminCancellationPolicyPage.jsx'
 import { AdminRefundPolicyPage } from './pages/admin/AdminRefundPolicyPage.jsx'
+import { AdminReferralsPage } from './pages/admin/AdminReferralsPage.jsx'
+import { AdminBonusesPage } from './pages/admin/AdminBonusesPage.jsx'
 
 import { BroadcastPopup } from './components/app/BroadcastPopup.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
@@ -72,6 +75,7 @@ function App() {
           <Route path="/auth" element={<Navigate to="/users/auth" replace />} />
           <Route path="/users/auth" element={<AuthEntryPage authGroup="users" />} />
           <Route path="/labours/auth" element={<AuthEntryPage authGroup="labours" />} />
+          <Route path="/r/:code" element={<ReferralLandingPage />} />
           <Route
             path="/app"
             element={
@@ -112,6 +116,7 @@ function App() {
             <Route path="sub-categories" element={<AdminSubCategoriesPage />} />
             <Route path="services" element={<AdminServicesPage />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route path="referrals" element={<AdminReferralsPage />} />
             <Route path="labour" element={<AdminLabourPage />} />
 
             <Route path="bookings" element={<AdminBookingsPage />} />
@@ -127,6 +132,7 @@ function App() {
             <Route path="platform-fee" element={<AdminPlatformFeePage />} />
             <Route path="commission-fee" element={<AdminCommissionFeePage />} />
             <Route path="labour-wallet" element={<AdminLabourWalletPage />} />
+            <Route path="bonuses" element={<AdminBonusesPage />} />
             <Route path="cash-management" element={<AdminCashManagementPage />} />
             <Route path="reviews" element={<AdminReviewsRatingsPage />} />
             <Route path="labour-subscriptions" element={<AdminLabourSubscriptionsPage />} />

@@ -56,6 +56,7 @@ export function createEmptyDraft() {
     slotPrice: 0,
     serviceDate: '',
     timeSlot: '',
+    endTime: '',
     paymentTiming: 'after_work',
     paymentMethod: null,
   }

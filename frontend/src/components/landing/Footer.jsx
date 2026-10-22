@@ -34,17 +34,17 @@ const social = [
 
 export function Footer() {
   return (
-    <footer id="footer" className="border-t border-white/10 bg-surface-950 py-14 text-zinc-400">
+    <footer id="footer" className="border-t border-white/10 bg-surface-950 pt-14 pb-[max(3.5rem,env(safe-area-inset-bottom))] text-zinc-400">
       <Container>
-        <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
+          <div className="col-span-2 space-y-4 lg:col-span-1">
             <div className="flex items-center gap-2 text-white">
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-bright to-brand text-white">
                 <HardHat className="h-5 w-5" aria-hidden />
               </span>
               <span className="text-lg font-extrabold tracking-tight">{SITE.name}</span>
             </div>
-            <p className="text-sm leading-relaxed">
+            <p className="max-w-sm text-sm leading-relaxed">
               Verified construction labour, on demand—built for India’s contractors, builders, and
               hardworking crews.
             </p>
@@ -53,7 +53,7 @@ export function Footer() {
                 <a
                   key={s.label}
                   href={s.href}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 transition hover:border-brand/50 hover:text-brand-bright"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-zinc-300 transition-all duration-300 hover:-translate-y-1 hover:border-brand/50 hover:bg-brand/10 hover:text-brand-bright"
                   aria-label={s.label}
                 >
                   <s.Icon className="h-4 w-4" />
@@ -64,10 +64,10 @@ export function Footer() {
 
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500">Product</h3>
-            <ul className="mt-4 space-y-2 text-sm">
+            <ul className="mt-4 space-y-1.5 text-sm">
               {footerLinks.product.map((l) => (
                 <li key={l.label}>
-                  <a href={l.href} className="hover:text-white">
+                  <a href={l.href} className="lp-link py-1 transition-colors duration-200 hover:text-white">
                     {l.label}
                   </a>
                 </li>
@@ -77,10 +77,10 @@ export function Footer() {
 
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500">Company</h3>
-            <ul className="mt-4 space-y-2 text-sm">
+            <ul className="mt-4 space-y-1.5 text-sm">
               {footerLinks.company.map((l) => (
                 <li key={l.label}>
-                  <a href={l.href} className="hover:text-white">
+                  <a href={l.href} className="lp-link py-1 transition-colors duration-200 hover:text-white">
                     {l.label}
                   </a>
                 </li>
@@ -88,16 +88,16 @@ export function Footer() {
             </ul>
           </div>
 
-          <div className="space-y-4">
+          <div className="col-span-2 space-y-4 lg:col-span-1">
             <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500">Contact</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href={`mailto:${SITE.contactEmail}`} className="hover:text-white">
+                <a href={`mailto:${SITE.contactEmail}`} className="lp-link py-1 transition-colors duration-200 hover:text-white">
                   {SITE.contactEmail}
                 </a>
               </li>
               <li>
-                <a href={`tel:${SITE.phone.replace(/\s/g, '')}`} className="hover:text-white">
+                <a href={`tel:${SITE.phone.replace(/\s/g, '')}`} className="lp-link py-1 transition-colors duration-200 hover:text-white">
                   {SITE.phone}
                 </a>
               </li>
@@ -106,16 +106,20 @@ export function Footer() {
               <p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Get the app</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <a
-                  href="#app"
-                  className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white hover:border-brand/50"
+                  href="https://play.google.com/store/apps/details?id=com.kaamexpert.user"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-10 items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/50 hover:bg-white/[0.08]"
                 >
-                  Google Play
+                  Customer App
                 </a>
                 <a
-                  href="#app"
-                  className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white hover:border-brand/50"
+                  href="https://play.google.com/store/apps/details?id=com.kaamexpert.labour"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-10 items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/50 hover:bg-white/[0.08]"
                 >
-                  App Store
+                  Labour App
                 </a>
               </div>
             </div>
@@ -126,7 +130,7 @@ export function Footer() {
           <p>© {new Date().getFullYear()} {SITE.name}. All rights reserved.</p>
           <div className="flex flex-wrap gap-4">
             {footerLinks.legal.map((l) => (
-              <a key={l.label} href={l.href} className="hover:text-zinc-300">
+              <a key={l.label} href={l.href} className="lp-link transition-colors duration-200 hover:text-zinc-300">
                 {l.label}
               </a>
             ))}

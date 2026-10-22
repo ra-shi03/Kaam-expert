@@ -5,6 +5,7 @@ import { Calendar, CreditCard, MapPin, User, Loader2, Plus, Minus, Clock, CheckC
 import { GlassPanel } from '../ui/GlassPanel.jsx'
 import { bookingsApi } from '../../api/bookingsApi.js'
 import { getLabourBookingShare } from '../../lib/bookingLabourShare.js'
+import { calculateEndTime, formatTime12 } from '../../lib/bookingTimeUtils.js'
 
 const STATUS_STYLES = {
   CREATED: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -102,7 +103,12 @@ export function B2cBookingCard({ booking, isLabour }) {
             </div>
             <span className="font-semibold truncate">
               {booking.type === 'SCHEDULED' && booking.scheduledAt
-                ? `${new Date(booking.scheduledAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at ${booking.timeSlot || ''}`
+                ? (() => {
+                    const formattedDate = new Date(booking.scheduledAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                    const start = formatTime12(booking.timeSlot)
+                    const end = formatTime12(booking.endTime || calculateEndTime(booking.timeSlot, booking.durationMinutes || (booking.hours ? booking.hours * 60 : 60)))
+                    return `${formattedDate} at ${start || ''}${end ? ` – ${end}` : ''}`
+                  })()
                 : booking.createdAt 
                   ? new Date(booking.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                   : '—'}

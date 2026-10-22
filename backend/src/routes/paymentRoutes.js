@@ -12,7 +12,7 @@ router.post(
   '/init',
   [
     body('amount').isNumeric().withMessage('Amount is required'),
-    body('purpose').isIn(['BOOKING', 'WALLET_CLEARANCE', 'INVOICE', 'SUBSCRIPTION', 'WORKFORCE_REQUEST']).withMessage('Invalid purpose'),
+    body('purpose').isIn(['BOOKING', 'WALLET_CLEARANCE', 'WALLET_RECHARGE', 'INVOICE', 'SUBSCRIPTION', 'WORKFORCE_REQUEST']).withMessage('Invalid purpose'),
     body('bookingId').optional().isMongoId(),
     body('invoiceId').optional().isMongoId(),
     body('planId').optional().isMongoId(),

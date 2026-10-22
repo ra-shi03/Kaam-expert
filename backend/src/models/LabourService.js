@@ -48,6 +48,10 @@ const labourServiceSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    images: {
+      type: [String],
+      default: [],
+    },
     hourlyPrice: {
       type: Number,
       default: 0,
@@ -88,12 +92,24 @@ const labourServiceSchema = new mongoose.Schema(
           type: Number,
           default: 0,
         },
+        discountType: {
+          type: String,
+          enum: ['FIXED', 'PERCENTAGE'],
+          default: 'PERCENTAGE',
+        },
+        discountValue: {
+          type: Number,
+          default: 0,
+          min: 0,
+        },
         durationPricing: [
           {
             minutes:  { type: Number, required: true },
             label:    { type: String },
             tag:      { type: String, default: null },
             price:    { type: Number, min: 0, default: 0 },
+            discountType: { type: String, enum: ['FIXED', 'PERCENTAGE'], default: 'PERCENTAGE' },
+            discountValue: { type: Number, default: 0, min: 0 },
             isActive: { type: Boolean, default: true },
             _id: false,
           },
@@ -120,6 +136,8 @@ const labourServiceSchema = new mongoose.Schema(
         label:    { type: String },               // denormalized from SystemSetting
         tag:      { type: String, default: null }, // 'half_day' | 'full_day' | null
         price:    { type: Number, min: 0, required: true },
+        discountType: { type: String, enum: ['FIXED', 'PERCENTAGE'], default: 'PERCENTAGE' },
+        discountValue: { type: Number, default: 0, min: 0 },
         isActive: { type: Boolean, default: true },
         _id: false,
       },

@@ -80,6 +80,28 @@ export const adminSettingsApi = {
     })
   },
 
+  /** Rapido-style prepaid rule for labour cash jobs: { isEnabled, minBalance, minRecharge, maxRecharge } */
+  updateCashWalletSettings: (payload) => {
+    return apiRequest('/admin/settings/cash-wallet', {
+      method: 'PATCH',
+      body: payload,
+    })
+  },
+
+  updateBonusSettings: (payload) => {
+    return apiRequest('/admin/settings/bonus', {
+      method: 'PATCH',
+      body: payload,
+    })
+  },
+
+  updateReferralSettings: (payload) => {
+    return apiRequest('/admin/settings/referral', {
+      method: 'PATCH',
+      body: payload,
+    })
+  },
+
   uploadBranding: (formData) => {
     return apiRequest('/admin/settings/branding', {
       method: 'POST',

@@ -138,6 +138,37 @@ router.patch(
   settings.updatePaymentModes,
 )
 
+router.patch(
+  '/referral',
+  [
+    body('isEnabled').optional().isBoolean(),
+    body('referrerReward').optional().isFloat({ min: 0, max: 100000 }).withMessage('referrerReward must be 0–100000'),
+    body('refereeReward').optional().isFloat({ min: 0, max: 100000 }).withMessage('refereeReward must be 0–100000'),
+    body('rewardTrigger').optional().isIn(['SIGNUP', 'FIRST_COMPLETED_JOB']),
+  ],
+  validateRequest,
+  settings.updateReferralSettings,
+)
+
+router.patch(
+  '/cash-wallet',
+  [
+    body('isEnabled').optional().isBoolean(),
+    body('minBalance').optional().isFloat({ min: 0, max: 100000 }).withMessage('minBalance must be 0–100000'),
+    body('minRecharge').optional().isInt({ min: 1, max: 100000 }).withMessage('minRecharge must be a whole number 1–100000'),
+    body('maxRecharge').optional().isInt({ min: 1, max: 100000 }).withMessage('maxRecharge must be a whole number 1–100000'),
+  ],
+  validateRequest,
+  settings.updateCashWalletSettings,
+)
+
+router.patch(
+  '/bonus',
+  [body('maxAmount').isInt({ min: 1, max: 1000000 }).withMessage('maxAmount must be a whole number 1–1000000')],
+  validateRequest,
+  settings.updateBonusSettings,
+)
+
 router.post(
   '/branding',
   uploadMediaMulter,

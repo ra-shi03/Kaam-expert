@@ -36,12 +36,13 @@ export function sendSuccess(res, { data = null, message = 'Success', statusCode 
  * @param {import('express').Response} res
  * @param {object} options
  */
-export function sendError(res, { message = 'Something went wrong', statusCode = HTTP_STATUS.BAD_REQUEST, code = 'ERROR', errors = null }) {
+export function sendError(res, { message = 'Something went wrong', statusCode = HTTP_STATUS.BAD_REQUEST, code = 'ERROR', errors = null, data }) {
   const body = {
     success: false,
     message,
     code,
     errors,
+    ...(data !== undefined ? { data } : {}),
     meta: {
       timestamp: new Date().toISOString(),
     },

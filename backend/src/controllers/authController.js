@@ -6,6 +6,12 @@ import { signAccessToken } from '../services/tokenService.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import { populateLabourCategories } from '../utils/populateLabourCategories.js'
+import {
+  attachReferralOnSignup,
+  ensureReferralCode,
+  findReferrerByCode,
+  getReferralSettings,
+} from '../services/referralService.js'
 
 function buildAuthPayload(user, token) {
   const safe = user.toSafeObject()
@@ -17,7 +23,7 @@ function buildAuthPayload(user, token) {
 
 /** POST /auth/register/request-otp */
 export const registerRequestOtp = asyncHandler(async (req, res) => {
-  const { phone, role, authGroup } = req.body
+  const { phone, role, authGroup, referralCode } = req.body
   const existing = await User.findOne({ phone })
   if (existing) {
     return sendError(res, {
@@ -41,6 +47,17 @@ export const registerRequestOtp = asyncHandler(async (req, res) => {
       code: 'WRONG_PORTAL',
     })
   }
+  // Reject a mistyped referral code before the OTP goes out, so the user can fix or clear it
+  if (referralCode) {
+    const referralSettings = await getReferralSettings()
+    if (referralSettings.isEnabled && !(await findReferrerByCode(referralCode))) {
+      return sendError(res, {
+        message: 'This referral code is not valid. Check it or leave the field empty.',
+        statusCode: HTTP_STATUS.BAD_REQUEST,
+        code: 'INVALID_REFERRAL_CODE',
+      })
+    }
+  }
   const { challengeId } = await createOtpChallenge(phone, 'register')
   return sendSuccess(res, {
     message: 'OTP sent to your mobile number',
@@ -50,7 +67,7 @@ export const registerRequestOtp = asyncHandler(async (req, res) => {
 
 /** POST /auth/register/verify */
 export const registerVerify = asyncHandler(async (req, res) => {
-  const { phone, code, role, fullName, companyName, gstNumber, businessName, challengeId } = req.body
+  const { phone, code, role, fullName, companyName, gstNumber, businessName, challengeId, referralCode } = req.body
 
   const existing = await User.findOne({ phone })
   if (existing) {
@@ -107,6 +124,15 @@ export const registerVerify = asyncHandler(async (req, res) => {
     })
   }
   await deleteOtpChallengeDoc(otp.doc)
+
+  // Referral setup must never block account creation
+  try {
+    await ensureReferralCode(user)
+    if (referralCode) await attachReferralOnSignup(user, referralCode)
+  } catch (e) {
+    console.error('[referral] signup hook failed:', e?.message || e)
+  }
+
   const token = signAccessToken(user)
   return sendSuccess(res, {
     message: 'Account created',

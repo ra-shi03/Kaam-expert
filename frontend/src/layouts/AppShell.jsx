@@ -47,6 +47,7 @@ export function AppShell() {
     pathname === '/app/my-bookings' ||
     pathname === '/app/search' ||
     pathname === '/app/support' ||
+    pathname === '/app/refer' ||
     pathname === '/app/profile' ||
     pathname === '/app/wallet' ||
     isLabourAppHome ||

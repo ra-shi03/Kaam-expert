@@ -14,6 +14,8 @@ import {
   UserRound,
   Wrench,
   FileText,
+  Gift,
+  Wallet,
 } from 'lucide-react'
 import { USER_ROLES } from '../constants/userRoles.js'
 
@@ -32,6 +34,7 @@ const byRole = {
       { id: 'search', to: '/app/search', label: 'Search skills', icon: Search },
       { id: 'billing', to: '/app/billing', label: 'Invoice & Billing', icon: FileText },
       { id: 'book', to: '/app/my-bookings', label: 'My bookings', icon: ClipboardList },
+      { id: 'refer', to: '/app/refer', label: 'Refer & earn', icon: Gift },
       { id: 'support', to: '/app/support', label: 'Support & issues', icon: LifeBuoy },
       { id: 'privacy', to: '/app/privacy-policy', label: 'Privacy Policy', icon: FileText },
       { id: 'terms', to: '/app/terms-conditions', label: 'Terms & Conditions', icon: FileText },
@@ -54,6 +57,7 @@ const byRole = {
       { id: 'search', to: '/app/search', label: 'Search skills', icon: Search },
       { id: 'book', to: '/app/my-bookings', label: 'Bookings & requests', icon: ClipboardList },
       { id: 'billing', to: '/app/billing', label: 'Invoice & Billing', icon: FileText },
+      { id: 'refer', to: '/app/refer', label: 'Refer & earn', icon: Gift },
       { id: 'support', to: '/app/support', label: 'Support & issues', icon: LifeBuoy },
       { id: 'privacy', to: '/app/privacy-policy', label: 'Privacy Policy', icon: FileText },
       { id: 'terms', to: '/app/terms-conditions', label: 'Terms & Conditions', icon: FileText },
@@ -76,8 +80,10 @@ const byRole = {
       { id: 'jobs', to: '/app/jobs', label: 'Assignments', icon: HardHat },
       { id: 'book', to: '/app/my-bookings', label: 'My bookings', icon: CalendarClock },
       { id: 'earnings', to: '/app/earnings', label: 'Earnings & payouts', icon: IndianRupee },
+      { id: 'wallet', to: '/app/wallet', label: 'Wallet & recharge', icon: Wallet },
       { id: 'kyc', to: '/app/kyc', label: 'Aadhaar KYC', icon: ShieldCheck },
       { id: 'workTypes', to: '/app/work-categories', label: 'Work types', icon: Wrench },
+      { id: 'refer', to: '/app/refer', label: 'Refer & earn', icon: Gift },
       { id: 'support', to: '/app/support', label: 'Support', icon: LifeBuoy },
       { id: 'privacy', to: '/app/privacy-policy', label: 'Privacy Policy', icon: FileText },
       { id: 'terms', to: '/app/terms-conditions', label: 'Terms & Conditions', icon: FileText },
@@ -97,11 +103,13 @@ export function getAppNavigation(role) {
 export function getAppShellTitle(pathname) {
   if (pathname.startsWith('/app/jobs')) return 'Jobs'
   if (pathname.startsWith('/app/earnings')) return 'Earnings'
+  if (pathname.startsWith('/app/wallet')) return 'Wallet'
   if (pathname.startsWith('/app/kyc')) return 'KYC verification'
   if (pathname.startsWith('/app/notifications')) return 'Notifications'
   if (pathname.startsWith('/app/work-categories')) return 'Work types'
   if (pathname.startsWith('/app/booking/flow')) return 'Book labour'
   if (pathname.startsWith('/app/support')) return 'Support'
+  if (pathname.startsWith('/app/refer')) return 'Refer & earn'
   if (pathname.startsWith('/app/subscriptions')) return 'Subscription'
   if (pathname.startsWith('/app/billing')) return 'Invoice & Billing'
   if (pathname.startsWith('/app/profile')) return 'Profile'

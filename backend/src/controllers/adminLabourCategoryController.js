@@ -280,7 +280,7 @@ export const patchSubcategory = asyncHandler(async (req, res) => {
 export const createService = asyncHandler(async (req, res) => {
   const {
     subcategoryId, name, description = '', basePrice = 0, estimatedDurationMins = 60,
-    iconUrl, hourlyPrice = 0, minHours = 1, maxHours = 24,
+    iconUrl, images = [], hourlyPrice = 0, minHours = 1, maxHours = 24,
     discountType = 'PERCENTAGE', discountValue = 0,
     isAllZones = true, zones = [], isActive,
     durationPricing = [],
@@ -322,6 +322,8 @@ export const createService = asyncHandler(async (req, res) => {
           label: d.label || globalOpt?.label || `${d.minutes} min`,
           tag: d.tag || globalOpt?.tag || null,
           price: Number(d.price),
+          discountType: d.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+          discountValue: Math.max(0, Number(d.discountValue) || 0),
           isActive: d.isActive !== false,
         }
       })
@@ -337,18 +339,26 @@ export const createService = asyncHandler(async (req, res) => {
     ? activeSlots[activeSlots.length - 1].minutes / 60
     : Number(maxHours)
 
+  const activeServiceSlotMinutes = new Set(
+    enrichedDurationPricing.filter(d => d.isActive).map(d => d.minutes)
+  )
+
   const cleanZones = Array.isArray(zones)
     ? zones.map((z) => ({
         zone: z.zone?._id || z.zone,
         price: Number(z.price) || 0,
+        discountType: z.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+        discountValue: Math.max(0, Number(z.discountValue) || 0),
         durationPricing: Array.isArray(z.durationPricing)
           ? z.durationPricing
-              .filter((d) => d.minutes > 0 && d.price >= 0)
+              .filter((d) => d.minutes > 0 && d.price >= 0 && (activeServiceSlotMinutes.size === 0 || activeServiceSlotMinutes.has(Number(d.minutes))))
               .map((d) => ({
                 minutes: Number(d.minutes),
                 label: d.label || `${d.minutes} min`,
                 tag: d.tag || null,
                 price: Number(d.price) || 0,
+                discountType: d.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+                discountValue: Math.max(0, Number(d.discountValue) || 0),
                 isActive: d.isActive !== false,
               }))
           : [],
@@ -358,6 +368,7 @@ export const createService = asyncHandler(async (req, res) => {
   const cleanFeatures = Array.isArray(features) ? features.map(f => String(f).trim()).filter(Boolean) : []
   const cleanWhatWeProvide = Array.isArray(whatWeProvide) ? whatWeProvide.map(f => String(f).trim()).filter(Boolean) : []
   const cleanWhatWeDontProvide = Array.isArray(whatWeDontProvide) ? whatWeDontProvide.map(f => String(f).trim()).filter(Boolean) : []
+  const cleanImages = Array.isArray(images) ? images.map(img => String(img).trim()).filter(Boolean) : []
 
   const s = await LabourService.create({
     subcategoryId: subcat._id,
@@ -369,6 +380,7 @@ export const createService = asyncHandler(async (req, res) => {
     basePrice: Number(basePrice),
     estimatedDurationMins: Number(estimatedDurationMins),
     iconUrl: image,
+    images: cleanImages,
     hourlyPrice: Number(hourlyPrice),
     minHours: derivedMinHours,
     maxHours: derivedMaxHours,
@@ -405,7 +417,7 @@ export const patchService = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'Service not found', statusCode: HTTP_STATUS.NOT_FOUND, code: 'NOT_FOUND' })
   }
   const {
-    name, description, basePrice, estimatedDurationMins, isActive, iconUrl,
+    name, description, basePrice, estimatedDurationMins, isActive, iconUrl, images,
     hourlyPrice, minHours, maxHours, discountType, discountValue, isAllZones, zones,
     durationPricing,
     features, whatWeProvide, whatWeDontProvide,
@@ -421,6 +433,9 @@ export const patchService = asyncHandler(async (req, res) => {
   if (whatWeDontProvide != null) {
     s.whatWeDontProvide = Array.isArray(whatWeDontProvide) ? whatWeDontProvide.map(f => String(f).trim()).filter(Boolean) : []
   }
+  if (images != null) {
+    s.images = Array.isArray(images) ? images.map(img => String(img).trim()).filter(Boolean) : []
+  }
   if (basePrice != null) s.basePrice = Number(basePrice)
   if (estimatedDurationMins != null) s.estimatedDurationMins = Number(estimatedDurationMins)
   if (isActive != null) s.isActive = Boolean(isActive)
@@ -430,24 +445,6 @@ export const patchService = asyncHandler(async (req, res) => {
   if (discountType != null) s.discountType = discountType
   if (discountValue != null) s.discountValue = Number(discountValue)
   if (isAllZones != null) s.isAllZones = Boolean(isAllZones)
-  if (zones != null && Array.isArray(zones)) {
-    s.zones = zones.map((z) => ({
-      zone: z.zone,
-      price: Number(z.price) || 0,
-      isActive: z.isActive !== false,
-      durationPricing: Array.isArray(z.durationPricing)
-        ? z.durationPricing
-            .filter((d) => d && Number(d.minutes) > 0 && Number(d.price) >= 0)
-            .map((d) => ({
-              minutes: Number(d.minutes),
-              label: d.label || `${d.minutes} min`,
-              tag: d.tag || null,
-              price: Number(d.price) || 0,
-              isActive: d.isActive !== false,
-            }))
-        : [],
-    }))
-  }
   if (iconUrl !== undefined) {
     const normalized = normalizeImageUrl(iconUrl)
     if (normalized === null) {
@@ -474,6 +471,8 @@ export const patchService = asyncHandler(async (req, res) => {
           label: d.label || globalOpt?.label || `${d.minutes} min`,
           tag: d.tag || globalOpt?.tag || null,
           price: Number(d.price),
+          discountType: d.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+          discountValue: Math.max(0, Number(d.discountValue) || 0),
           isActive: d.isActive !== false,
         }
       })
@@ -485,6 +484,32 @@ export const patchService = asyncHandler(async (req, res) => {
       if (minHours == null) s.minHours = activeSlots[0].minutes / 60
       if (maxHours == null) s.maxHours = activeSlots[activeSlots.length - 1].minutes / 60
     }
+  }
+
+  if (zones != null && Array.isArray(zones)) {
+    const activeServiceSlotMinutes = new Set(
+      (s.durationPricing || []).filter(d => d.isActive).map(d => d.minutes)
+    )
+    s.zones = zones.map((z) => ({
+      zone: z.zone?._id || z.zone,
+      price: Number(z.price) || 0,
+      discountType: z.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+      discountValue: Math.max(0, Number(z.discountValue) || 0),
+      isActive: z.isActive !== false,
+      durationPricing: Array.isArray(z.durationPricing)
+        ? z.durationPricing
+            .filter((d) => d && Number(d.minutes) > 0 && Number(d.price) >= 0 && (activeServiceSlotMinutes.size === 0 || activeServiceSlotMinutes.has(Number(d.minutes))))
+            .map((d) => ({
+              minutes: Number(d.minutes),
+              label: d.label || `${d.minutes} min`,
+              tag: d.tag || null,
+              price: Number(d.price) || 0,
+              discountType: d.discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+              discountValue: Math.max(0, Number(d.discountValue) || 0),
+              isActive: d.isActive !== false,
+            }))
+        : [],
+    }))
   }
 
   await s.save()

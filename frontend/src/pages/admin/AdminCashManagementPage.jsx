@@ -4,6 +4,8 @@ import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { adminSettingsApi } from '../../api/adminSettingsApi.js'
 import { adminBookingsApi } from '../../api/adminBookingsApi.js'
+import { CashWalletRulesCard } from './components/CashWalletRulesCard.jsx'
+import { LabourWalletsPanel } from './components/LabourWalletsPanel.jsx'
 
 export function AdminCashManagementPage() {
   const [settings, setSettings] = useState(null)
@@ -113,8 +115,9 @@ export function AdminCashManagementPage() {
             <GlassPanel className="p-6">
               <h2 className="text-lg font-bold text-slate-800 mb-4">Labour Cash Limit</h2>
               <p className="text-sm text-slate-600 mb-6">
-                When a Labour collects cash, admin commission is added to their dues. 
-                If total dues exceed this limit, they cannot accept new bookings.
+                A cash job’s platform fee is deducted from the labourer’s wallet; whatever the wallet can’t cover becomes dues.
+                Recharges and online earnings clear dues first. If outstanding dues reach this limit, the labourer can’t accept
+                any new booking until they recharge.
               </p>
 
               {errorMsg && (
@@ -155,6 +158,9 @@ export function AdminCashManagementPage() {
                 </div>
               </form>
             </GlassPanel>
+            <div className="mt-6">
+              <CashWalletRulesCard settings={settings} onSaved={fetchSettings} />
+            </div>
           </div>
 
           <div className="lg:col-span-2 space-y-6">
@@ -173,7 +179,7 @@ export function AdminCashManagementPage() {
                         onClick={() => { setPage(1); setSettlementFilter(status) }}
                         className={`px-4 py-2 rounded-md text-sm font-bold transition-all whitespace-nowrap ${settlementFilter === status ? 'bg-white text-brand shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                       >
-                        {status === 'ALL' ? 'All' : status === 'PENDING' ? 'Unpaid' : 'Paid'}
+                        {status === 'ALL' ? 'All' : status === 'PENDING' ? 'Not collected' : 'Collected'}
                       </button>
                     ))}
                   </div>
@@ -229,8 +235,8 @@ export function AdminCashManagementPage() {
                         <th className="pb-3 font-semibold px-4">Labour</th>
                         <th className="pb-3 font-semibold px-4">Service</th>
                         <th className="pb-3 font-semibold px-4 text-right">Total Cash</th>
-                        <th className="pb-3 font-semibold px-4 text-right" title="Amount added to Labour's wallet liability">Admin Dues</th>
-                        <th className="pb-3 font-semibold px-4 text-center">Settlement Status</th>
+                        <th className="pb-3 font-semibold px-4 text-right" title="Deducted from the labourer's wallet when the customer confirms the cash payment">Platform Fee</th>
+                        <th className="pb-3 font-semibold px-4 text-center">Fee Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -277,9 +283,13 @@ export function AdminCashManagementPage() {
                             </td>
                             <td className="py-4 px-4 align-top text-center">
                               <span className={`inline-flex items-center justify-center px-2.5 py-1 text-xs font-bold rounded-full ${
-                                booking.adminSettlementStatus === 'SETTLED' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                                booking.paymentStatus !== 'PAID'
+                                  ? 'bg-slate-100 text-slate-600'
+                                  : booking.adminSettlementStatus === 'SETTLED' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                               }`}>
-                                {booking.adminSettlementStatus === 'SETTLED' ? 'PAID' : 'UNPAID'}
+                                {booking.paymentStatus !== 'PAID'
+                                  ? 'AWAITING CASH'
+                                  : booking.adminSettlementStatus === 'SETTLED' ? 'COLLECTED' : 'IN DUES'}
                               </span>
                             </td>
                           </tr>
@@ -313,6 +323,10 @@ export function AdminCashManagementPage() {
                 </div>
               )}
             </GlassPanel>
+          </div>
+
+          <div className="lg:col-span-3">
+            <LabourWalletsPanel />
           </div>
         </div>
       )}

@@ -9,7 +9,13 @@ const walletSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    /** Withdrawable earnings: online payouts, refunds, referral rewards, bonuses */
     selfBalance: {
+      type: Number,
+      default: 0,
+    },
+    /** Prepaid top-ups (Rapido-style) — used to cover platform fees on cash jobs, not withdrawable */
+    rechargeBalance: {
       type: Number,
       default: 0,
     },

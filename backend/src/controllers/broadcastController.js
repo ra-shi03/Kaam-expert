@@ -2,8 +2,15 @@ import { Booking } from '../models/Booking.js'
 import { BroadcastLog } from '../models/BroadcastLog.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
-import { KYC_STATUS } from '../constants/roles.js'
+import { KYC_STATUS, USER_ROLES } from '../constants/roles.js'
 import { getBroadcastTimeoutMs } from '../services/broadcastService.js'
+import { Wallet } from '../models/Wallet.js'
+import {
+  checkCashJobEligibility,
+  getCashWalletSettings,
+  perLabourCashCut,
+  summarizeWallet,
+} from '../services/walletService.js'
 
 /**
  * Validate that labour can receive/accept bookings.
@@ -85,19 +92,16 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
     })
   }
 
-  // Cash Limit check
-  const { Wallet } = await import('../models/Wallet.js')
-  const { SystemSetting } = await import('../models/SystemSetting.js')
-
-  const wallet = await Wallet.findOne({ userId: labour._id })
-  if (wallet && wallet.adminBalance > 0) {
-    const settings = await SystemSetting.findOne({ configKey: 'master_config' })
-    if (settings && wallet.adminBalance >= (settings.labourCashLimit ?? 500)) {
-      return sendError(res, {
-        message: `Cannot accept new bookings. You owe the admin ₹${wallet.adminBalance}. Please clear your dues first.`,
-        statusCode: HTTP_STATUS.FORBIDDEN,
-      })
-    }
+  // Dues limit: with too much outstanding debt to the platform, no new jobs at all (cash or online)
+  const cashSettings = await getCashWalletSettings()
+  const walletState = summarizeWallet(await Wallet.findOne({ userId: labour._id }).lean())
+  if (walletState.outstandingDues > 0 && walletState.outstandingDues >= cashSettings.labourCashLimit) {
+    return sendError(res, {
+      message: `Cannot accept new bookings. You owe the platform ₹${walletState.outstandingDues}. Recharge your wallet to clear your dues.`,
+      statusCode: HTTP_STATUS.FORBIDDEN,
+      code: 'DUES_LIMIT_REACHED',
+      data: { shortfall: Math.ceil(walletState.outstandingDues) },
+    })
   }
 
   // Fetch booking first to check quantity logic
@@ -123,6 +127,21 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
   // Check if labourer already accepted
   if (booking.acceptedLabourIds && booking.acceptedLabourIds.includes(labour._id)) {
     return sendError(res, { message: 'You have already accepted this booking', statusCode: HTTP_STATUS.CONFLICT })
+  }
+
+  // Rapido-style prepaid rule for individual cash jobs: the labourer keeps the customer's cash, so their
+  // wallet must already hold this job's platform fee (deducted when the customer confirms payment)
+  const isIndividualCashJob = booking.paymentMethod === 'CASH' && !(booking.contractorInfo?.services?.length > 0)
+  if (isIndividualCashJob && labour.role === USER_ROLES.LABOUR && cashSettings.isEnabled) {
+    const check = await checkCashJobEligibility(labour._id, perLabourCashCut(booking), cashSettings)
+    if (!check.allowed) {
+      return sendError(res, {
+        message: `This is a cash job. Recharge your wallet with at least ₹${check.shortfall} — the ₹${check.fee} platform fee is deducted from your wallet when the customer pays you cash.`,
+        statusCode: HTTP_STATUS.FORBIDDEN,
+        code: 'LOW_WALLET_BALANCE',
+        data: check,
+      })
+    }
   }
 
   // === Service Assignment Logic ===

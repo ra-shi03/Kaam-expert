@@ -1,4 +1,3 @@
-import { motion, useReducedMotion } from 'framer-motion'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { comparisonRows, problemPoints } from '../../data/landingContent'
 import { Container } from '../ui/Container'
@@ -6,8 +5,6 @@ import { Reveal } from '../ui/Reveal'
 import { SectionHeading } from '../ui/SectionHeading'
 
 export function ProblemSection() {
-  const reduce = useReducedMotion()
-
   return (
     <section
       id="problem"
@@ -24,27 +21,26 @@ export function ProblemSection() {
           align="center"
         />
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
           {problemPoints.map((p, i) => (
             <Reveal key={p.title} delay={i * 0.06}>
-              <motion.article
-                className="group h-full rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-brand/50 hover:shadow-[0_20px_50px_-24px_rgba(0,43,92,0.18)]"
-                whileHover={reduce ? undefined : { y: -4 }}
+              <article
+                className="group h-full rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 lp-hover-t hover:-translate-y-1.5 hover:border-brand/40 hover:shadow-[0_22px_50px_-24px_rgba(37,99,235,0.28)]"
               >
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-brand/15 text-brand">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-brand/15 text-brand ring-1 ring-transparent lp-hover-t group-hover:scale-110 group-hover:bg-brand group-hover:text-white group-hover:ring-brand">
                   <AlertTriangle className="h-5 w-5" strokeWidth={2} aria-hidden />
                 </div>
                 <h3 className="text-lg font-bold">{p.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-zinc-600">{p.description}</p>
-              </motion.article>
+              </article>
             </Reveal>
           ))}
         </div>
 
-        <Reveal className="mt-14">
+        <Reveal className="mt-10 sm:mt-14" scale={0.98}>
           <div className="overflow-hidden rounded-[2rem] border border-zinc-200 bg-white shadow-[0_24px_80px_-40px_rgba(0,0,0,0.25)]">
             <div className="grid md:grid-cols-2">
-              <div className="border-b border-zinc-100 bg-zinc-50/80 p-6 md:border-b-0 md:border-r md:border-zinc-100">
+              <div className="border-b border-zinc-100 bg-zinc-50/80 p-5 sm:p-6 md:border-b-0 md:border-r md:border-zinc-100">
                 <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-white">
                   <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
                   Traditional method
@@ -61,21 +57,21 @@ export function ProblemSection() {
                   ))}
                 </ul>
               </div>
-              <div className="relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-white p-6 text-slate-800 ring-1 ring-slate-200/80">
-                <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand/15 blur-3xl" />
+              <div className="relative overflow-hidden bg-gradient-to-br from-white via-slate-50 to-white p-5 text-slate-800 sm:p-6 ring-1 ring-slate-200/80">
+                <div className="lp-drift pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand/15 blur-3xl" />
                 <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-sm">
                   <CheckCircle2 className="h-3.5 w-3.5 text-white" aria-hidden />
                   With KaamExpert
                 </div>
                 <ul className="relative space-y-3 text-sm text-slate-600">
-                  {comparisonRows.map((row) => (
-                    <li key={row.aspect} className="flex gap-2">
+                  {comparisonRows.map((row, i) => (
+                    <Reveal as="li" key={row.aspect} x={12} y={0} delay={0.1 + i * 0.05} className="flex gap-2">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
                       <span>
                         <span className="font-semibold text-slate-900">{row.aspect}:</span>{' '}
-                        {row.labourchowck}
+                        {row.kaamexpert}
                       </span>
-                    </li>
+                    </Reveal>
                   ))}
                 </ul>
               </div>

@@ -11,6 +11,7 @@ import {
   ClipboardList,
   FileText,
   Fingerprint,
+  Gift,
   HardHat,
   Home,
   IdCard,
@@ -27,6 +28,7 @@ import {
   Wrench,
   Trash2,
   AlertTriangle,
+  Wallet,
 } from 'lucide-react'
 import { BOOT_ROUTES } from '../../constants/bootFlow.js'
 import { useAuth } from '../../hooks/useAuth.js'
@@ -458,6 +460,7 @@ export function AppProfilePage() {
     quickLinks.push({ to: '/app/my-bookings', icon: CalendarClock, label: 'My Bookings (Direct)' })
     quickLinks.push({ to: '/app/kyc', icon: Fingerprint, label: 'Aadhaar KYC' })
     quickLinks.push({ to: '/app/earnings', icon: Sparkles, label: 'Earnings & payouts' })
+    quickLinks.push({ to: '/app/wallet', icon: Wallet, label: 'Wallet & recharge' })
   } else {
     quickLinks.push({
       to: '/app/my-bookings',
@@ -471,6 +474,7 @@ export function AppProfilePage() {
   if (user?.role === USER_ROLES.CONTRACTOR) {
     quickLinks.push({ to: '/app/workforce', icon: ClipboardList, label: 'Workforce' })
   }
+  quickLinks.push({ to: '/app/refer', icon: Gift, label: 'Refer & earn' })
   quickLinks.push({ to: '/app/support', icon: LifeBuoy, label: 'Support' })
 
   return (
