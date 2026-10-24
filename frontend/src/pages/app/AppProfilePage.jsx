@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { BOOT_ROUTES } from '../../constants/bootFlow.js'
 import { useAuth } from '../../hooks/useAuth.js'
+import { useReferralProgram } from '../../hooks/useReferralProgram.js'
 import {
   KYC_STATUS,
   ROLE_LABELS,
@@ -123,6 +124,7 @@ function QuickLinkCard({ to, icon: Icon, label }) {
 
 export function AppProfilePage() {
   const { user, token, logout, setBootRole } = useAuth()
+  const { showInApp: showReferral } = useReferralProgram()
   const navigate = useNavigate()
   const dispatch = useDispatch()
   const reduce = useReducedMotion()
@@ -474,7 +476,7 @@ export function AppProfilePage() {
   if (user?.role === USER_ROLES.CONTRACTOR) {
     quickLinks.push({ to: '/app/workforce', icon: ClipboardList, label: 'Workforce' })
   }
-  quickLinks.push({ to: '/app/refer', icon: Gift, label: 'Refer & earn' })
+  if (showReferral) quickLinks.push({ to: '/app/refer', icon: Gift, label: 'Refer & earn' })
   quickLinks.push({ to: '/app/support', icon: LifeBuoy, label: 'Support' })
 
   return (

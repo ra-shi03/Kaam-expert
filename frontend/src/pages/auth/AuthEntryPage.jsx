@@ -21,6 +21,7 @@ import { ROLE_LABELS, USER_ROLES } from '../../constants/userRoles.js'
 import { getRoleHomePath } from '../../lib/roleHomePath.js'
 import { requestLoginOtp, requestRegisterOtp, verifyLogin, verifyRegister } from '../../api/authApi.js'
 import { useAuth } from '../../hooks/useAuth.js'
+import { useReferralProgram } from '../../hooks/useReferralProgram.js'
 import { useBranding } from '../../context/BrandingContext.jsx'
 import { ApiError } from '../../api/http.js'
 import {
@@ -102,6 +103,8 @@ export function AuthEntryPage({ authGroup = 'users' }) {
     return fromQuery || readPendingReferralCode()
   })
   const [referralCode, setReferralCode] = useState(invitedCode)
+  const referralProgram = useReferralProgram()
+  const showReferralField = Boolean(invitedCode) || (referralProgram.showInApp && referralProgram.isEnabled)
 
   const [mode, setMode] = useState(invitedCode ? 'register' : 'login')
   const [step, setStep] = useState('form')
@@ -463,6 +466,7 @@ export function AuthEntryPage({ authGroup = 'users' }) {
                         autoComplete="name"
                       />
                     </AuthField>
+                    {showReferralField ? (
                     <AuthField
                       label="Referral code (optional)"
                       hint={
@@ -488,6 +492,7 @@ export function AuthEntryPage({ authGroup = 'users' }) {
                         spellCheck={false}
                       />
                     </AuthField>
+                    ) : null}
                   </>
                 ) : null}
               </div>

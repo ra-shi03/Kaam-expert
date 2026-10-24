@@ -52,9 +52,35 @@ function formatDate(d) {
   return d ? new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'
 }
 
+function ToggleRow({ title, description, checked, disabled, onChange }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-slate-900">{title}</p>
+        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="text-xs font-semibold text-slate-600">{checked ? 'On' : 'Off'}</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
+          aria-label={title}
+          disabled={disabled}
+          onClick={() => onChange(!checked)}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 ${checked ? 'bg-brand' : 'bg-slate-200'}`}
+        >
+          <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ProgramSettings() {
   const [form, setForm] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [togglingKey, setTogglingKey] = useState(null)
   const [notice, setNotice] = useState(null)
 
   useEffect(() => {
@@ -64,6 +90,7 @@ function ProgramSettings() {
         const r = res.data?.settings?.referral || {}
         setForm({
           isEnabled: r.isEnabled ?? true,
+          showInApp: r.showInApp ?? true,
           referrerReward: String(r.referrerReward ?? 50),
           refereeReward: String(r.refereeReward ?? 25),
           rewardTrigger: r.rewardTrigger || 'FIRST_COMPLETED_JOB',
@@ -72,12 +99,27 @@ function ProgramSettings() {
       .catch((e) => setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'Could not load settings' }))
   }, [])
 
+  /** Switches apply immediately, so admins don't have to remember to hit Save to hide the feature */
+  async function saveToggle(key, value, label) {
+    setTogglingKey(key)
+    setNotice(null)
+    setForm((f) => ({ ...f, [key]: value }))
+    try {
+      await adminSettingsApi.updateReferralSettings({ [key]: value })
+      setNotice({ type: 'success', text: `${label} turned ${value ? 'on' : 'off'}` })
+    } catch (e) {
+      setForm((f) => ({ ...f, [key]: !value }))
+      setNotice({ type: 'error', text: e instanceof ApiError ? e.message : 'Could not update setting' })
+    } finally {
+      setTogglingKey(null)
+    }
+  }
+
   async function save() {
     setSaving(true)
     setNotice(null)
     try {
       await adminSettingsApi.updateReferralSettings({
-        isEnabled: form.isEnabled,
         referrerReward: Number(form.referrerReward) || 0,
         refereeReward: Number(form.refereeReward) || 0,
         rewardTrigger: form.rewardTrigger,
@@ -100,24 +142,25 @@ function ProgramSettings() {
 
   return (
     <GlassPanel className="overflow-hidden p-0">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white px-5 py-4">
-        <div>
-          <h3 className="text-sm font-extrabold text-slate-900">Program settings</h3>
-          <p className="text-xs text-slate-500">Rewards are credited (₹) to both users’ wallets</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-700">{form.isEnabled ? 'Enabled' : 'Paused'}</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={form.isEnabled}
-            aria-label="Enable referral program"
-            onClick={() => setForm((f) => ({ ...f, isEnabled: !f.isEnabled }))}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${form.isEnabled ? 'bg-brand' : 'bg-slate-200'}`}
-          >
-            <span aria-hidden="true" className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.isEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-          </button>
-        </div>
+      <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white px-5 py-4">
+        <h3 className="text-sm font-extrabold text-slate-900">Program settings</h3>
+        <p className="text-xs text-slate-500">Rewards are credited (₹) to both users’ wallets</p>
+      </div>
+      <div className="divide-y divide-slate-100 border-b border-slate-100 px-5 py-4">
+        <ToggleRow
+          title="Show in user app"
+          description="Show Refer & earn in the customer, contractor and labour apps (menu, profile, signup). Referral data stays visible here either way."
+          checked={form.showInApp}
+          disabled={togglingKey === 'showInApp'}
+          onChange={(v) => saveToggle('showInApp', v, 'Show in user app')}
+        />
+        <ToggleRow
+          title="Rewards active"
+          description="When off, new referral codes are not accepted and pending referrals don’t pay out."
+          checked={form.isEnabled}
+          disabled={togglingKey === 'isEnabled'}
+          onChange={(v) => saveToggle('isEnabled', v, 'Rewards')}
+        />
       </div>
       <div className="grid gap-4 p-5 md:grid-cols-3">
         <div>
@@ -166,7 +209,7 @@ function ProgramSettings() {
           className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:opacity-95 disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-          Save
+          Save rewards
         </button>
       </div>
     </GlassPanel>

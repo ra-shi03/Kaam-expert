@@ -145,13 +145,14 @@ export const updatePaymentModes = asyncHandler(async (req, res) => {
 })
 
 export const updateReferralSettings = asyncHandler(async (req, res) => {
-  const { isEnabled, referrerReward, refereeReward, rewardTrigger } = req.body
+  const { isEnabled, showInApp, referrerReward, refereeReward, rewardTrigger } = req.body
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })
   if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
 
   if (!settings.referral) settings.referral = {}
 
   if (isEnabled !== undefined) settings.referral.isEnabled = Boolean(isEnabled)
+  if (showInApp !== undefined) settings.referral.showInApp = Boolean(showInApp)
   if (referrerReward !== undefined) settings.referral.referrerReward = Number(referrerReward)
   if (refereeReward !== undefined) settings.referral.refereeReward = Number(refereeReward)
   if (rewardTrigger !== undefined) settings.referral.rewardTrigger = rewardTrigger

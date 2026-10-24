@@ -23,8 +23,13 @@ router.get('/public', async (req, res) => {
     const durationOptions = (cfg?.durationOptions || [])
       .filter((d) => d.isActive)
       .sort((a, b) => a.minutes - b.minutes)
+    // Lets the app hide Refer & earn entry points without an authenticated call
+    const referral = {
+      isEnabled: cfg?.referral?.isEnabled ?? true,
+      showInApp: cfg?.referral?.showInApp ?? true,
+    }
     return sendSuccess(res, {
-      data: { timeSlots, freeTrialMessage, paymentModes, branding, workingHoursPerDay, durationOptions },
+      data: { timeSlots, freeTrialMessage, paymentModes, branding, workingHoursPerDay, durationOptions, referral },
     })
   } catch (e) {
     res.status(500).json({ success: false, message: 'Could not load public settings' })
@@ -142,6 +147,7 @@ router.patch(
   '/referral',
   [
     body('isEnabled').optional().isBoolean(),
+    body('showInApp').optional().isBoolean(),
     body('referrerReward').optional().isFloat({ min: 0, max: 100000 }).withMessage('referrerReward must be 0–100000'),
     body('refereeReward').optional().isFloat({ min: 0, max: 100000 }).withMessage('refereeReward must be 0–100000'),
     body('rewardTrigger').optional().isIn(['SIGNUP', 'FIRST_COMPLETED_JOB']),

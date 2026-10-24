@@ -91,9 +91,11 @@ const systemSettingSchema = new mongoose.Schema(
      * Refer & earn program. Rewards (INR) are credited to both wallets.
      * rewardTrigger: SIGNUP → credit immediately on registration;
      *                FIRST_COMPLETED_JOB → credit when the new user's first booking/job completes.
+     * showInApp: whether the Refer & earn screen and its entry points are visible in the user/labour app.
      */
     referral: {
       isEnabled: { type: Boolean, default: true },
+      showInApp: { type: Boolean, default: true },
       referrerReward: { type: Number, min: 0, default: 50 },
       refereeReward: { type: Number, min: 0, default: 25 },
       rewardTrigger: {

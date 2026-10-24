@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Check, Copy, Gift, Loader2, MessageCircle, Share2, UserPlus, Users, Wallet } from 'lucide-react'
 import { referralsApi } from '../../api/referralsApi.js'
 import { ApiError } from '../../api/http.js'
 import { useAuth } from '../../hooks/useAuth.js'
+import { useReferralProgram } from '../../hooks/useReferralProgram.js'
 import { ROLE_LABELS, USER_ROLES } from '../../constants/userRoles.js'
 import { buildReferralLink } from '../../lib/referralStorage.js'
 import { AppStackScreenHeader } from '../../components/app/AppStackScreenHeader.jsx'
@@ -79,10 +81,12 @@ function formatDate(d) {
 
 export function AppReferralPage() {
   const { user } = useAuth()
+  const referralProgram = useReferralProgram()
   const reduce = useReducedMotion()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [hidden, setHidden] = useState(false)
 
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -96,7 +100,9 @@ export function AppReferralPage() {
         setError('')
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof ApiError ? e.message : 'Could not load your referrals')
+        if (cancelled) return
+        if (e instanceof ApiError && e.code === 'REFERRAL_HIDDEN') setHidden(true)
+        else setError(e instanceof ApiError ? e.message : 'Could not load your referrals')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -129,6 +135,10 @@ export function AppReferralPage() {
     } catch {
       // user dismissed the share sheet
     }
+  }
+
+  if ((referralProgram.loaded && !referralProgram.showInApp) || hidden) {
+    return <Navigate to="/app/profile" replace />
   }
 
   return (

@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Bell, ChevronDown, LogOut, MapPin, Menu, Sparkles, X } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth.js'
+import { useReferralProgram } from '../hooks/useReferralProgram.js'
 import {
   getAppNavigation,
   getAppShellTitle,
@@ -30,7 +31,11 @@ export function AppShell() {
   const headerRef = useRef(null)
   const reduce = useReducedMotion()
 
-  const { headerTagline, bottomNav, drawerNav } = useMemo(() => getAppNavigation(user?.role), [user?.role])
+  const { showInApp: showReferral } = useReferralProgram()
+  const { headerTagline, bottomNav, drawerNav } = useMemo(() => {
+    const nav = getAppNavigation(user?.role)
+    return showReferral ? nav : { ...nav, drawerNav: nav.drawerNav.filter((item) => item.id !== 'refer') }
+  }, [user?.role, showReferral])
 
   const isIndividualAppHome = (user?.role === USER_ROLES.CUSTOMER || user?.role === USER_ROLES.CONTRACTOR) && pathname === '/app'
   const isLabourAppHome = user?.role === USER_ROLES.LABOUR && pathname === '/app'

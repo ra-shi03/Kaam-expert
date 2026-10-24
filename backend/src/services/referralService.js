@@ -11,6 +11,7 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 export const DEFAULT_REFERRAL_SETTINGS = {
   isEnabled: true,
+  showInApp: true,
   referrerReward: 50,
   refereeReward: 25,
   rewardTrigger: 'FIRST_COMPLETED_JOB',
@@ -219,6 +220,7 @@ export async function getReferralOverview(user) {
     code,
     program: {
       isEnabled: settings.isEnabled,
+      showInApp: settings.showInApp,
       referrerReward: settings.referrerReward,
       refereeReward: settings.refereeReward,
       rewardTrigger: settings.rewardTrigger,

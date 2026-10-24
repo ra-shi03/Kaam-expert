@@ -13,6 +13,14 @@ import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 
 /** GET /referrals/me — own code, program terms, stats and the people you invited */
 export const getMyReferrals = asyncHandler(async (req, res) => {
+  const settings = await getReferralSettings()
+  if (!settings.showInApp) {
+    return sendError(res, {
+      message: 'Refer & earn is not available right now',
+      statusCode: HTTP_STATUS.FORBIDDEN,
+      code: 'REFERRAL_HIDDEN',
+    })
+  }
   const data = await getReferralOverview(req.user)
   return sendSuccess(res, { data })
 })

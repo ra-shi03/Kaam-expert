@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from 'framer-motion'
 import { CheckCircle2, Clock, ShieldCheck, Sparkles, Zap } from 'lucide-react'
 
 const TICKER_ITEMS = [
@@ -60,40 +61,53 @@ const TICKER_ITEMS = [
 ]
 
 export function LiveBookingTicker() {
+  const reduce = useReducedMotion()
+
   return (
-    <div
-      className="lp-marquee-wrap relative overflow-hidden border-y border-slate-200/80 bg-white/80 py-3 backdrop-blur-md"
-      aria-label="Recent bookings across KaamExpert"
-    >
+    <div className="relative border-y border-slate-200/80 bg-white/80 py-3 backdrop-blur-md overflow-hidden">
       {/* Soft gradient masks for edge fades */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-white to-transparent sm:w-24" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-white to-transparent sm:w-24" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-white to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-white to-transparent" />
 
       <div className="flex w-max">
-        <div className="lp-marquee flex items-center gap-4 pr-4 sm:gap-6 sm:pr-6">
+        <motion.div
+          className="flex items-center gap-6 pr-6"
+          animate={
+            reduce
+              ? undefined
+              : {
+                  x: ['0%', '-50%'],
+                }
+          }
+          transition={{
+            duration: 32,
+            repeat: Infinity,
+            ease: 'linear',
+          }}
+        >
           {/* Double array for seamless infinite loop */}
           {[...TICKER_ITEMS, ...TICKER_ITEMS].map((item, index) => {
             const Icon = item.icon
             return (
               <div
                 key={index}
-                aria-hidden={index >= TICKER_ITEMS.length ? true : undefined}
-                className="flex items-center gap-2.5 rounded-full border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-md hover:shadow-brand/5 sm:gap-3 sm:px-3.5"
+                className="flex items-center gap-3 rounded-full border border-slate-200/90 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 shadow-xs transition hover:border-slate-300"
               >
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
-                  <Icon className="h-3 w-3" aria-hidden />
+                  <Icon className="h-3 w-3" />
                 </span>
-                <span className="whitespace-nowrap font-semibold text-slate-800">{item.text}</span>
-                <span className="text-slate-400" aria-hidden>·</span>
-                <span className="whitespace-nowrap font-mono text-[11px] text-slate-500">{item.time}</span>
-                <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${item.badgeClass}`}>
+                <span className="font-semibold text-slate-800">{item.text}</span>
+                <span className="text-slate-400">·</span>
+                <span className="font-mono text-[11px] text-slate-500">{item.time}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${item.badgeClass}`}>
                   {item.badge}
                 </span>
               </div>
             )
           })}
-        </div>
+        </motion.div>
       </div>
     </div>
   )
 }
+
