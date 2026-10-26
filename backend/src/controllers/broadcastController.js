@@ -206,9 +206,10 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
     const svcDoc = await LabourService.findById(assignedServiceId).lean()
     assignedServiceName = svcDoc?.name || ''
 
-    // Labour share = price × hours × 90% (platform takes 10%)
+    // Labour share = slotPrice or (price × hours) × 90% (platform takes 10%)
     const bookingHours = booking.duration || booking.hours || 1
-    assignedLabourShare = Math.round(assignedPricePerHour * bookingHours * 0.90)
+    const baseShare = chosenService.slotPrice || Math.round(assignedPricePerHour * bookingHours)
+    assignedLabourShare = Math.round(baseShare * 0.90)
   } else {
     // Simple single-service booking
     const bookingHours = booking.duration || booking.hours || 1
@@ -229,10 +230,22 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
     serviceId: assignedServiceId,
     serviceName: assignedServiceName,
     pricePerHour: assignedPricePerHour,
+    slotPrice: chosenService ? (chosenService.slotPrice || (assignedPricePerHour * (booking.duration || booking.hours || 1))) : undefined,
     labourShare: assignedLabourShare,
     status: 'ACCEPTED',
     startOtp,
     completionOtp
+  })
+
+  console.log('[acceptBroadcast] Assigned labour to booking:', {
+    bookingId: booking._id,
+    isContractor: isContractorBooking,
+    labourId: labour._id,
+    assignedServiceId,
+    assignedServiceName,
+    assignedLabourShare,
+    totalAssigned: booking.assignments.length,
+    status: booking.status,
   })
 
   // For backward compatibility (quantity=1)

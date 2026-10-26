@@ -63,6 +63,7 @@ export const calculateBill = asyncHandler(async (req, res) => {
     quantity,
     address,
     timeSlot,
+    contractorServicesCount: contractorServices?.length,
   })
 
   // Accept durationMinutes (new) OR hours (legacy) — always work in minutes internally
@@ -155,8 +156,9 @@ export const calculateBill = asyncHandler(async (req, res) => {
   let zoneDiscountDetails = null
 
   let slotDisc = null
-  if (serviceId) {
-    const primarySrv = await LabourService.findById(serviceId).lean()
+  const primaryServiceId = serviceId || (contractorServices && contractorServices.length > 0 ? contractorServices[0].serviceId : null)
+  if (primaryServiceId) {
+    const primarySrv = await LabourService.findById(primaryServiceId).lean()
     if (primarySrv) {
       if (matchedZone && Array.isArray(primarySrv.zones)) {
         const zoneItem = primarySrv.zones.find(
@@ -369,6 +371,9 @@ export const createBooking = asyncHandler(async (req, res) => {
   let service = await LabourService.findById(serviceId)
   if (!service) {
     service = await LabourService.findOne({ subcategoryId: serviceId, isActive: true })
+  }
+  if (!service && contractorInfo?.services?.length > 0) {
+    service = await LabourService.findById(contractorInfo.services[0].serviceId)
   }
   if (!service || !service.isActive) {
     return sendError(res, { message: 'Valid and active Service required', statusCode: HTTP_STATUS.BAD_REQUEST })

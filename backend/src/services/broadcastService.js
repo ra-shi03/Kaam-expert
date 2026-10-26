@@ -422,11 +422,13 @@ export async function startBroadcastCycle(bookingId) {
         })
         .map(s => {
           const sId = String(s.serviceId)
-          const labourShare = Math.round((s.price || 0) * bookingHours * 0.90)
+          const unitSlotPrice = s.slotPrice || Math.round((s.price || 0) * bookingHours)
+          const labourShare = Math.round(unitSlotPrice * 0.90)
           return {
             serviceId: sId,
             name: serviceNameMap[sId] || 'Service',
             pricePerHour: s.price || 0,
+            slotPrice: unitSlotPrice,
             estimatedEarnings: labourShare,
             openSlots: openSlotsMap[sId] || 0
           }
@@ -439,11 +441,14 @@ export async function startBroadcastCycle(bookingId) {
             .filter(s => openSlotsMap[String(s.serviceId)] > 0)
             .map(s => {
               const sId = String(s.serviceId)
+              const unitSlotPrice = s.slotPrice || Math.round((s.price || 0) * bookingHours)
+              const labourShare = Math.round(unitSlotPrice * 0.90)
               return {
                 serviceId: sId,
                 name: serviceNameMap[sId] || 'Service',
                 pricePerHour: s.price || 0,
-                estimatedEarnings: Math.round((s.price || 0) * bookingHours * 0.90),
+                slotPrice: unitSlotPrice,
+                estimatedEarnings: labourShare,
                 openSlots: openSlotsMap[sId] || 0
               }
             })

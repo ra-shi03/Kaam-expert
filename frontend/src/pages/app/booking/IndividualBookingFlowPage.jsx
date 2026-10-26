@@ -170,8 +170,8 @@ export function IndividualBookingFlowPage() {
 
   const calculatedEndTime = useMemo(() => {
     const isScheduled = draft.bookingType === 'scheduled' || Boolean(draft.timeSlot) || realUser?.role === 'contractor'
-    if (!isScheduled) return ''
-    const slot = draft.timeSlot || '10:00'
+    if (!isScheduled || !draft.timeSlot) return ''
+    const slot = draft.timeSlot
     const mins = getDraftDurationMinutes(draft)
     return calculateEndTime(slot, mins, true)
   }, [draft.bookingType, draft.timeSlot, draft.durationMinutes, draft.hours, draft.durationKind, draft.durationDays, realUser?.role])
@@ -349,6 +349,17 @@ export function IndividualBookingFlowPage() {
               serviceId: srv ? String(srv._id) : String(cat._id),
               categoryName: cat.name || '',
               serviceName: srv ? srv.name : '',
+              service: srv ? {
+                _id: String(srv._id),
+                name: srv.name,
+                durationPricing: Array.isArray(srv.durationPricing) ? srv.durationPricing : [],
+                zones: Array.isArray(srv.zones) ? srv.zones : [],
+                hourlyPrice: srv.hourlyPrice,
+                basePrice: srv.basePrice,
+                minHours: srv.minHours,
+                maxHours: srv.maxHours,
+              } : undefined,
+              durationPricing: srv?.durationPricing || [],
               groupId: String(g._id),
               groupName: g.name || '',
               minHours: srv?.minHours ?? 1,
@@ -409,19 +420,78 @@ export function IndividualBookingFlowPage() {
 
   const availableDurationSlots = useMemo(() => {
     const isContractor = realUser?.role === 'contractor'
-    const contractorList = draft.contractorServices?.length
-      ? draft.contractorServices
+    const contractorList = (draft.contractorServices && draft.contractorServices.length > 0)
+      ? draft.contractorServices.filter(cs => cs && cs.serviceId)
       : (isContractor ? [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }] : [])
 
-    if (!isContractor && currentServiceObj) {
-      // Check if service has custom duration slots configured by admin
+    console.log('[availableDurationSlots] Computing duration slots:', {
+      isContractor,
+      contractorList,
+      draftServiceId: draft.serviceId,
+      currentServiceName: currentServiceObj?.name,
+      availableServicesCount: availableServicesList.length,
+    })
+
+    // Helper to find service object for an item
+    const getServiceDoc = (sId) => {
+      if (!sId) return null
+      if (draft.service && (String(draft.service._id) === String(sId) || String(draft.service.serviceId) === String(sId)) && Array.isArray(draft.service.durationPricing) && draft.service.durationPricing.length > 0) {
+        return draft.service
+      }
+      return availableServicesList.find(s => String(s._id) === String(sId) || String(s.value) === String(sId))
+        || (String(currentServiceObj?._id) === String(sId) ? currentServiceObj : null)
+    }
+
+    if (isContractor) {
+      // 1. Gather all services in the contractor booking
+      const targetServices = contractorList.map(cs => ({
+        ...cs,
+        srv: getServiceDoc(cs.serviceId)
+      }))
+
+      // 2. Collect admin-configured duration slots from the service(s)
+      const adminSlotMap = new Map()
+      for (const item of targetServices) {
+        const srv = item.srv
+        if (srv && Array.isArray(srv.durationPricing)) {
+          for (const dp of srv.durationPricing) {
+            if (dp && dp.isActive !== false && Number(dp.price) > 0 && !adminSlotMap.has(dp.minutes)) {
+              adminSlotMap.set(dp.minutes, {
+                minutes: dp.minutes,
+                label: dp.label || (dp.minutes < 60 ? `${dp.minutes} min` : `${+(dp.minutes / 60).toFixed(1)} hrs`),
+                tag: dp.tag || null,
+              })
+            }
+          }
+        }
+      }
+
+      if (adminSlotMap.size > 0) {
+        const slots = Array.from(adminSlotMap.values()).map(slot => {
+          const price = targetServices.reduce((acc, item) => {
+            const srv = item.srv
+            const custom = (srv?.durationPricing || []).find(p => p.minutes === slot.minutes && p.isActive !== false)
+            const unitPrice = (custom && Number(custom.price) > 0)
+              ? Number(custom.price)
+              : Math.round((srv?.basePrice || srv?.hourlyPrice || 100) * (slot.minutes / 60))
+            return acc + (unitPrice * (item.quantity || 1))
+          }, 0)
+          return {
+            ...slot,
+            price
+          }
+        }).sort((a, b) => a.minutes - b.minutes)
+        console.log('[availableDurationSlots] Returning admin-set slots for contractor:', slots)
+        return slots
+      }
+    } else if (currentServiceObj) {
+      // Customer / individual flow: Check if service has custom duration slots configured by admin
       const serviceSlots = Array.isArray(currentServiceObj.durationPricing)
         ? currentServiceObj.durationPricing.filter(p => p && p.isActive !== false && Number(p.price) > 0)
         : []
 
       if (serviceSlots.length > 0) {
-        // Return ONLY the time slots configured for this particular service
-        return serviceSlots.map(slot => {
+        const slots = serviceSlots.map(slot => {
           const unitPrice = Number(slot.price) || 0
           const price = unitPrice * (draft.quantity || 1)
           return {
@@ -431,10 +501,13 @@ export function IndividualBookingFlowPage() {
             price
           }
         }).sort((a, b) => a.minutes - b.minutes)
+        console.log('[availableDurationSlots] Returning admin-set slots for customer:', slots)
+        return slots
       }
     }
 
-    // Fallback for contractor multi-service mode or services without durationPricing configured yet
+    // Fallback ONLY when no admin durationPricing is configured for the service(s)
+    console.log('[availableDurationSlots] Falling back to global/default duration options')
     const baseSlots = (globalDurationOptions && globalDurationOptions.length > 0)
       ? globalDurationOptions.filter(o => o.isActive !== false)
       : [
@@ -461,7 +534,7 @@ export function IndividualBookingFlowPage() {
       if (isContractor && contractorList.length > 0) {
         price = contractorList.reduce((acc, cs) => {
           if (!cs.serviceId) return acc
-          const srv = availableServicesList.find(s => String(s._id) === String(cs.serviceId) || String(s.value) === String(cs.serviceId))
+          const srv = getServiceDoc(cs.serviceId)
           if (!srv) return acc
           const custom = (srv.durationPricing || []).find(p => p.minutes === slot.minutes && p.isActive !== false)
           const slotUnitPrice = (custom && custom.price > 0)
@@ -482,7 +555,7 @@ export function IndividualBookingFlowPage() {
         price
       }
     })
-  }, [globalDurationOptions, realUser, draft.contractorServices, draft.serviceId, draft.categoryId, draft.quantity, availableServicesList, currentServiceObj])
+  }, [globalDurationOptions, realUser, draft.contractorServices, draft.service, draft.serviceId, draft.categoryId, draft.quantity, availableServicesList, currentServiceObj])
 
   useEffect(() => {
     if (availableDurationSlots.length > 0) {
@@ -632,7 +705,11 @@ export function IndividualBookingFlowPage() {
         quantity: draft.quantity || 1,
         address: draft.address,
         timeSlot: draft.timeSlot,
-        ...(realUser?.role === 'contractor' ? { contractorServices: draft.contractorServices } : {})
+        ...(realUser?.role === 'contractor' ? {
+          contractorServices: (draft.contractorServices && draft.contractorServices.length > 0)
+            ? draft.contractorServices.filter(cs => cs && cs.serviceId)
+            : [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }]
+        } : {})
       }
       console.log('[BookingFlow:calculateBill] Request:', billPayload)
       bookingsApi.calculateBill(billPayload).then(res => {
@@ -854,7 +931,11 @@ export function IndividualBookingFlowPage() {
         quantity: draft.quantity || 1,
         address: draft.address,
         timeSlot: draft.timeSlot,
-        ...(realUser?.role === 'contractor' ? { contractorServices: draft.contractorServices } : {})
+        ...(realUser?.role === 'contractor' ? {
+          contractorServices: (draft.contractorServices && draft.contractorServices.length > 0)
+            ? draft.contractorServices.filter(cs => cs && cs.serviceId)
+            : [{ serviceId: draft.serviceId || draft.categoryId, quantity: draft.quantity || 1 }]
+        } : {})
       }
       console.log('[BookingFlow:handleReviewBooking] calculateBill Request:', billPayload)
       const res = await bookingsApi.calculateBill(billPayload)
