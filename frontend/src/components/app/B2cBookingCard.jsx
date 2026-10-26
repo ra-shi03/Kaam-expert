@@ -102,16 +102,15 @@ export function B2cBookingCard({ booking, isLabour }) {
               <Calendar className="h-4 w-4 text-brand" />
             </div>
             <span className="font-semibold truncate">
-              {booking.type === 'SCHEDULED' && booking.scheduledAt
-                ? (() => {
-                    const formattedDate = new Date(booking.scheduledAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                    const start = formatTime12(booking.timeSlot)
-                    const end = formatTime12(booking.endTime || calculateEndTime(booking.timeSlot, booking.durationMinutes || (booking.hours ? booking.hours * 60 : 60)))
-                    return `${formattedDate} at ${start || ''}${end ? ` – ${end}` : ''}`
-                  })()
-                : booking.createdAt 
-                  ? new Date(booking.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                  : '—'}
+              {(() => {
+                const totalMins = (booking.durationMinutes || (booking.hours ? Math.round(booking.hours * 60) : 60)) + (booking.extraMinutes || 0)
+                const start = formatTime12(booking.timeSlot) || (booking.createdAt ? new Date(booking.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '')
+                const end = formatTime12(booking.endTime || calculateEndTime(booking.timeSlot || start, totalMins))
+                const dateStr = booking.type === 'SCHEDULED' && booking.scheduledAt
+                  ? new Date(booking.scheduledAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : (booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Today')
+                return `${dateStr}${start ? ` at ${start}` : ''}${end ? ` – ${end}` : ''}`
+              })()}
             </span>
           </div>
 

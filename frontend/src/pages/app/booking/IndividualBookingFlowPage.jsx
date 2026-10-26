@@ -620,18 +620,24 @@ export function IndividualBookingFlowPage() {
       setIsCalculating(true)
       const days = durationKindToDays(draft.durationKind, draft.durationDays)
       const kind = draft.durationKind || 'few_hours'
-      const hours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
-      const durationMinutes = draft.durationMinutes || Math.round(hours * 60)
-      bookingsApi.calculateBill({
+      const durationMinutes = draft.durationMinutes
+        ? Number(draft.durationMinutes)
+        : (draft.hours ? Math.round(Number(draft.hours) * 60) : (days > 0 ? days * 8 * 60 : (kind === 'half_day' ? 240 : 480)))
+      const hours = +(durationMinutes / 60).toFixed(1)
+      const billPayload = {
         serviceId: draft.serviceId || draft.categoryId,
         hours,
         durationMinutes,
         selectedSlotLabel: draft.selectedSlotLabel,
         quantity: draft.quantity || 1,
         address: draft.address,
+        timeSlot: draft.timeSlot,
         ...(realUser?.role === 'contractor' ? { contractorServices: draft.contractorServices } : {})
-      }).then(res => {
+      }
+      console.log('[BookingFlow:calculateBill] Request:', billPayload)
+      bookingsApi.calculateBill(billPayload).then(res => {
         if (!cancelled) {
+          console.log('[BookingFlow:calculateBill] Response:', res.data)
           setCalculatedBill(res.data)
           syncDraft({ billAmount: res.data.totalAmount })
         }
@@ -836,10 +842,12 @@ export function IndividualBookingFlowPage() {
     try {
       const days = durationKindToDays(draft.durationKind, draft.durationDays)
       const kind = draft.durationKind || 'few_hours'
-      const hours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
-      const durationMinutes = draft.durationMinutes || Math.round(hours * 60)
-      const res = await bookingsApi.calculateBill({
-        serviceId: draft.serviceId || draft.contractorServices?.[0]?.serviceId || draft.categoryId, // Fallback
+      const durationMinutes = draft.durationMinutes
+        ? Number(draft.durationMinutes)
+        : (draft.hours ? Math.round(Number(draft.hours) * 60) : (days > 0 ? days * 8 * 60 : (kind === 'half_day' ? 240 : 480)))
+      const hours = +(durationMinutes / 60).toFixed(1)
+      const billPayload = {
+        serviceId: draft.serviceId || draft.contractorServices?.[0]?.serviceId || draft.categoryId,
         hours,
         durationMinutes,
         selectedSlotLabel: draft.selectedSlotLabel,
@@ -847,8 +855,13 @@ export function IndividualBookingFlowPage() {
         address: draft.address,
         timeSlot: draft.timeSlot,
         ...(realUser?.role === 'contractor' ? { contractorServices: draft.contractorServices } : {})
-      })
-      const computedEnd = draft.bookingType === 'scheduled' ? calculateEndTime(draft.timeSlot, durationMinutes) : ''
+      }
+      console.log('[BookingFlow:handleReviewBooking] calculateBill Request:', billPayload)
+      const res = await bookingsApi.calculateBill(billPayload)
+      console.log('[BookingFlow:handleReviewBooking] calculateBill Response:', res.data)
+      const computedEnd = draft.bookingType === 'scheduled'
+        ? calculateEndTime(draft.timeSlot, durationMinutes)
+        : calculateEndTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }), durationMinutes)
       setCalculatedBill(res.data)
       syncDraft({ billAmount: res.data.totalAmount, endTime: computedEnd })
 
@@ -895,10 +908,13 @@ export function IndividualBookingFlowPage() {
 
       const days = durationKindToDays(draft.durationKind, draft.durationDays)
       const kind = draft.durationKind || 'few_hours'
-      const fallbackHours = draft.bookingType === 'instant' ? (draft.hours || draft.minHours || 1) : (days > 0 ? days * 8 : (kind === 'few_hours' ? (draft.hours || draft.minHours || 1) : (kind === 'half_day' ? 4 : 8)))
-      const durationMinutes = draft.durationMinutes || Math.round(fallbackHours * 60)
+      const durationMinutes = draft.durationMinutes
+        ? Number(draft.durationMinutes)
+        : (draft.hours ? Math.round(Number(draft.hours) * 60) : (days > 0 ? days * 8 * 60 : (kind === 'half_day' ? 240 : 480)))
       const hours = +(durationMinutes / 60).toFixed(2)
-      const computedEnd = draft.bookingType === 'scheduled' ? calculateEndTime(draft.timeSlot, durationMinutes) : undefined
+      const computedEnd = draft.bookingType === 'scheduled'
+        ? calculateEndTime(draft.timeSlot, durationMinutes)
+        : calculateEndTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }), durationMinutes)
       const resolvedPaymentMethod = realUser?.role === 'contractor'
         ? 'ONLINE'
         : String(draft.paymentMethod || 'CASH').toUpperCase()

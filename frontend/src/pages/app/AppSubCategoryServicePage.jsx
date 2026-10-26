@@ -98,6 +98,7 @@ export function AppSubCategoryServicePage() {
       const rawPrice = slot?.price != null ? Number(slot.price) : Math.round(durationHours * (service.hourlyPrice || 0))
       const effectivePrice = slot?.discountedPrice != null ? Number(slot.discountedPrice) : rawPrice
       const slotLabel = slot?.label || (durationHours === 1 ? '1 Hour' : `${durationHours} Hours`)
+      const durationKind = slot?.tag || (durationHours === 6 || durationMins === 360 ? 'half_day' : (durationHours === 12 || durationMins === 720 ? 'full_day' : 'few_hours'))
 
       const serviceData = {
         _id: String(service._id),
@@ -127,6 +128,7 @@ export function AppSubCategoryServicePage() {
         minHours: service.minHours || 1,
         maxHours: service.maxHours || 24,
         durationMinutes: durationMins,
+        durationKind,
         selectedSlotLabel: slotLabel,
         slotPrice: effectivePrice,
         baseSlotPrice: rawPrice,

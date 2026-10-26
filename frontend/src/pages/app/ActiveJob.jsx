@@ -577,27 +577,30 @@ export function ActiveJob() {
                 </GlassPanel>
               ) : status === 'STARTED' ? (
                 <GlassPanel className="space-y-4 border-blue-600/20 bg-blue-50 p-4 text-left">
-                  {booking.hours && (
+                  {(booking.hours || booking.durationMinutes) && (
                     <div className="rounded-xl border border-blue-200 bg-white p-3 text-center mb-2">
                       <Clock className="mx-auto mb-1 h-5 w-5 text-blue-500" />
                       <p className="text-xs font-bold uppercase text-blue-800">Job Time Remaining</p>
                       <p className="text-xl font-black tabular-nums text-blue-900 tracking-wider">
                         {(() => {
                           let startedAt;
-                          let myExtraHours = booking.extraHours || 0;
+                          let myExtraHours = (booking.extraMinutes ? booking.extraMinutes / 60 : (booking.extraHours || 0));
                           if (booking.assignments && booking.assignments.length > 0 && user) {
                             const myAssignment = booking.assignments.find(a => {
                               const aId = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
                               return String(aId) === String(user._id);
                             });
                             startedAt = myAssignment?.startedAt;
-                            if (myAssignment?.extraHours) {
+                            if (myAssignment?.extraMinutes) {
+                              myExtraHours += myAssignment.extraMinutes / 60;
+                            } else if (myAssignment?.extraHours) {
                               myExtraHours += myAssignment.extraHours;
                             }
                           }
                           startedAt = startedAt || booking.startedAt || new Date();
                           
-                          const totalHours = (booking.hours || 1) + myExtraHours;
+                          const baseHours = booking.durationMinutes ? (booking.durationMinutes / 60) : (booking.hours || 1);
+                          const totalHours = baseHours + myExtraHours;
                           const durationMs = totalHours * 60 * 60 * 1000;
                           const elapsed = now - new Date(startedAt).getTime();
                           const remaining = Math.max(0, durationMs - elapsed);

@@ -15,6 +15,7 @@ export function BroadcastPopup() {
   const user = useSelector((s) => s.auth.user)
   const timerRef = useRef(null)
   const lastFetchRef = useRef(0)
+  const initialTimeoutRef = useRef(30)
 
   const [incoming, setIncoming] = useState(null)
   const [timeLeft, setTimeLeft] = useState(30)
@@ -37,6 +38,7 @@ export function BroadcastPopup() {
       const timeout = isSched
         ? Math.max(30, Math.floor((new Date(data.scheduledAt || data.date).getTime() - Date.now()) / 1000))
         : Math.floor((data.timeoutMs || 30000) / 1000)
+      initialTimeoutRef.current = timeout
       setIncoming(data)
       setTimeLeft(timeout)
       setError('')
@@ -72,6 +74,7 @@ export function BroadcastPopup() {
             : Math.floor((offer.timeoutMs || 30000) / 1000)
           setIncoming((prev) => {
             if (prev?.bookingId === offer.bookingId) return prev
+            initialTimeoutRef.current = timeout
             setTimeLeft(timeout)
             return offer
           })
@@ -213,11 +216,11 @@ export function BroadcastPopup() {
           >
             {/* Timer Bar */}
             <div className="relative h-1.5 overflow-hidden rounded-t-3xl bg-slate-100">
-              <motion.div
-                initial={{ width: '100%' }}
-                animate={{ width: '0%' }}
-                transition={{ duration: Math.max(1, timeLeft), ease: 'linear' }}
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-brand to-blue-400"
+              <div
+                className="h-full bg-gradient-to-r from-brand to-blue-400 transition-[width] duration-1000 ease-linear"
+                style={{
+                  width: `${Math.max(0, Math.min(100, (timeLeft / (initialTimeoutRef.current || 30)) * 100))}%`,
+                }}
               />
             </div>
 
@@ -332,11 +335,21 @@ export function BroadcastPopup() {
                     )}
                   </div>
                 ) : null}
-                {(incoming.date || incoming.time) && (
+                {incoming.type === 'SCHEDULED' && incoming.date && (
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">Schedule</span>
+                    <span className="text-slate-500">Date</span>
                     <span className="font-bold text-slate-800">
-                      {incoming.date ? new Date(incoming.date).toLocaleDateString() : ''} {incoming.time ? `at ${incoming.time}` : ''}
+                      {new Date(incoming.date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
+                )}
+                {(incoming.timeRange || incoming.startTime || incoming.time) && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-500">Timing</span>
+                    <span className="font-bold text-slate-800 text-right">
+                      {incoming.timeRange
+                        ? incoming.timeRange
+                        : (incoming.startTime && incoming.endTime ? `${incoming.startTime} – ${incoming.endTime}` : incoming.time)}
                     </span>
                   </div>
                 )}

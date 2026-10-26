@@ -56,6 +56,15 @@ export const calculateBill = asyncHandler(async (req, res) => {
     timeSlot,
   } = req.body
 
+  console.log('[calculateBill] Request received:', {
+    serviceId,
+    durationMinutes: rawMins,
+    hours: rawHours,
+    quantity,
+    address,
+    timeSlot,
+  })
+
   // Accept durationMinutes (new) OR hours (legacy) — always work in minutes internally
   const durationMinutes = rawMins
     ? Math.max(1, parseInt(rawMins))
@@ -145,10 +154,10 @@ export const calculateBill = asyncHandler(async (req, res) => {
   let zoneDiscountLabel = ''
   let zoneDiscountDetails = null
 
+  let slotDisc = null
   if (serviceId) {
     const primarySrv = await LabourService.findById(serviceId).lean()
     if (primarySrv) {
-      let slotDisc = null
       if (matchedZone && Array.isArray(primarySrv.zones)) {
         const zoneItem = primarySrv.zones.find(
           (z) => String(z.zone?._id || z.zone) === String(matchedZone._id)
@@ -196,6 +205,15 @@ export const calculateBill = asyncHandler(async (req, res) => {
         }
       }
 
+      // 4. Service-level general discount fallback
+      if (!slotDisc && Number(primarySrv.discountValue) > 0) {
+        slotDisc = {
+          type: primarySrv.discountType || 'PERCENTAGE',
+          value: Number(primarySrv.discountValue),
+          source: 'service_general',
+        }
+      }
+
       if (slotDisc && slotDisc.value > 0) {
         if (slotDisc.type === 'FIXED') {
           zoneDiscount = Math.min(subTotal, Math.round(slotDisc.value))
@@ -214,14 +232,27 @@ export const calculateBill = asyncHandler(async (req, res) => {
     }
   }
 
-  // Max hour discount triggers at 480 min (8 hrs) or above
+  // Max hour discount triggers at 480 min (8 hrs) or above, ONLY for standard hourly bookings without slot discount
   let maxHourDiscount = 0
-  if (durationMinutes >= 480 && settings.maxHourDiscountPercentage > 0) {
+  if (!slotDisc && durationMinutes >= 480 && settings.maxHourDiscountPercentage > 0) {
     maxHourDiscount = Math.round((subTotal * settings.maxHourDiscountPercentage) / 100)
+    if (!zoneDiscountLabel) {
+      zoneDiscountLabel = `${settings.maxHourDiscountPercentage}% Off (8+ Hours)`
+    }
   }
 
   const totalDiscount = zoneDiscount + maxHourDiscount
   let basePrice = Math.max(0, Math.round(subTotal - totalDiscount))
+
+  console.log('[calculateBill] Discount & Price breakdown:', {
+    subTotal,
+    slotDisc,
+    zoneDiscount,
+    zoneDiscountLabel,
+    maxHourDiscount,
+    totalDiscount,
+    basePrice,
+  })
   let platformFee = 0
   if (settings.platformFee.isActive) {
     platformFee =
@@ -422,6 +453,14 @@ export const createBooking = asyncHandler(async (req, res) => {
       }
     }
 
+    // 4. Service-level general discount fallback
+    if (!slotDisc && Number(service.discountValue) > 0) {
+      slotDisc = {
+        type: service.discountType || 'PERCENTAGE',
+        value: Number(service.discountValue),
+      }
+    }
+
     if (slotDisc && slotDisc.value > 0) {
       if (slotDisc.type === 'FIXED') {
         zoneDiscount = Math.min(subTotal, Math.round(slotDisc.value))
@@ -431,14 +470,25 @@ export const createBooking = asyncHandler(async (req, res) => {
     }
   }
 
-  // Max hour discount: 480 min (8 hrs) threshold
+  // Max hour discount: 480 min (8 hrs) threshold — only if no slot/zone discount already applied
   let maxHourDiscount = 0
-  if (durationMinutes >= 480 && settings?.maxHourDiscountPercentage > 0) {
+  if (!slotDisc && durationMinutes >= 480 && settings?.maxHourDiscountPercentage > 0) {
     maxHourDiscount = Math.round((subTotal * settings.maxHourDiscountPercentage) / 100)
   }
 
   const totalDiscount = zoneDiscount + maxHourDiscount
   const basePrice = Math.max(0, Math.round(subTotal - totalDiscount))
+
+  console.log('[createBooking] Booking Price & Discount Breakdown:', {
+    serviceId: service._id,
+    durationMinutes,
+    subTotal,
+    slotDisc,
+    zoneDiscount,
+    maxHourDiscount,
+    totalDiscount,
+    basePrice,
+  })
   let platformFee = 0
   if (settings?.platformFee?.isActive) {
     platformFee = settings.platformFee.type === 'fixed'
@@ -491,14 +541,19 @@ export const createBooking = asyncHandler(async (req, res) => {
     totalQuantity = contractorInfo.services.reduce((acc, curr) => acc + (curr.quantity || 1), 0)
   }
 
+  const nowIST = new Date()
+  const instantStartStr = nowIST.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
+  const bookingTimeSlot = type === 'SCHEDULED' ? timeSlot : (timeSlot || instantStartStr)
+  const bookingEndTime = endTime || (bookingTimeSlot ? calculateEndTime(bookingTimeSlot, durationMinutes) : undefined)
+
   const booking = await Booking.create({
     userId: req.user._id,
     subcategoryId: service.subcategoryId,
     serviceId: service._id,
     type,
     scheduledAt: type === 'SCHEDULED' ? parseISTDateTime(scheduledAt, timeSlot) : undefined,
-    timeSlot: type === 'SCHEDULED' ? timeSlot : (type === 'INSTANT' ? timeSlot : undefined),
-    endTime: type === 'SCHEDULED' ? (endTime || calculateEndTime(timeSlot, durationMinutes) || undefined) : undefined,
+    timeSlot: bookingTimeSlot,
+    endTime: bookingEndTime,
     images: Array.isArray(imageNames) ? imageNames : [],
     notes,
     hours,               // backward compat (= durationMinutes / 60)
@@ -1079,6 +1134,20 @@ export const addExtraTime = asyncHandler(async (req, res) => {
   booking.totalAmount = newTotalAmount
   booking.commissionAmount = commissionAmount
   booking.laborShare = laborShare
+
+  if (booking.timeSlot) {
+    const totalJobMinutes = (booking.durationMinutes || (booking.hours ? Math.round(booking.hours * 60) : 60)) + (booking.extraMinutes || 0)
+    booking.endTime = calculateEndTime(booking.timeSlot, totalJobMinutes)
+  }
+
+  console.log('[addExtraTime] Extra time applied:', {
+    bookingId: booking._id,
+    extraMinutes,
+    extraHours,
+    addedBasePrice,
+    newTotalAmount,
+    newEndTime: booking.endTime,
+  })
 
   await booking.save()
 

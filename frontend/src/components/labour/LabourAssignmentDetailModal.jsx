@@ -452,18 +452,23 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                     <div className="space-y-4">
                       {(() => {
                         let startedAt = activeRawJob.startedAt;
-                        let myExtraHours = activeRawJob.extraHours || 0;
+                        let myExtraHours = (activeRawJob.extraMinutes ? activeRawJob.extraMinutes / 60 : (activeRawJob.extraHours || 0));
                         if (activeRawJob.assignments && activeRawJob.assignments.length > 0 && user) {
                           const myAssignment = activeRawJob.assignments.find(a => {
                             const aId = typeof a.labourId === 'object' ? a.labourId._id : a.labourId;
                             return String(aId) === String(user._id);
                           });
                           if (myAssignment?.startedAt) startedAt = myAssignment.startedAt;
-                          if (myAssignment?.extraHours) myExtraHours += myAssignment.extraHours;
+                          if (myAssignment?.extraMinutes) {
+                            myExtraHours += myAssignment.extraMinutes / 60;
+                          } else if (myAssignment?.extraHours) {
+                            myExtraHours += myAssignment.extraHours;
+                          }
                         }
                         // Default to now if not available yet but status is started
                         startedAt = startedAt || new Date();
-                        const totalHours = (activeRawJob.hours || 1) + myExtraHours;
+                        const baseHours = activeRawJob.durationMinutes ? (activeRawJob.durationMinutes / 60) : (activeRawJob.hours || 1);
+                        const totalHours = baseHours + myExtraHours;
                         return <JobCountdownTimer startedAt={startedAt} hours={totalHours} />;
                       })()}
                       <div>

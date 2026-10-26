@@ -9,6 +9,7 @@ import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 import { emitToUser, getIo } from '../socket.js'
 import { LabourService } from '../models/LabourService.js'
 import { perLabourCashCut } from './walletService.js'
+import { formatTime12, calculateEndTime } from '../utils/dateHelper.js'
 
 // Track active broadcast timeouts (shared with cron for orphan recovery)
 export const activeBroadcastTimeouts = new Set()
@@ -352,6 +353,48 @@ export async function startBroadcastCycle(bookingId) {
     })
   }
 
+  const totalDurationMins = booking.durationMinutes
+    || (booking.hours ? Math.round(booking.hours * 60) : 60)
+
+  let broadcastStartTime = booking.timeSlot
+  if (!broadcastStartTime) {
+    if (booking.type === 'SCHEDULED' && booking.scheduledAt) {
+      broadcastStartTime = new Date(booking.scheduledAt).toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+    } else {
+      const createdDate = booking.createdAt ? new Date(booking.createdAt) : new Date()
+      const instantStr = createdDate.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })
+      broadcastStartTime = `ASAP (${instantStr})`
+    }
+  }
+
+  let cleanStartTime = booking.timeSlot
+  if (!cleanStartTime) {
+    const refDate = (booking.type === 'SCHEDULED' && booking.scheduledAt)
+      ? new Date(booking.scheduledAt)
+      : (booking.createdAt ? new Date(booking.createdAt) : new Date())
+    cleanStartTime = refDate.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+  }
+
+  const broadcastEndTime = booking.endTime || calculateEndTime(cleanStartTime, totalDurationMins)
+  const broadcastTimeRange = broadcastStartTime && broadcastEndTime
+    ? `${broadcastStartTime} – ${broadcastEndTime}`
+    : (broadcastStartTime || 'Earliest available')
+
   const laborUpdates = []
 
   for (const labor of eligibleLaborers) {
@@ -418,8 +461,11 @@ export async function startBroadcastCycle(bookingId) {
         requiresServiceSelection: servicesPayload.length > 1,
         date: booking.scheduledAt || booking.createdAt,
         scheduledAt: booking.scheduledAt,
-        time: booking.timeSlot || 'Earliest available',
-        timeSlot: booking.timeSlot || 'Earliest available',
+        time: broadcastTimeRange,
+        timeSlot: booking.timeSlot || broadcastStartTime,
+        startTime: broadcastStartTime,
+        endTime: broadcastEndTime,
+        timeRange: broadcastTimeRange,
         duration: displayDuration,
         durationMinutes: booking.durationMinutes,
         selectedSlotLabel: booking.selectedSlotLabel || displayDuration,
@@ -467,8 +513,11 @@ export async function startBroadcastCycle(bookingId) {
         requiresServiceSelection: false,
         date: booking.scheduledAt || booking.createdAt,
         scheduledAt: booking.scheduledAt,
-        time: booking.timeSlot || 'Earliest available',
-        timeSlot: booking.timeSlot || 'Earliest available',
+        time: broadcastTimeRange,
+        timeSlot: booking.timeSlot || broadcastStartTime,
+        startTime: broadcastStartTime,
+        endTime: broadcastEndTime,
+        timeRange: broadcastTimeRange,
         duration: displayDuration,
         durationMinutes: booking.durationMinutes,
         selectedSlotLabel: booking.selectedSlotLabel || displayDuration,
