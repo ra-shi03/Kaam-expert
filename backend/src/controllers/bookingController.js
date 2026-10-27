@@ -568,9 +568,11 @@ export const createBooking = asyncHandler(async (req, res) => {
     durationKind,        // auto from slot tag
     quantity: totalQuantity,
     contractorInfo,
+    subTotal,
     maxHourDiscount,
     zoneDiscount,
     discount: totalDiscount,
+    discountLabel: req.body.zoneDiscountLabel || zoneDiscountLabel || '',
     address: {
       locationText,
       coordinates: {

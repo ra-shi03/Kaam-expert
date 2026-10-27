@@ -94,6 +94,10 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    subTotal: {
+      type: Number,
+      default: 0,
+    },
     maxHourDiscount: {
       type: Number,
       default: 0,
@@ -105,6 +109,10 @@ const bookingSchema = new mongoose.Schema(
     discount: {
       type: Number,
       default: 0,
+    },
+    discountLabel: {
+      type: String,
+      default: '',
     },
     address: {
       locationText: { type: String, required: true, trim: true },

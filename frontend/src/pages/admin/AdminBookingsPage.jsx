@@ -544,6 +544,39 @@ function BookingDetailsModal({ booking, onClose }) {
       : ''
   )
 
+  // Discount calculations
+  const totalDiscount = Number(booking.discount || ((booking.zoneDiscount || 0) + (booking.maxHourDiscount || 0)) || 0)
+  const initialBasePrice = (hasExtraTime && totalExtraAmount > 0)
+    ? Math.max(0, completedBill.completedBasePrice - totalExtraAmount)
+    : completedBill.completedBasePrice
+  const originalServiceFee = (booking.subTotal && Number(booking.subTotal) > 0)
+    ? Number(booking.subTotal)
+    : (initialBasePrice + totalDiscount)
+  const discountPercent = totalDiscount > 0 && originalServiceFee > 0
+    ? Math.round((totalDiscount / originalServiceFee) * 100)
+    : 0
+  const discountLabelText = booking.discountLabel ||
+    (booking.zoneDiscount > 0
+      ? (booking.zoneDiscountLabel || `${discountPercent}% Off`)
+      : (booking.maxHourDiscount > 0 ? 'Max-Hour Discount' : (discountPercent > 0 ? `${discountPercent}% Off` : 'Admin Discount')))
+
+  // Commission and Labour Share calculations
+  const effectiveCommission = completedBill.isContractorBooking
+    ? Math.round(completedBill.completedBasePrice * 0.10)
+    : (booking.commissionAmount !== undefined && booking.commissionAmount !== null
+        ? booking.commissionAmount
+        : Math.round(completedBill.completedBasePrice * 0.10))
+
+  const effectiveLaborShare = completedBill.isContractorBooking
+    ? Math.round(completedBill.completedBasePrice * 0.90)
+    : (booking.laborShare !== undefined && booking.laborShare !== null
+        ? booking.laborShare
+        : Math.max(0, completedBill.completedBasePrice - effectiveCommission))
+
+  const effectiveCommissionPercent = completedBill.completedBasePrice > 0 && effectiveCommission > 0
+    ? Math.round((effectiveCommission / completedBill.completedBasePrice) * 100)
+    : 10
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
@@ -669,10 +702,10 @@ function BookingDetailsModal({ booking, onClose }) {
                         const hours = booking.duration || booking.hours || 1;
                         share = Math.round(matchedSvc.price * hours * 0.90);
                       } else {
-                        share = booking.laborShare / booking.assignments.length;
+                        share = effectiveLaborShare / (booking.assignments.length || 1);
                       }
                     } else {
-                      share = booking.laborShare / booking.assignments.length;
+                      share = effectiveLaborShare / (booking.assignments.length || 1);
                     }
                     // Service name resolution priority:
                     // 1. Stored snapshot (a.serviceName) — set for new bookings at acceptance time
@@ -703,7 +736,11 @@ function BookingDetailsModal({ booking, onClose }) {
                             <p className="text-xs text-slate-600">{a.labourId?.phone || 'Awaiting Worker'}</p>
                             <p className="text-xs text-slate-500 mt-0.5">
                               Service: <span className="font-semibold text-slate-700">{assignedServiceName}</span>
-                              {a.pricePerHour > 0 && <span className="ml-1 text-slate-400">· ₹{a.pricePerHour}/hr</span>}
+                              {booking.selectedSlotLabel ? (
+                                <span className="ml-1 text-brand font-medium">({booking.selectedSlotLabel})</span>
+                              ) : (
+                                a.pricePerHour > 0 && <span className="ml-1 text-slate-400">· ₹{a.pricePerHour}/hr</span>
+                              )}
                             </p>
                             <div className="flex flex-wrap items-center gap-1.5 mt-1">
                               <p className="text-xs font-semibold text-brand uppercase">{a.status}</p>
@@ -839,8 +876,28 @@ function BookingDetailsModal({ booking, onClose }) {
                 <span className="font-bold">Adjusted for Completed Work:</span> {completedBill.totalCompletedLabours} of {completedBill.totalRequestedLabours} labours completed. Unfulfilled service amount (-₹{completedBill.deductedBasePrice}) deducted.
               </div>
             ) : null}
+
+            {/* Discount given by admin on this service */}
+            {totalDiscount > 0 && (
+              <>
+                <div className="flex justify-between text-xs text-slate-600 py-1">
+                  <span>Service Fee (Original):</span>
+                  <span className="font-semibold text-slate-900">₹{originalServiceFee}</span>
+                </div>
+                <div className="flex justify-between text-xs text-emerald-600 py-1 font-semibold">
+                  <span className="flex items-center gap-1.5">
+                    <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-extrabold text-emerald-800 tracking-wider">
+                      DISCOUNT
+                    </span>
+                    Discount ({discountLabelText}):
+                  </span>
+                  <span className="font-bold text-emerald-600">-₹{totalDiscount}</span>
+                </div>
+              </>
+            )}
+
             <div className="flex justify-between text-xs text-slate-600 py-1">
-              <span>{hasExtraTime && totalExtraAmount > 0 ? 'Base Price (Initial):' : 'Base Price:'}</span>
+              <span>{totalDiscount > 0 ? (hasExtraTime && totalExtraAmount > 0 ? 'Base Price (After Discount):' : 'Net Base Price:') : (hasExtraTime && totalExtraAmount > 0 ? 'Base Price (Initial):' : 'Base Price:')}</span>
               <span className="font-semibold text-slate-900">
                 ₹{hasExtraTime && totalExtraAmount > 0 ? Math.max(0, completedBill.completedBasePrice - totalExtraAmount) : completedBill.completedBasePrice}
                 {completedBill.isContractorBooking && completedBill.deductedBasePrice > 0 && (
@@ -876,15 +933,15 @@ function BookingDetailsModal({ booking, onClose }) {
               <span className="text-base text-brand font-extrabold">₹{completedBill.completedTotalAmount}</span>
             </div>
             <div className="flex justify-between text-xs text-slate-600 py-1 mt-2">
-              <span>Commission (Admin):</span>
+              <span>Commission (Admin) {effectiveCommissionPercent ? `(${effectiveCommissionPercent}%)` : ''}:</span>
               <span className="font-semibold text-brand">
-                ₹{completedBill.isContractorBooking ? Math.round(completedBill.completedBasePrice * 0.10) : booking.commissionAmount}
+                ₹{effectiveCommission}
               </span>
             </div>
             <div className="flex justify-between text-xs text-slate-600 py-1">
               <span>Labour Share:</span>
               <span className="font-semibold text-green-600">
-                ₹{completedBill.isContractorBooking ? Math.round(completedBill.completedBasePrice * 0.90) : booking.laborShare}
+                ₹{effectiveLaborShare}
               </span>
             </div>
           </div>
@@ -990,6 +1047,18 @@ function BookingsListTab({ type }) {
                     <span>Date: {new Date(b.createdAt).toLocaleDateString()}</span>
                     <span>·</span>
                     <span>Duration: <strong className="text-slate-800">{b.selectedSlotLabel || (b.hours ? `${b.hours} hr` : 'N/A')}</strong></span>
+                    {(() => {
+                      const disc = Number(b.discount || ((b.zoneDiscount || 0) + (b.maxHourDiscount || 0)) || 0)
+                      if (disc <= 0) return null
+                      const orig = (b.subTotal && Number(b.subTotal) > 0) ? Number(b.subTotal) : ((b.basePrice || 0) + disc)
+                      const pct = orig > 0 ? Math.round((disc / orig) * 100) : 0
+                      const lbl = b.discountLabel || (pct > 0 ? `${pct}% Off` : '')
+                      return (
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                          🏷️ {lbl ? `${lbl} ` : ''}(-₹{disc})
+                        </span>
+                      )
+                    })()}
                     {(() => {
                       const aExtra = (b.assignments || []).reduce((sum, a) => sum + (Number(a.extraMinutes) || (Number(a.extraHours) ? Math.round(Number(a.extraHours) * 60) : 0)), 0)
                       const extraMins = b.extraMinutes || (b.extraHours ? Math.round(b.extraHours * 60) : 0) || aExtra

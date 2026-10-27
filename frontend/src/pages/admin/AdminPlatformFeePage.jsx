@@ -404,6 +404,17 @@ export function AdminPlatformFeePage() {
                 </div>
                 
                 <div className="divide-y divide-slate-100 bg-white">
+                  {Number(selectedBooking.discount || ((selectedBooking.zoneDiscount || 0) + (selectedBooking.maxHourDiscount || 0)) || 0) > 0 && (
+                    <div className="flex items-center justify-between px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+                          <Percent className="h-4 w-4" />
+                        </div>
+                        <span className="font-semibold text-slate-700">Admin Discount</span>
+                      </div>
+                      <span className="font-bold text-emerald-600">-₹{(Number(selectedBooking.discount || ((selectedBooking.zoneDiscount || 0) + (selectedBooking.maxHourDiscount || 0)))).toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
