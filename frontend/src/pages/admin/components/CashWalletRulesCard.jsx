@@ -21,7 +21,7 @@ function RupeeInput({ label, hint, value, onChange, min = 0 }) {
   )
 }
 
-/** Rapido-style prepaid rule for individual labour cash jobs */
+/** Admin rules for who can receive cash bookings */
 export function CashWalletRulesCard({ settings, onSaved }) {
   const cw = settings?.cashWallet || {}
   const [form, setForm] = useState(() => ({
@@ -29,6 +29,7 @@ export function CashWalletRulesCard({ settings, onSaved }) {
     minBalance: String(cw.minBalance ?? 0),
     minRecharge: String(cw.minRecharge ?? 100),
     maxRecharge: String(cw.maxRecharge ?? 10000),
+    labourCashLimit: String(settings?.labourCashLimit ?? 500),
   }))
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
@@ -45,7 +46,8 @@ export function CashWalletRulesCard({ settings, onSaved }) {
         minRecharge: Number(form.minRecharge),
         maxRecharge: Number(form.maxRecharge),
       })
-      setMsg({ type: 'success', text: 'Cash wallet rules saved' })
+      await adminSettingsApi.updateLabourCashLimit({ labourCashLimit: Number(form.labourCashLimit) })
+      setMsg({ type: 'success', text: 'Rules saved' })
       onSaved?.()
     } catch (err) {
       setMsg({ type: 'error', text: err instanceof ApiError ? err.message : 'Failed to save' })
@@ -59,13 +61,13 @@ export function CashWalletRulesCard({ settings, onSaved }) {
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-brand" aria-hidden />
-          <h2 className="text-lg font-bold text-slate-800">Prepaid Cash Wallet</h2>
+          <h2 className="text-lg font-bold text-slate-800">Cash Wallet Rules</h2>
         </div>
         <button
           type="button"
           role="switch"
           aria-checked={form.isEnabled}
-          aria-label="Require wallet balance for cash jobs"
+          aria-label="Require wallet money for cash bookings"
           onClick={() => set('isEnabled')(!form.isEnabled)}
           className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 ${form.isEnabled ? 'bg-brand' : 'bg-slate-200'}`}
         >
@@ -73,9 +75,10 @@ export function CashWalletRulesCard({ settings, onSaved }) {
         </button>
       </div>
       <p className="mb-5 text-sm text-slate-600">
-        Like Rapido: a labourer must recharge their wallet first. They can accept an individual cash job only if their wallet
-        covers that job’s platform fee (+ the minimum balance). The fee is deducted automatically when the customer confirms
-        the cash payment. {form.isEnabled ? '' : 'Rule is OFF — cash jobs can be accepted with any balance (fees still become dues).'}
+        For a cash booking the customer pays the labourer directly, so our service fee is taken from the labourer’s wallet
+        once the customer confirms they paid. Labourers must keep enough money in their wallet to cover that fee, otherwise
+        they won’t be shown cash bookings. Online bookings are not affected.
+        {form.isEnabled ? '' : ' This rule is currently OFF — every labourer is shown cash bookings, and any fee their wallet can’t cover is recorded as money they owe us.'}
       </p>
 
       {msg ? (
@@ -87,14 +90,20 @@ export function CashWalletRulesCard({ settings, onSaved }) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <RupeeInput
-          label="Minimum balance after fee (₹)"
-          hint="Extra buffer that must remain in the wallet after a cash job’s fee"
+          label="Extra money to keep in wallet (₹)"
+          hint="A labourer needs the service fee plus this amount in their wallet to be shown a cash booking. Use 0 for no extra amount."
           value={form.minBalance}
           onChange={set('minBalance')}
         />
+        <RupeeInput
+          label="Most a labourer can owe us (₹)"
+          hint="If a labourer owes us this much (fees their wallet couldn’t cover), they stop receiving all bookings until they add money."
+          value={form.labourCashLimit}
+          onChange={set('labourCashLimit')}
+        />
         <div className="grid grid-cols-2 gap-3">
-          <RupeeInput label="Min recharge" value={form.minRecharge} onChange={set('minRecharge')} min={1} />
-          <RupeeInput label="Max recharge" value={form.maxRecharge} onChange={set('maxRecharge')} min={1} />
+          <RupeeInput label="Smallest top-up" value={form.minRecharge} onChange={set('minRecharge')} min={1} />
+          <RupeeInput label="Largest top-up" value={form.maxRecharge} onChange={set('maxRecharge')} min={1} />
         </div>
         <div className="flex justify-end border-t border-slate-100 pt-4">
           <AppPrimaryButton type="submit" disabled={saving}>

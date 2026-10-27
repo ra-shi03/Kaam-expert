@@ -412,8 +412,8 @@ export const createBooking = asyncHandler(async (req, res) => {
 
   // Zone-specific & Time-specific discount
   let zoneDiscount = 0
+  let slotDisc = null
   if (service) {
-    let slotDisc = null
     if (matchingZone && Array.isArray(service.zones)) {
       const zoneItem = service.zones.find(
         (z) => String(z.zone?._id || z.zone) === String(matchingZone._id)

@@ -191,7 +191,7 @@ export function LaborWallet() {
     ? { text: 'Cash jobs open to all', cls: 'bg-white/10 text-white/80 ring-white/20' }
     : cfg.canTakeCashJobs
       ? { text: 'Cash jobs on', cls: 'bg-emerald-500/15 text-emerald-200 ring-emerald-400/30' }
-      : { text: 'Recharge to take cash jobs', cls: 'bg-amber-500/15 text-amber-200 ring-amber-400/30' }
+      : { text: 'Recharge to continue', cls: 'bg-amber-500/15 text-amber-200 ring-amber-400/30' }
 
   return (
     <div className="space-y-5 pb-8">
@@ -226,6 +226,12 @@ export function LaborWallet() {
             You owe {formatRupees(summary.outstandingDues)} — new jobs are paused until you recharge.
           </p>
         ) : null}
+        {cfg.nearDuesLimit ? (
+          <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-500/15 px-3 py-2 text-xs font-semibold text-amber-100 ring-1 ring-amber-400/30">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            Your wallet has {formatRupees(summary.outstandingDues)} outstanding. Recharge to keep accepting jobs (limit {formatRupees(cfg.labourCashLimit)}).
+          </p>
+        ) : null}
         <Link
           to="/app/earnings"
           className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-blue-200 hover:text-white"
@@ -243,7 +249,7 @@ export function LaborWallet() {
         </div>
         {requested > 0 ? (
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 ring-1 ring-amber-200">
-            You need at least {formatRupees(requested)} more to accept that cash job.
+            Recharge at least {formatRupees(requested)} to accept this cash booking.
           </p>
         ) : null}
         <div className="flex flex-wrap gap-2">
@@ -299,9 +305,10 @@ export function LaborWallet() {
         <AppSectionHeader title="How cash jobs work" className="mb-3 px-0.5" />
         <GlassPanel className="space-y-3 p-4">
           {[
-            'Keep your wallet recharged — a cash job needs its platform fee in your wallet before you can accept it.',
+            'Keep your wallet recharged — cash booking requests only reach you when your wallet covers the platform fee.',
             'Collect the full amount in cash from the customer when the job is done.',
-            'Once the customer confirms they paid, the platform fee is deducted from your wallet automatically.',
+            'Once the customer confirms they paid, the platform fee is deducted from your wallet. Online bookings are not affected.',
+            `Recharges clear any dues first. If dues reach ${formatRupees(cfg.labourCashLimit)}, all new jobs are paused until you recharge.`,
             'Online job earnings, bonuses and referral rewards are added to your wallet and can be withdrawn.',
           ].map((text, i) => (
             <div key={i} className="flex items-start gap-3">

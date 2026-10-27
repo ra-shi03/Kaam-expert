@@ -359,7 +359,8 @@ export const reviewLabourKyc = asyncHandler(async (req, res) => {
     profile.kycReviewNote = undefined
 
     // Set Trial logic (only for labour for now, or both?)
-    if (user.role === USER_ROLES.LABOUR) {
+    // Trial starts once, on the first approval — re-approving must not hand out a fresh trial
+    if (user.role === USER_ROLES.LABOUR && !profile.trialStartedAt) {
       const settings = await SystemSetting.findOne({ configKey: 'master_config' })
       const trialDays = settings?.freeTrialDays || 3
       const now = new Date()
@@ -375,6 +376,7 @@ export const reviewLabourKyc = asyncHandler(async (req, res) => {
   }
 
   await user.save()
+  notifyKycDecision(user, decision, profile.kycReviewNote)
   if (user.role === USER_ROLES.LABOUR) {
     await populateLabourCategories(user)
   }
@@ -871,3 +873,29 @@ export const deleteMe = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, { message: 'Account deleted successfully' })
 })
+
+/** Live socket event + push notification telling the labourer their KYC was approved/rejected. Never throws. */
+async function notifyKycDecision(user, decision, reviewNote) {
+  const approved = decision === 'approved'
+  const title = approved ? 'KYC verified 🎉' : 'KYC needs correction'
+  const body = approved
+    ? 'Your KYC is approved. Your free trial has started — you can now accept jobs.'
+    : reviewNote || 'Your KYC was not approved. Please record your documents again.'
+  try {
+    const { emitToUser } = await import('../socket.js')
+    emitToUser(user._id, 'KYC_STATUS_UPDATE', { status: approved ? KYC_STATUS.VERIFIED : KYC_STATUS.FAILED, title, body })
+
+    const tokens = [...new Set([...(user.fcmTokens || []), ...(user.fcmTokenMobile || [])])].filter(Boolean)
+    if (!tokens.length) return
+    const { getFirebaseAdmin } = await import('../config/firebase.js')
+    const firebase = getFirebaseAdmin()
+    if (!firebase) return
+    await firebase.messaging().sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      data: { type: 'KYC_STATUS_UPDATE', status: approved ? 'verified' : 'failed', url: '/app/kyc' },
+    })
+  } catch (err) {
+    console.warn('[KYC] notification failed:', err.message || err)
+  }
+}

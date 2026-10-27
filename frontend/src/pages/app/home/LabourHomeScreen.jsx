@@ -218,7 +218,7 @@ export function LabourHomeScreen({ user }) {
   const initials = initialsFromName(user?.fullName)
   const profileImageUrl = user?.profileImageUrl?.trim()
   const kyc = user?.labourProfile?.kycStatus
-  const kycOk = kyc === KYC_STATUS.VERIFIED || (import.meta.env.DEV && (!kyc || kyc === KYC_STATUS.PENDING))
+  const kycOk = kyc === KYC_STATUS.VERIFIED
   const categories = user?.labourProfile?.categoryIds
   const primaryTrade =
     Array.isArray(categories) && categories.length > 0

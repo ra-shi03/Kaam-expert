@@ -117,6 +117,14 @@ export const updateDynamicSubscriptionSettings = asyncHandler(async (req, res) =
   return sendSuccess(res, { message: 'Dynamic subscription settings updated', data: { settings } })
 })
 
+export const updateKycReviewMessage = asyncHandler(async (req, res) => {
+  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
+  settings.kycReviewMessage = String(req.body.kycReviewMessage || '').trim()
+  await settings.save()
+  return sendSuccess(res, { message: 'KYC review message updated', data: { kycReviewMessage: settings.kycReviewMessage } })
+})
+
 export const updateMaxHourDiscount = asyncHandler(async (req, res) => {
   const { maxHourDiscountPercentage } = req.body
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })

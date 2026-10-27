@@ -1,6 +1,7 @@
 import { WithdrawalRequest } from '../models/WithdrawalRequest.js'
 import { Wallet } from '../models/Wallet.js'
 import { WalletTransaction } from '../models/WalletTransaction.js'
+import { Booking } from '../models/Booking.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import mongoose from 'mongoose'
@@ -20,7 +21,7 @@ export const listLabourWallets = asyncHandler(async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1)
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20))
   const filter = ['dues', 'low', 'recharged'].includes(req.query.filter) ? req.query.filter : 'all'
-  const { minBalance, isEnabled: cashRuleEnabled } = await getCashWalletSettings()
+  const { labourCashLimit, minBalance, isEnabled: cashRuleEnabled } = await getCashWalletSettings()
 
   const searchMatch = {}
   const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 80) : ''
@@ -60,6 +61,7 @@ export const listLabourWallets = asyncHandler(async (req, res) => {
               outstandingDues: { $sum: { $cond: [{ $lt: ['$_balance', 0] }, { $multiply: ['$_balance', -1] }, 0] } },
               inDues: { $sum: { $cond: [{ $lt: ['$_balance', 0] }, 1, 0] } },
               cannotTakeCash: { $sum: { $cond: [{ $lte: ['$_balance', minBalance] }, 1, 0] } },
+              blocked: { $sum: { $cond: [{ $and: [{ $lt: ['$_balance', 0] }, { $gte: [{ $multiply: ['$_balance', -1] }, labourCashLimit] }] }, 1, 0] } },
             },
           },
         ],
@@ -74,7 +76,7 @@ export const listLabourWallets = asyncHandler(async (req, res) => {
               phone: 1,
               isActive: 1,
               'labourProfile.kycStatus': 1,
-              wallet: { selfBalance: 1, rechargeBalance: 1, adminBalance: 1, updatedAt: 1 },
+              wallet: { _id: 1, selfBalance: 1, rechargeBalance: 1, adminBalance: 1, updatedAt: 1 },
             },
           },
         ],
@@ -84,16 +86,56 @@ export const listLabourWallets = asyncHandler(async (req, res) => {
   ])
 
   const total = result.total[0]?.n || 0
-  const stats = result.stats[0] || { rechargeHeld: 0, outstandingDues: 0, inDues: 0, cannotTakeCash: 0 }
+  const stats = result.stats[0] || { rechargeHeld: 0, outstandingDues: 0, inDues: 0, cannotTakeCash: 0, blocked: 0 }
   delete stats._id
+
+  // Cash-job activity per labourer on this page: jobs, cash collected, platform fees charged
+  const ids = result.items.map((u) => u._id)
+  const walletIds = result.items.map((u) => u.wallet?._id).filter(Boolean)
+  const labourMatch = { $or: [{ laborId: { $in: ids } }, { 'assignments.labourId': { $in: ids } }] }
+  const [cashRows, feeRows] = await Promise.all([
+    Booking.aggregate([
+      { $match: { paymentMethod: 'CASH', status: { $in: ['ACCEPTED', 'IN_PROGRESS', 'STARTED', 'COMPLETED'] }, ...labourMatch } },
+      { $addFields: { _labours: { $setUnion: [{ $map: { input: { $ifNull: ['$assignments', []] }, as: 'a', in: '$$a.labourId' } }, { $cond: [{ $ifNull: ['$laborId', false] }, ['$laborId'], []] }] } } },
+      { $unwind: '$_labours' },
+      { $match: { _labours: { $in: ids } } },
+      {
+        $group: {
+          _id: '$_labours',
+          jobs: { $sum: 1 },
+          collected: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'PAID'] }, { $divide: ['$totalAmount', { $max: [1, { $size: { $ifNull: ['$assignments', []] } }] }] }, 0] } },
+          pendingJobs: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'PAID'] }, 0, 1] } },
+        },
+      },
+    ]),
+    WalletTransaction.aggregate([
+      { $match: { walletId: { $in: walletIds }, context: 'CASH_COMMISSION' } },
+      { $group: { _id: '$walletId', fees: { $sum: '$amount' } } },
+    ]),
+  ])
+  const cashByLabour = new Map(cashRows.map((r) => [String(r._id), r]))
+  const feesByWallet = new Map(feeRows.map((r) => [String(r._id), r.fees]))
 
   return sendSuccess(res, {
     data: {
-      items: result.items.map((u) => ({ ...u, summary: summarizeWallet(u.wallet) })),
+      items: result.items.map((u) => {
+        const c = cashByLabour.get(String(u._id))
+        return {
+          ...u,
+          summary: summarizeWallet(u.wallet),
+          cash: {
+            jobs: c?.jobs || 0,
+            pendingJobs: c?.pendingJobs || 0,
+            collected: Math.round(c?.collected || 0),
+            feesCharged: Math.round((feesByWallet.get(String(u.wallet?._id)) || 0) * 100) / 100,
+          },
+        }
+      }),
       total,
       page,
       pages: Math.max(1, Math.ceil(total / limit)),
       stats,
+      labourCashLimit,
       minBalance,
       cashRuleEnabled,
     },

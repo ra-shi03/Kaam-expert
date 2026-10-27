@@ -368,8 +368,8 @@ export function AppEarningsPage() {
                       {wallet.summary.outstandingDues > 0
                         ? `You owe ${formatRupees(wallet.summary.outstandingDues)} in cash-job fees`
                         : wallet.cashWallet?.canTakeCashJobs
-                          ? 'Cash jobs on · fees are deducted from here'
-                          : 'Recharge to take cash jobs'}
+                          ? 'Cash jobs on · platform fee is deducted from here'
+                          : 'Recharge to clear dues and continue'}
                     </p>
                   </div>
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-linear-to-b from-blue-500 to-blue-600 px-4 py-2 text-sm font-extrabold text-white shadow-lg shadow-blue-500/20 ring-1 ring-white/10">

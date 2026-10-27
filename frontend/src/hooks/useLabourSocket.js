@@ -8,6 +8,16 @@ const BACKEND_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5005/api/
 let currentSocket = null
 let currentToken = null
 
+/** Shared socket for the current token (created on demand) — lets other hooks listen without a second connection */
+export function getLabourSocket(token) {
+  if (!token) return null
+  if (currentSocket && currentToken === token) return currentSocket
+  if (currentSocket) currentSocket.disconnect()
+  currentSocket = io(BACKEND_URL, { auth: { token }, transports: ['websocket'] })
+  currentToken = token
+  return currentSocket
+}
+
 export function useLabourSocket() {
   const { token } = useSelector((state) => state.auth)
   const [socketStatus, setSocketStatus] = useState('disconnected')

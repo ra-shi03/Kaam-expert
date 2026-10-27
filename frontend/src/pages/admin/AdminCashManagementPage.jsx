@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Landmark, AlertCircle, CheckCircle2, Search, Calendar } from 'lucide-react'
+import { Landmark, Search, Calendar } from 'lucide-react'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
-import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { adminSettingsApi } from '../../api/adminSettingsApi.js'
 import { adminBookingsApi } from '../../api/adminBookingsApi.js'
 import { CashWalletRulesCard } from './components/CashWalletRulesCard.jsx'
@@ -11,10 +10,6 @@ export function AdminCashManagementPage() {
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   
-  const [labourLimit, setLabourLimit] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
-  const [successMsg, setSuccessMsg] = useState('')
 
   // Bookings state
   const [bookings, setBookings] = useState([])
@@ -32,11 +27,10 @@ export function AdminCashManagementPage() {
       const data = res.data?.settings
       if (data) {
         setSettings(data)
-        setLabourLimit(data.labourCashLimit?.toString() || '500')
       }
     } catch (err) {
       console.error(err)
-      setErrorMsg('Failed to load settings')
+      console.error('Failed to load settings')
     }
   }
 
@@ -76,23 +70,6 @@ export function AdminCashManagementPage() {
     }
   }, [settlementFilter, page, searchTerm, startDate, endDate])
 
-  const handleSave = async (e) => {
-    e.preventDefault()
-    setErrorMsg('')
-    setSuccessMsg('')
-    setSaving(true)
-    try {
-      await adminSettingsApi.updateLabourCashLimit({ labourCashLimit: Number(labourLimit) })
-      setSuccessMsg('Limit updated successfully!')
-      fetchSettings()
-      setTimeout(() => setSuccessMsg(''), 3000)
-    } catch (err) {
-      setErrorMsg('Failed to update limit')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20">
       <div className="flex items-center gap-3 mb-6">
@@ -101,7 +78,7 @@ export function AdminCashManagementPage() {
         </span>
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Cash Management</h1>
-          <p className="text-sm text-slate-500 font-medium">Control limits and view cash flow details</p>
+          <p className="text-sm text-slate-500 font-medium">Rules for cash bookings, labourer wallets and cash payments</p>
         </div>
       </div>
 
@@ -112,55 +89,7 @@ export function AdminCashManagementPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">
-            <GlassPanel className="p-6">
-              <h2 className="text-lg font-bold text-slate-800 mb-4">Labour Cash Limit</h2>
-              <p className="text-sm text-slate-600 mb-6">
-                A cash job’s platform fee is deducted from the labourer’s wallet; whatever the wallet can’t cover becomes dues.
-                Recharges and online earnings clear dues first. If outstanding dues reach this limit, the labourer can’t accept
-                any new booking until they recharge.
-              </p>
-
-              {errorMsg && (
-                <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-100 flex items-center gap-3 text-rose-700">
-                  <AlertCircle className="h-5 w-5 flex-shrink-0" />
-                  <p className="text-sm font-semibold">{errorMsg}</p>
-                </div>
-              )}
-
-              {successMsg && (
-                <div className="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-100 flex items-center gap-3 text-blue-700">
-                  <CheckCircle2 className="h-5 w-5 flex-shrink-0" />
-                  <p className="text-sm font-semibold">{successMsg}</p>
-                </div>
-              )}
-
-              <form onSubmit={handleSave} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Max Outstanding Dues (₹)</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">₹</span>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      value={labourLimit}
-                      onChange={(e) => setLabourLimit(e.target.value)}
-                      className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand font-semibold text-slate-800"
-                      placeholder="Enter limit"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 flex justify-end">
-                  <AppPrimaryButton type="submit" disabled={saving}>
-                    {saving ? 'Saving...' : 'Save Limit'}
-                  </AppPrimaryButton>
-                </div>
-              </form>
-            </GlassPanel>
-            <div className="mt-6">
-              <CashWalletRulesCard settings={settings} onSaved={fetchSettings} />
-            </div>
+            <CashWalletRulesCard settings={settings} onSaved={fetchSettings} />
           </div>
 
           <div className="lg:col-span-2 space-y-6">
@@ -169,7 +98,7 @@ export function AdminCashManagementPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
                     <h2 className="text-lg font-bold text-slate-800">Cash Flow Details</h2>
-                    <p className="text-sm text-slate-500">Monitor cash bookings and admin dues</p>
+                    <p className="text-sm text-slate-500">Every cash booking and whether our service fee has been collected</p>
                   </div>
                   
                   <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1 overflow-x-auto">
@@ -179,7 +108,7 @@ export function AdminCashManagementPage() {
                         onClick={() => { setPage(1); setSettlementFilter(status) }}
                         className={`px-4 py-2 rounded-md text-sm font-bold transition-all whitespace-nowrap ${settlementFilter === status ? 'bg-white text-brand shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                       >
-                        {status === 'ALL' ? 'All' : status === 'PENDING' ? 'Not collected' : 'Collected'}
+                        {status === 'ALL' ? 'All' : status === 'PENDING' ? 'Fee pending' : 'Fee collected'}
                       </button>
                     ))}
                   </div>
@@ -190,7 +119,7 @@ export function AdminCashManagementPage() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <input
                       type="text"
-                      placeholder="Search Labour or ID..."
+                      placeholder="Search by labourer name or booking ID..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/50 focus:border-brand"
@@ -231,12 +160,12 @@ export function AdminCashManagementPage() {
                   <table className="w-full text-left border-collapse min-w-[700px]">
                     <thead>
                       <tr className="border-b border-slate-200 text-sm text-slate-500">
-                        <th className="pb-3 font-semibold px-4">Booking Info</th>
+                        <th className="pb-3 font-semibold px-4">Booking</th>
                         <th className="pb-3 font-semibold px-4">Labour</th>
                         <th className="pb-3 font-semibold px-4">Service</th>
-                        <th className="pb-3 font-semibold px-4 text-right">Total Cash</th>
-                        <th className="pb-3 font-semibold px-4 text-right" title="Deducted from the labourer's wallet when the customer confirms the cash payment">Platform Fee</th>
-                        <th className="pb-3 font-semibold px-4 text-center">Fee Status</th>
+                        <th className="pb-3 font-semibold px-4 text-right">Customer paid</th>
+                        <th className="pb-3 font-semibold px-4 text-right" title="Taken from the labourer’s wallet once the customer confirms they paid cash">Our service fee</th>
+                        <th className="pb-3 font-semibold px-4 text-center">Fee status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -253,7 +182,16 @@ export function AdminCashManagementPage() {
                               </div>
                             </td>
                             <td className="py-4 px-4 align-top">
-                              {booking.laborId ? (
+                              {!booking.laborId && booking.assignments?.length > 0 ? (
+                                <div className="space-y-1.5">
+                                  {booking.assignments.map((a) => (
+                                    <div key={a._id || a.labourId?._id} className="text-sm">
+                                      <span className="font-bold text-slate-900">{a.labourId?.fullName || 'Labour'}</span>
+                                      <span className="block text-xs text-slate-500">{a.labourId?.phone}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : booking.laborId ? (
                                 <div className="flex items-center gap-3">
                                   {booking.laborId.profileImageUrl ? (
                                     <img src={booking.laborId.profileImageUrl} alt="" className="w-8 h-8 rounded-full object-cover bg-slate-100" />
@@ -288,8 +226,8 @@ export function AdminCashManagementPage() {
                                   : booking.adminSettlementStatus === 'SETTLED' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                               }`}>
                                 {booking.paymentStatus !== 'PAID'
-                                  ? 'AWAITING CASH'
-                                  : booking.adminSettlementStatus === 'SETTLED' ? 'COLLECTED' : 'IN DUES'}
+                                  ? 'CUSTOMER NOT PAID YET'
+                                  : booking.adminSettlementStatus === 'SETTLED' ? 'FEE COLLECTED' : 'LABOURER OWES FEE'}
                               </span>
                             </td>
                           </tr>

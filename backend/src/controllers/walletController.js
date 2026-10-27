@@ -195,6 +195,7 @@ async function sumLedgerByContext(walletId) {
 async function buildWalletView(userId) {
   const [wallet, settings] = await Promise.all([Wallet.findOne({ userId }).lean(), getCashWalletSettings()])
   const summary = summarizeWallet(wallet)
+  const blockedByDues = summary.outstandingDues > 0 && summary.outstandingDues >= settings.labourCashLimit
   return {
     wallet: wallet || { userId, selfBalance: 0, rechargeBalance: 0, adminBalance: 0 },
     summary,
@@ -203,9 +204,11 @@ async function buildWalletView(userId) {
       minBalance: settings.minBalance,
       minRecharge: settings.minRecharge,
       maxRecharge: settings.maxRecharge,
-      // Every cash job's fee must fit above the minimum balance, so at/below it no cash job can be accepted
-      canTakeCashJobs: !settings.isEnabled || summary.balance > settings.minBalance,
-      blockedByDues: summary.outstandingDues > 0 && summary.outstandingDues >= settings.labourCashLimit,
+      // Cash jobs stay open while outstanding dues are under the admin limit (a controlled negative balance)
+      canTakeCashJobs: !blockedByDues,
+      blockedByDues,
+      /** Dues are at 70%+ of the limit — warn before jobs get paused */
+      nearDuesLimit: !blockedByDues && summary.outstandingDues > 0 && summary.outstandingDues >= settings.labourCashLimit * 0.7,
       labourCashLimit: settings.labourCashLimit,
     },
   }

@@ -18,6 +18,7 @@ import { submitLabourKycDocuments } from '../../api/userKycApi.js'
 import { ApiError } from '../../api/http.js'
 import { KYC_STATUS, USER_ROLES } from '../../constants/userRoles.js'
 import { useAuth } from '../../hooks/useAuth.js'
+import { getPublicSettings } from '../../api/adminSettingsApi.js'
 import { setUser } from '../../store/slices/authSlice.js'
 import { assetUrlFromUpload, uploadMedia } from '../../api/uploadApi.js'
 import { UPLOAD_FOLDERS } from '../../constants/uploadFolders.js'
@@ -64,6 +65,13 @@ export function AppKycPage() {
   const reduce = useReducedMotion()
   const dispatch = useDispatch()
   const { user } = useAuth()
+  const [reviewMessage, setReviewMessage] = useState('')
+
+  useEffect(() => {
+    getPublicSettings()
+      .then((res) => setReviewMessage(res.data?.kycReviewMessage || ''))
+      .catch(() => {})
+  }, [])
 
   const [aadhaar, setAadhaar] = useState('')
   const [pan, setPan] = useState('')
@@ -274,7 +282,7 @@ export function AppKycPage() {
                       timeStyle: 'short',
                     })
                   : '—'}
-                . Usually reviewed within 1–2 business days (demo).
+                {reviewMessage ? `. ${reviewMessage}` : '.'}
               </p>
             </div>
           </div>

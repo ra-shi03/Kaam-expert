@@ -17,6 +17,7 @@ import {
 import { fetchAdminUserById, fetchAdminUsers, reviewLabourKycAdmin } from '../../api/adminUsersApi.js'
 import { ApiError } from '../../api/http.js'
 import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
+import { KycReviewMessageCard } from './components/KycReviewMessageCard.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { KYC_STATUS, USER_ROLES } from '../../constants/userRoles.js'
 import { formatLastLoginDisplay } from '../../lib/formatAdminLastLogin.js'
@@ -369,6 +370,8 @@ export function AdminLabourPage() {
         })}
       </div>
 
+      <KycReviewMessageCard />
+
       <GlassPanel className="p-4 md:p-5">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
@@ -504,6 +507,22 @@ export function AdminLabourPage() {
                           ) : (
                             <span className="text-xs text-slate-400">Not submitted</span>
                           )
+                        ) : (u.contractorProfile || u.labourProfile)?.kycStatus === KYC_STATUS.VERIFIED ? (
+                          <button
+                            type="button"
+                            onClick={() => setReviewUserId(u._id)}
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100"
+                          >
+                            Approved · View
+                          </button>
+                        ) : (u.contractorProfile || u.labourProfile)?.kycStatus === KYC_STATUS.FAILED ? (
+                          <button
+                            type="button"
+                            onClick={() => setReviewUserId(u._id)}
+                            className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-bold text-rose-700 transition hover:bg-rose-100"
+                          >
+                            Rejected · View
+                          </button>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}

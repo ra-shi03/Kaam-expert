@@ -56,7 +56,7 @@ export function AppSubCategoryServicePage() {
   const [selectedLightboxImage, setSelectedLightboxImage] = useState(null)
   
   const [cat, setCat] = useState(() => location.state?.cat)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false

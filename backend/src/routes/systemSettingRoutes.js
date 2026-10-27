@@ -16,6 +16,7 @@ router.get('/public', async (req, res) => {
     let cfg = await SystemSetting.findOne({ configKey: 'master_config' })
     const timeSlots = cfg?.timeSlots || ['08:00 AM', '10:00 AM', '12:00 PM', '02:00 PM', '04:00 PM', '06:00 PM']
     const freeTrialMessage = cfg?.freeTrialMessage || 'Welcome! Enjoy your free trial period.'
+    const kycReviewMessage = cfg?.kycReviewMessage ?? 'Usually reviewed within 1–2 business days.'
     const paymentModes = cfg?.paymentModes || { cashEnabled: true, onlineEnabled: true }
     const branding = cfg?.branding || { logoUrl: null, faviconUrl: null }
     const workingHoursPerDay = cfg?.workingHoursPerDay || 8
@@ -29,7 +30,7 @@ router.get('/public', async (req, res) => {
       showInApp: cfg?.referral?.showInApp ?? true,
     }
     return sendSuccess(res, {
-      data: { timeSlots, freeTrialMessage, paymentModes, branding, workingHoursPerDay, durationOptions, referral },
+      data: { timeSlots, freeTrialMessage, kycReviewMessage, paymentModes, branding, workingHoursPerDay, durationOptions, referral },
     })
   } catch (e) {
     res.status(500).json({ success: false, message: 'Could not load public settings' })
@@ -109,6 +110,13 @@ router.patch(
   ],
   validateRequest,
   settings.updateUserSubscriptionToggle,
+)
+
+router.patch(
+  '/kyc-review-message',
+  [body('kycReviewMessage').isString().trim().isLength({ max: 300 }).withMessage('Message must be 300 characters or less')],
+  validateRequest,
+  settings.updateKycReviewMessage,
 )
 
 router.patch(

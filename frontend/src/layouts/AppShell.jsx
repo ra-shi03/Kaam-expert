@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Bell, ChevronDown, LogOut, MapPin, Menu, Sparkles, X } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth.js'
+import { useKycStatusSync } from '../hooks/useKycStatusSync.js'
 import { useReferralProgram } from '../hooks/useReferralProgram.js'
 import {
   getAppNavigation,
@@ -21,7 +22,46 @@ import { AppUserLocationModal } from '../components/app/AppUserLocationModal.jsx
 import { BOOT_ROUTES } from '../constants/bootFlow.js'
 import { APP_HOME_LOCATION, APP_HOME_PATH, hasBookingFlowQuery } from '../lib/bookingFlowNavigation.js'
 
+/** Labourers can only use the KYC and profile screens until an admin verifies their KYC */
+const KYC_LOCKED_ALLOWED_PATHS = ['/app/kyc', '/app/profile']
+
 export function AppShell() {
+  const { pathname } = useLocation()
+  const { user } = useAuth()
+  const { notice, dismissNotice } = useKycStatusSync(user)
+  const kycLocked = user?.role === USER_ROLES.LABOUR && user?.labourProfile?.kycStatus !== KYC_STATUS.VERIFIED
+  if (kycLocked && !KYC_LOCKED_ALLOWED_PATHS.includes(pathname.replace(/\/+$/, ''))) {
+    return <Navigate to="/app/kyc" replace />
+  }
+  return (
+    <>
+      {notice ? (
+        <div className="fixed inset-x-0 top-0 z-[100] mx-auto max-w-md px-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
+          <div
+            role="status"
+            className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-white shadow-xl ${notice.status === KYC_STATUS.VERIFIED ? 'bg-emerald-600' : notice.status === 'recharge' ? 'bg-amber-600' : 'bg-rose-600'}`}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-extrabold">{notice.title}</p>
+              <p className="mt-0.5 text-xs font-medium opacity-95">{notice.body}</p>
+              {notice.href ? (
+                <Link to={notice.href} onClick={dismissNotice} className="mt-2 inline-block rounded-lg bg-white/20 px-3 py-1 text-xs font-bold">
+                  Recharge wallet
+                </Link>
+              ) : null}
+            </div>
+            <button type="button" onClick={dismissNotice} aria-label="Dismiss" className="shrink-0 text-lg leading-none">
+              ×
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <AppShellContent kycLocked={kycLocked} />
+    </>
+  )
+}
+
+function AppShellContent({ kycLocked }) {
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
   const { logout, user, isGuest } = useAuth()
@@ -459,7 +499,7 @@ export function AppShell() {
         </main>
       </div>
 
-      <AppBottomNav items={bottomNav} />
+      {kycLocked ? null : <AppBottomNav items={bottomNav} />}
 
       {isIndividualAppHome ? (
         <AppUserLocationModal

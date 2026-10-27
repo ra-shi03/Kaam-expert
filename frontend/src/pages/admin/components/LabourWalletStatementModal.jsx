@@ -82,10 +82,10 @@ export function LabourWalletStatementModal({ userId, onClose }) {
           {s ? (
             <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[
-                ['Balance', s.balance, s.balance < 0 ? 'text-rose-700' : 'text-slate-900'],
-                ['Withdrawable', s.withdrawable, 'text-emerald-700'],
-                ['Recharge', s.rechargeBalance, 'text-slate-900'],
-                ['Dues', s.outstandingDues, s.outstandingDues > 0 ? 'text-rose-700' : 'text-slate-900'],
+                ['Wallet balance', s.balance, s.balance < 0 ? 'text-rose-700' : 'text-slate-900'],
+                ['Can withdraw', s.withdrawable, 'text-emerald-700'],
+                ['Added money', s.rechargeBalance, 'text-slate-900'],
+                ['Owes us', s.outstandingDues, s.outstandingDues > 0 ? 'text-rose-700' : 'text-slate-900'],
               ].map(([label, value, cls]) => (
                 <div key={label} className="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200/80">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>

@@ -83,6 +83,8 @@ const systemSettingSchema = new mongoose.Schema(
     dailySubscriptionPrice: { type: Number, default: 19 },
     freeTrialDays: { type: Number, default: 3 },
     freeTrialMessage: { type: String, default: 'Welcome! Enjoy your free trial period.' },
+    /** Shown to labourers on the KYC screen while their video KYC is waiting for review */
+    kycReviewMessage: { type: String, default: 'Usually reviewed within 1–2 business days.', maxlength: 300 },
     subscriptionStartHour: { type: Number, default: 8 },  // 8 AM
     subscriptionEndHour: { type: Number, default: 20 },   // 8 PM
     maxHourDiscountPercentage: { type: Number, default: 10 },

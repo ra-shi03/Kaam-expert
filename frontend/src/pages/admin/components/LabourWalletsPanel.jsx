@@ -8,12 +8,12 @@ import { LabourWalletStatementModal } from './LabourWalletStatementModal.jsx'
 
 const FILTERS = [
   { id: 'all', label: 'All' },
-  { id: 'dues', label: 'In dues' },
-  { id: 'low', label: "Can't take cash" },
-  { id: 'recharged', label: 'Recharged' },
+  { id: 'dues', label: 'Owe us money' },
+  { id: 'low', label: 'Wallet too low' },
+  { id: 'recharged', label: 'Added money' },
 ]
 
-/** Every labourer's Rapido-style wallet: balance, recharge credit, dues — with their statement */
+/** Every labourer's wallet: balance, recharge credit, dues — with their statement */
 export function LabourWalletsPanel() {
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -55,7 +55,7 @@ export function LabourWalletsPanel() {
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Labour Wallets</h2>
-            <p className="text-sm text-slate-500">Recharges, cash-job fee deductions and outstanding dues</p>
+            <p className="text-sm text-slate-500">Wallet money of every labourer, the fees taken for cash bookings and any money they owe us</p>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto rounded-lg bg-slate-100 p-1">
             {FILTERS.map((f) => (
@@ -77,10 +77,10 @@ export function LabourWalletsPanel() {
         {stats ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
-              ['Recharge held', formatRupees(stats.rechargeHeld)],
-              ['Outstanding dues', formatRupees(stats.outstandingDues)],
-              ['Labourers in dues', stats.inDues],
-              ["Can't take cash jobs", stats.cannotTakeCash],
+              ['Money added by labourers', formatRupees(stats.rechargeHeld)],
+              ['Total owed to us', formatRupees(stats.outstandingDues)],
+              ['Labourers who owe us', stats.inDues],
+              ['Not shown cash bookings', stats.cannotTakeCash],
             ].map(([label, value]) => (
               <div key={label} className="rounded-xl border border-slate-100 bg-slate-50/60 px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
@@ -115,22 +115,27 @@ export function LabourWalletsPanel() {
         <div className="py-16 text-center font-medium text-slate-500">No labour wallets found.</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left">
+          <table className="w-full min-w-[980px] border-collapse text-left">
             <thead>
               <tr className="border-b border-slate-200 text-sm text-slate-500">
                 <th className="px-4 py-3 font-semibold">Labour</th>
-                <th className="px-4 py-3 text-right font-semibold">Balance</th>
-                <th className="px-4 py-3 text-right font-semibold">Withdrawable</th>
-                <th className="px-4 py-3 text-right font-semibold">Recharge</th>
-                <th className="px-4 py-3 text-right font-semibold">Dues</th>
-                <th className="px-4 py-3 text-center font-semibold">Cash jobs</th>
+                <th className="px-4 py-3 text-right font-semibold">Wallet balance</th>
+                <th className="px-4 py-3 text-right font-semibold">Can withdraw</th>
+                <th className="px-4 py-3 text-right font-semibold">Added money</th>
+                <th className="px-4 py-3 text-right font-semibold">Owes us</th>
+                <th className="px-4 py-3 text-right font-semibold">Cash jobs</th>
+                <th className="px-4 py-3 text-right font-semibold">Cash received</th>
+                <th className="px-4 py-3 text-right font-semibold">Fees taken</th>
+                <th className="px-4 py-3 text-center font-semibold" title="Receiving: gets cash bookings · Add money: wallet too low for cash bookings · Stopped: owes the maximum allowed, gets no bookings">Cash bookings</th>
                 <th className="px-4 py-3 text-right font-semibold">Statement</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {items.map((u) => {
                 const s = u.summary
+                const blocked = s.outstandingDues > 0 && s.outstandingDues >= (data.labourCashLimit ?? Infinity)
                 const canTakeCash = !data.cashRuleEnabled || s.balance > (data.minBalance ?? 0)
+                const c = u.cash || {}
                 return (
                   <tr key={u._id} className="transition-colors hover:bg-slate-50/50">
                     <td className="px-4 py-3">
@@ -145,11 +150,17 @@ export function LabourWalletsPanel() {
                     <td className={`px-4 py-3 text-right font-mono text-sm ${s.outstandingDues > 0 ? 'font-bold text-rose-600' : 'text-slate-400'}`}>
                       {formatRupees(s.outstandingDues)}
                     </td>
+                    <td className="px-4 py-3 text-right text-sm text-slate-700">
+                      {c.jobs ?? 0}
+                      {c.pendingJobs ? <span className="block text-[11px] text-amber-600">{c.pendingJobs} not paid yet</span> : null}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-slate-700">{formatRupees(c.collected ?? 0)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-sm text-slate-700">{formatRupees(c.feesCharged ?? 0)}</td>
                     <td className="px-4 py-3 text-center">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${canTakeCash ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${blocked ? 'bg-rose-100 text-rose-700' : !canTakeCash ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'}`}
                       >
-                        {canTakeCash ? 'ON' : 'RECHARGE'}
+                        {blocked ? 'STOPPED' : !canTakeCash ? 'ADD MONEY' : 'RECEIVING'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">

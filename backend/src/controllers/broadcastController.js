@@ -129,14 +129,13 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'You have already accepted this booking', statusCode: HTTP_STATUS.CONFLICT })
   }
 
-  // Rapido-style prepaid rule for individual cash jobs: the labourer keeps the customer's cash, so their
-  // wallet must already hold this job's platform fee (deducted when the customer confirms payment)
-  const isIndividualCashJob = booking.paymentMethod === 'CASH' && !(booking.contractorInfo?.services?.length > 0)
-  if (isIndividualCashJob && labour.role === USER_ROLES.LABOUR && cashSettings.isEnabled) {
+  // Cash bookings: the labourer keeps the customer's cash, so their wallet must already hold this job's
+  // platform fee (deducted when the customer confirms payment). Online bookings are not affected.
+  if (booking.paymentMethod === 'CASH' && labour.role === USER_ROLES.LABOUR && cashSettings.isEnabled) {
     const check = await checkCashJobEligibility(labour._id, perLabourCashCut(booking), cashSettings)
     if (!check.allowed) {
       return sendError(res, {
-        message: `This is a cash job. Recharge your wallet with at least ₹${check.shortfall} — the ₹${check.fee} platform fee is deducted from your wallet when the customer pays you cash.`,
+        message: `Recharge your wallet with at least ₹${check.shortfall} to accept this cash booking. The ₹${check.fee} platform fee is deducted from your wallet when the customer pays you in cash.`,
         statusCode: HTTP_STATUS.FORBIDDEN,
         code: 'LOW_WALLET_BALANCE',
         data: check,
@@ -147,6 +146,7 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
   // === Service Assignment Logic ===
   let assignedServiceId = booking.serviceId
   let assignedPricePerHour = 0
+  let assignedSlotPrice = 0
   let assignedServiceName = ''
   let assignedLabourShare = 0
 
@@ -201,6 +201,7 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
 
     assignedServiceId = chosenService.serviceId
     assignedPricePerHour = chosenService.price || 0
+    assignedSlotPrice = chosenService.slotPrice || 0
 
     // Fetch service name
     const svcDoc = await LabourService.findById(assignedServiceId).lean()
@@ -230,7 +231,7 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
     serviceId: assignedServiceId,
     serviceName: assignedServiceName,
     pricePerHour: assignedPricePerHour,
-    slotPrice: chosenService ? (chosenService.slotPrice || (assignedPricePerHour * (booking.duration || booking.hours || 1))) : undefined,
+    slotPrice: isContractorBooking ? (assignedSlotPrice || (assignedPricePerHour * (booking.duration || booking.hours || 1))) : undefined,
     labourShare: assignedLabourShare,
     status: 'ACCEPTED',
     startOtp,

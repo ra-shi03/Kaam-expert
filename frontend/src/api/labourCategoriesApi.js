@@ -1,8 +1,8 @@
 import { apiRequest } from './http.js'
 
-let cachedGroupedData = null
-let cachedGroupedKey = ''
-let pendingGroupedPromise = null
+const groupedCache = new Map()
+const groupedPending = new Map()
+let lastGroupedKey = ''
 
 export function fetchLabourCategoriesGrouped(lat, lng, city, address) {
   const params = new URLSearchParams()
@@ -12,36 +12,36 @@ export function fetchLabourCategoriesGrouped(lat, lng, city, address) {
   if (address) params.append('address', address)
   const qs = params.toString()
   const key = qs || 'all'
+  lastGroupedKey = key
 
-  if (cachedGroupedData && cachedGroupedKey === key) {
-    return Promise.resolve(cachedGroupedData)
+  if (groupedCache.has(key)) {
+    return Promise.resolve(groupedCache.get(key))
   }
 
-  if (pendingGroupedPromise && cachedGroupedKey === key) {
-    return pendingGroupedPromise
+  if (groupedPending.has(key)) {
+    return groupedPending.get(key)
   }
 
-  cachedGroupedKey = key
-  pendingGroupedPromise = apiRequest(`/labour-categories/grouped${qs ? '?' + qs : ''}`, { skipAuth: true })
+  const promise = apiRequest(`/labour-categories/grouped${qs ? '?' + qs : ''}`, { skipAuth: true })
     .then((res) => {
-      cachedGroupedData = res
-      pendingGroupedPromise = null
+      groupedCache.set(key, res)
+      groupedPending.delete(key)
       return res
     })
     .catch((err) => {
-      pendingGroupedPromise = null
+      groupedPending.delete(key)
       throw err
     })
-
-  return pendingGroupedPromise
+  groupedPending.set(key, promise)
+  return promise
 }
 
 export function getCachedLabourCategoriesGrouped() {
-  return cachedGroupedData
+  return groupedCache.get(lastGroupedKey) || null
 }
 
 export function invalidateLabourCategoriesCache() {
-  cachedGroupedData = null
-  cachedGroupedKey = ''
-  pendingGroupedPromise = null
+  groupedCache.clear()
+  groupedPending.clear()
+  lastGroupedKey = ''
 }

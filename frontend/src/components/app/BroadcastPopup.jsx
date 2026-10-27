@@ -8,6 +8,14 @@ import { ApiError } from '../../api/http.js'
 import { useSocket } from '../../context/SocketContext.jsx'
 import { USER_ROLES } from '../../constants/userRoles.js'
 
+/** 240 -> "4 Hours", 90 -> "1.5 Hours", 45 -> "45 Minutes" */
+function formatTotalHours(minutes) {
+  const mins = Number(minutes)
+  if (mins < 60) return `${mins} Minutes`
+  const hours = +(mins / 60).toFixed(1)
+  return `${hours} ${hours === 1 ? 'Hour' : 'Hours'}`
+}
+
 export function BroadcastPopup() {
   const socket = useSocket()
   const navigate = useNavigate()
@@ -347,7 +355,9 @@ export function BroadcastPopup() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">Timing</span>
                     <span className="font-bold text-slate-800 text-right">
-                      {incoming.timeRange
+                      {incoming.durationMinutes > 0
+                        ? formatTotalHours(incoming.durationMinutes)
+                        : incoming.timeRange
                         ? incoming.timeRange
                         : (incoming.startTime && incoming.endTime ? `${incoming.startTime} – ${incoming.endTime}` : incoming.time)}
                     </span>

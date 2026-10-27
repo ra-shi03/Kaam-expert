@@ -8,10 +8,33 @@ import { Review } from '../models/Review.js'
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 import { emitToUser, getIo } from '../socket.js'
 import { LabourService } from '../models/LabourService.js'
-import { perLabourCashCut } from './walletService.js'
+import { Wallet } from '../models/Wallet.js'
+import { getCashWalletSettings, perLabourCashCut, summarizeWallet } from './walletService.js'
 import { formatTime12, calculateEndTime } from '../utils/dateHelper.js'
 
 // Track active broadcast timeouts (shared with cron for orphan recovery)
+const RECHARGE_NOTICE_COOLDOWN_MS = 10 * 60 * 1000
+const lastRechargeNotice = new Map()
+
+/** Tells labourers who missed a cash booking because of their wallet how to get cash jobs (throttled per labourer) */
+function notifyRechargeRequired(lowBalance, fee, required) {
+  const now = Date.now()
+  for (const { labor, balance } of lowBalance) {
+    const key = String(labor._id)
+    if (now - (lastRechargeNotice.get(key) || 0) < RECHARGE_NOTICE_COOLDOWN_MS) continue
+    lastRechargeNotice.set(key, now)
+    const shortfall = Math.max(1, Math.ceil(required - balance))
+    const title = 'Recharge your wallet to receive cash bookings'
+    const body = `A cash booking nearby needs a wallet balance of at least ₹${Math.ceil(required)} (platform fee ₹${fee}). Recharge ₹${shortfall} or more to start receiving cash job requests.`
+    try {
+      emitToUser(labor._id, 'CASH_WALLET_RECHARGE_REQUIRED', { title, body, shortfall, required: Math.ceil(required), balance })
+      sendNotificationToUser(labor._id, { title, body, data: { type: 'CASH_WALLET_RECHARGE_REQUIRED', url: `/app/wallet?recharge=${shortfall}` } })
+    } catch (err) {
+      console.warn('[BROADCAST] recharge notice failed:', err.message || err)
+    }
+  }
+}
+
 export const activeBroadcastTimeouts = new Set()
 
 
@@ -94,23 +117,12 @@ export async function startBroadcastCycle(bookingId) {
   })
 
   // KYC filter
-  if (process.env.NODE_ENV !== 'production') {
-    andClauses.push({
-      $or: [
-        { 'labourProfile.kycStatus': { $in: ['verified', 'pending', null] } },
-        { 'labourProfile.kycStatus': { $exists: false } },
-        { 'contractorProfile.kycStatus': { $in: ['verified', 'pending', null] } },
-        { 'contractorProfile.kycStatus': { $exists: false } }
-      ]
-    })
-  } else {
-    andClauses.push({
-      $or: [
-        { role: 'labour', 'labourProfile.kycStatus': 'verified' },
-        { role: 'contractor', 'contractorProfile.kycStatus': 'verified' }
-      ]
-    })
-  }
+  andClauses.push({
+    $or: [
+      { role: 'labour', 'labourProfile.kycStatus': 'verified' },
+      { role: 'contractor', 'contractorProfile.kycStatus': 'verified' }
+    ]
+  })
 
   // Service / Subcategory skill filter:
   if (booking.contractorInfo && booking.contractorInfo.services && booking.contractorInfo.services.length > 0) {
@@ -192,8 +204,31 @@ export async function startBroadcastCycle(bookingId) {
     return
   }
 
-  // Wallet Eligibility Filter removed as per request
-  const walletEligible = potentialLaborers
+  // Cash bookings only reach labourers whose wallet already covers the platform fee.
+  // Online bookings are never filtered here. Labourers who are skipped are told to recharge.
+  let walletEligible = potentialLaborers
+  if (booking.paymentMethod === 'CASH') {
+    const cashSettings = await getCashWalletSettings()
+    if (cashSettings.isEnabled) {
+      const fee = perLabourCashCut(booking)
+      const required = fee + (cashSettings.minBalance || 0)
+      const wallets = await Wallet.find({ userId: { $in: potentialLaborers.map((l) => l._id) } }).lean()
+      const walletByUser = new Map(wallets.map((w) => [String(w.userId), w]))
+      const lowBalance = []
+      walletEligible = potentialLaborers.filter((labor) => {
+        const { balance } = summarizeWallet(walletByUser.get(String(labor._id)))
+        if (balance >= required) return true
+        lowBalance.push({ labor, balance })
+        return false
+      })
+      console.log(`[BROADCAST] Cash booking ${booking._id}: ${walletEligible.length} eligible, ${lowBalance.length} skipped for low wallet (needs ₹${required})`)
+      notifyRechargeRequired(lowBalance, fee, required)
+      if (walletEligible.length === 0) {
+        await markBookingFailed(booking, 'No laborers in area')
+        return
+      }
+    }
+  }
 
   // 3b. Subscription Eligibility Filter
   const isSubEnabled = settings?.isUserSubscriptionEnabled ?? false

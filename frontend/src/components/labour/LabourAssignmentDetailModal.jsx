@@ -39,14 +39,16 @@ const STATUS_DOT = {
   slate: 'bg-slate-300',
 }
 
-function JobCountdownTimer({ startedAt, hours }) {
+/** Counts down the booked duration (e.g. 15 min, or 4 h for a half day) from the moment the job was started */
+function JobCountdownTimer({ startedAt: startedAtProp, minutes }) {
   const [timeLeft, setTimeLeft] = useState('')
   const [isOvertime, setIsOvertime] = useState(false)
+  // Server timestamp may lag the status change by a render; keep one stable fallback so the clock never resets
+  const [fallbackStart] = useState(() => Date.now())
+  const startedAt = startedAtProp || fallbackStart
 
   useEffect(() => {
-    if (!startedAt) return
-
-    const totalMs = (hours || 1) * 60 * 60 * 1000
+    const totalMs = (minutes > 0 ? minutes : 60) * 60 * 1000
     const start = new Date(startedAt).getTime()
     
     const updateTimer = () => {
@@ -73,9 +75,7 @@ function JobCountdownTimer({ startedAt, hours }) {
     updateTimer()
     const interval = setInterval(updateTimer, 1000)
     return () => clearInterval(interval)
-  }, [startedAt, hours])
-
-  if (!startedAt) return null
+  }, [startedAt, minutes])
 
   return (
     <div className={`mb-4 flex items-center justify-between rounded-xl border p-4 ${isOvertime ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-brand/20 bg-brand/5 text-brand'}`}>
@@ -466,10 +466,9 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
                           }
                         }
                         // Default to now if not available yet but status is started
-                        startedAt = startedAt || new Date();
-                        const baseHours = activeRawJob.durationMinutes ? (activeRawJob.durationMinutes / 60) : (activeRawJob.hours || 1);
-                        const totalHours = baseHours + myExtraHours;
-                        return <JobCountdownTimer startedAt={startedAt} hours={totalHours} />;
+                        const baseMinutes = activeRawJob.durationMinutes || Math.round((activeRawJob.hours || 1) * 60);
+                        const totalMinutes = baseMinutes + Math.round(myExtraHours * 60);
+                        return <JobCountdownTimer startedAt={startedAt} minutes={totalMinutes} />;
                       })()}
                       <div>
                         <p className="text-sm font-bold text-slate-800 mb-2">1. Upload After Work Image</p>
