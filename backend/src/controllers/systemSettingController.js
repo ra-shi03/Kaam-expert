@@ -125,6 +125,18 @@ export const updateKycReviewMessage = asyncHandler(async (req, res) => {
   return sendSuccess(res, { message: 'KYC review message updated', data: { kycReviewMessage: settings.kycReviewMessage } })
 })
 
+const COMPANY_FIELDS = ['brandName', 'legalName', 'cin', 'address', 'phone', 'email', 'website', 'supportHours']
+
+export const updateCompanyInfo = asyncHandler(async (req, res) => {
+  let settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  if (!settings) settings = new SystemSetting({ configKey: 'master_config' })
+  for (const key of COMPANY_FIELDS) {
+    if (req.body[key] !== undefined) settings.set(`companyInfo.${key}`, String(req.body[key]).trim())
+  }
+  await settings.save()
+  return sendSuccess(res, { message: 'Company details updated', data: { companyInfo: settings.companyInfo } })
+})
+
 export const updateMaxHourDiscount = asyncHandler(async (req, res) => {
   const { maxHourDiscountPercentage } = req.body
   let settings = await SystemSetting.findOne({ configKey: 'master_config' })

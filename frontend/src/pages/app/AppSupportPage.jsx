@@ -32,6 +32,8 @@ import { AppPrimaryButton } from '../../components/app/AppPrimaryButton.jsx'
 import { AppSectionHeader } from '../../components/app-ui/layout/AppSectionHeader.jsx'
 import { GlassPanel } from '../../components/ui/GlassPanel.jsx'
 import { complaintsApi } from '../../api/complaintsApi.js'
+import { useLegalContent } from '../../hooks/useLegalContent.js'
+import { formatPhone, telHref } from '../../lib/legalContent.js'
 
 const TOPICS_BY_ROLE = {
   [USER_ROLES.CUSTOMER]: [
@@ -244,6 +246,7 @@ export function AppSupportPage() {
   const role = user?.role ?? USER_ROLES.CUSTOMER
   const reduce = useReducedMotion()
   const intro = supportIntro(role)
+  const { company } = useLegalContent('support', role)
   const topics = TOPICS_BY_ROLE[role] ?? TOPICS_BY_ROLE[USER_ROLES.CUSTOMER]
 
   const [topicId, setTopicId] = useState(topics[0]?.id ?? 'booking')
@@ -571,25 +574,25 @@ export function AppSupportPage() {
       <section>
         <AppSectionHeader title="Other ways to reach us" className="mb-3 px-0.5" />
         <div className="grid gap-3 sm:grid-cols-2">
-          <a href="tel:+917610125193" className="block transition hover:scale-[1.02] active:scale-[0.98]">
+          <a href={telHref(company.phone)} className="block transition hover:scale-[1.02] active:scale-[0.98]">
             <GlassPanel className="h-full border-slate-200/90 p-4 ring-1 ring-slate-100/90">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
                 <Phone className="h-5 w-5" aria-hidden />
               </div>
               <p className="mt-3 text-sm font-extrabold text-slate-900">Phone helpline</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                Tap to call our customer support directly.
+                Call {formatPhone(company.phone)} · {company.supportHours}
               </p>
             </GlassPanel>
           </a>
-          <a href="mailto:rahulbairwa7610@gmail.com" className="block transition hover:scale-[1.02] active:scale-[0.98]">
+          <a href={`mailto:${company.email}`} className="block transition hover:scale-[1.02] active:scale-[0.98]">
             <GlassPanel className="h-full border-slate-200/90 p-4 ring-1 ring-slate-100/90">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-700 ring-1 ring-violet-100">
                 <Mail className="h-5 w-5" aria-hidden />
               </div>
               <p className="mt-3 text-sm font-extrabold text-slate-900">Email support</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                Tap to email our dedicated support team.
+                {company.email}
               </p>
             </GlassPanel>
           </a>

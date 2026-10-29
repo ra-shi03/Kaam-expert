@@ -6,6 +6,8 @@ import { AppShell } from './layouts/AppShell.jsx'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
 import { LandingPage } from './pages/LandingPage'
 import { AuthEntryPage } from './pages/auth/AuthEntryPage.jsx'
+import { LegalPublicPage } from './pages/legal/LegalPublicPage.jsx'
+import { AdminSupportPage } from './pages/admin/AdminSupportPage.jsx'
 import { ReferralLandingPage } from './pages/ReferralLandingPage.jsx'
 import { LabourCategoriesPage } from './pages/app/LabourCategoriesPage.jsx'
 import { appShellChildRoutes } from './routes/appRoutes.jsx'
@@ -75,6 +77,13 @@ function App() {
           <Route path="/auth" element={<Navigate to="/users/auth" replace />} />
           <Route path="/users/auth" element={<AuthEntryPage authGroup="users" />} />
           <Route path="/labours/auth" element={<AuthEntryPage authGroup="labours" />} />
+          {['users', 'labours'].map((audience) => (
+            <Route key={audience}>
+              <Route path={`/${audience}/privacy-policy`} element={<LegalPublicPage audience={audience} type="privacy" />} />
+              <Route path={`/${audience}/terms-and-conditions`} element={<LegalPublicPage audience={audience} type="terms" />} />
+              <Route path={`/${audience}/support`} element={<LegalPublicPage audience={audience} type="support" />} />
+            </Route>
+          ))}
           <Route path="/r/:code" element={<ReferralLandingPage />} />
           <Route
             path="/app"
@@ -139,6 +148,7 @@ function App() {
             <Route path="free-trials" element={<AdminFreeTrialPage />} />
             <Route path="privacy-policy" element={<AdminPrivacyPolicyPage />} />
             <Route path="terms-conditions" element={<AdminTermsConditionsPage />} />
+            <Route path="support-page" element={<AdminSupportPage />} />
             <Route path="faqs" element={<AdminFAQsPage />} />
             <Route path="cancellation-policy" element={<AdminCancellationPolicyPage />} />
             <Route path="refund-policy" element={<AdminRefundPolicyPage />} />

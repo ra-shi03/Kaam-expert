@@ -9,6 +9,10 @@ export const adminSettingsApi = {
     return apiRequest('/admin/settings/kyc-review-message', { method: 'PATCH', body: { kycReviewMessage } })
   },
 
+  updateCompanyInfo: (payload) => {
+    return apiRequest('/admin/settings/company-info', { method: 'PATCH', body: payload })
+  },
+
   getCommissionFeeAmounts: () => {
     return apiRequest('/admin/commission-fee', { method: 'GET' })
   },

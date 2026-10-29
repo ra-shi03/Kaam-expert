@@ -4,7 +4,7 @@ const policySchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['privacy', 'terms', 'faqs', 'cancellation', 'refund'],
+      enum: ['privacy', 'terms', 'faqs', 'cancellation', 'refund', 'support'],
       required: true,
     },
     role: {

@@ -85,6 +85,22 @@ const systemSettingSchema = new mongoose.Schema(
     freeTrialMessage: { type: String, default: 'Welcome! Enjoy your free trial period.' },
     /** Shown to labourers on the KYC screen while their video KYC is waiting for review */
     kycReviewMessage: { type: String, default: 'Usually reviewed within 1–2 business days.', maxlength: 300 },
+    /** Company details shown on the public Privacy / Terms / Support pages */
+    companyInfo: {
+      brandName: { type: String, default: 'Kaam Expert', trim: true, maxlength: 120 },
+      legalName: { type: String, default: 'Kaam Expert', trim: true, maxlength: 160 },
+      cin: { type: String, default: 'U70200MP2024PTC070197', trim: true, maxlength: 40 },
+      address: {
+        type: String,
+        default: 'EWS C 47 Housing Board Colony, Sehore, Madhya Pradesh, 466001, India',
+        trim: true,
+        maxlength: 400,
+      },
+      phone: { type: String, default: '6267752613', trim: true, maxlength: 20 },
+      email: { type: String, default: 'kaamexpertnew@gmail.com', trim: true, maxlength: 120 },
+      website: { type: String, default: 'https://kaamexpert.in', trim: true, maxlength: 160 },
+      supportHours: { type: String, default: 'Monday to Saturday, 9:00 AM – 7:00 PM', trim: true, maxlength: 160 },
+    },
     subscriptionStartHour: { type: Number, default: 8 },  // 8 AM
     subscriptionEndHour: { type: Number, default: 20 },   // 8 PM
     maxHourDiscountPercentage: { type: Number, default: 10 },

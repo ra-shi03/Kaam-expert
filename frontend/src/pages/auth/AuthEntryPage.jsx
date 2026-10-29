@@ -510,7 +510,7 @@ export function AuthEntryPage({ authGroup = 'users' }) {
                       }}
                     />
                     <span>
-                      I agree to the <a href="#" onClick={(e) => e.preventDefault()} className="font-bold text-brand hover:underline">Terms of Service</a> and <a href="#" onClick={(e) => e.preventDefault()} className="font-bold text-brand hover:underline">Privacy Policy</a>
+                      I agree to the <Link to={`/${authGroup}/terms-and-conditions`} target="_blank" rel="noopener noreferrer" className="font-bold text-brand hover:underline">Terms &amp; Conditions</Link> and <Link to={`/${authGroup}/privacy-policy`} target="_blank" rel="noopener noreferrer" className="font-bold text-brand hover:underline">Privacy Policy</Link>
                     </span>
                   </label>
                 </div>
@@ -642,6 +642,7 @@ export function AuthEntryPage({ authGroup = 'users' }) {
             </motion.div>
           )}
         </AnimatePresence>
+
 
         </div>
       </div>

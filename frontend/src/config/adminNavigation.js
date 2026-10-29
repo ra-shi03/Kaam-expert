@@ -113,6 +113,7 @@ export const ADMIN_NAV_SECTIONS = [
     items: [
       { to: '/admin/privacy-policy', label: 'Privacy Policy', icon: ClipboardList },
       { to: '/admin/terms-conditions', label: 'Terms & Conditions', icon: ClipboardList },
+      { to: '/admin/support-page', label: 'Support Page', icon: ClipboardList },
       { to: '/admin/faqs', label: 'FAQs', icon: ClipboardList },
       { to: '/admin/cancellation-policy', label: 'Cancellation Policy', icon: ClipboardList },
       { to: '/admin/refund-policy', label: 'Refund Policy', icon: ClipboardList },
@@ -145,6 +146,7 @@ const ROUTE_TITLES = [
   { prefix: '/admin/reviews', title: 'Reviews & Ratings' },
   { prefix: '/admin/privacy-policy', title: 'Privacy Policy' },
   { prefix: '/admin/terms-conditions', title: 'Terms & Conditions' },
+  { prefix: '/admin/support-page', title: 'Support Page' },
   { prefix: '/admin/faqs', title: 'FAQs' },
   { prefix: '/admin/cancellation-policy', title: 'Cancellation Policy' },
   { prefix: '/admin/refund-policy', title: 'Refund Policy' },
