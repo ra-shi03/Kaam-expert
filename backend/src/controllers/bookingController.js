@@ -412,6 +412,7 @@ export const createBooking = asyncHandler(async (req, res) => {
 
   // Zone-specific & Time-specific discount
   let zoneDiscount = 0
+  let zoneDiscountLabel = ''
   let slotDisc = null
   if (service) {
     if (matchingZone && Array.isArray(service.zones)) {
@@ -472,6 +473,7 @@ export const createBooking = asyncHandler(async (req, res) => {
       } else {
         zoneDiscount = Math.round((subTotal * slotDisc.value) / 100)
       }
+      zoneDiscountLabel = slotDisc.type === 'FIXED' ? `₹${slotDisc.value} Off` : `${slotDisc.value}% Off`
     }
   }
 
@@ -479,6 +481,7 @@ export const createBooking = asyncHandler(async (req, res) => {
   let maxHourDiscount = 0
   if (!slotDisc && durationMinutes >= 480 && settings?.maxHourDiscountPercentage > 0) {
     maxHourDiscount = Math.round((subTotal * settings.maxHourDiscountPercentage) / 100)
+    zoneDiscountLabel = `${settings.maxHourDiscountPercentage}% Off (8+ Hours)`
   }
 
   const totalDiscount = zoneDiscount + maxHourDiscount

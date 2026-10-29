@@ -38,6 +38,7 @@ router.patch(
     body('fullName').optional().trim().isLength({ min: 2, max: 120 }),
     body('phone').optional().trim().matches(/^\d{10}$/).withMessage('Enter a valid 10-digit phone number'),
     body('email').optional({ checkFalsy: true }).trim().isEmail().withMessage('Enter a valid email address'),
+    body('gender').optional({ checkFalsy: true }).isIn(['male', 'female', 'other']).withMessage('Gender must be male, female or other'),
     body('labourProfile.skills').optional().isArray(),
     body('labourProfile.skills.*').optional().trim().isLength({ min: 1, max: 64 }),
     body('labourProfile.experienceYears').optional().isNumeric(),

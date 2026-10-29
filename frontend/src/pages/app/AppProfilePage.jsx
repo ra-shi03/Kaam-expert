@@ -122,6 +122,12 @@ function QuickLinkCard({ to, icon: Icon, label }) {
   )
 }
 
+const GENDER_OPTIONS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
+]
+
 export function AppProfilePage() {
   const { user, token, logout, setBootRole } = useAuth()
   const { showInApp: showReferral } = useReferralProgram()
@@ -138,6 +144,7 @@ export function AppProfilePage() {
   const [editNameValue, setEditNameValue] = useState('')
   const [editPhoneValue, setEditPhoneValue] = useState('')
   const [editEmailValue, setEditEmailValue] = useState('')
+  const [editGender, setEditGender] = useState('')
   const [editPermanentAddress, setEditPermanentAddress] = useState('')
   const [editCurrentLocation, setEditCurrentLocation] = useState('')
   const [editCity, setEditCity] = useState('')
@@ -363,6 +370,7 @@ export function AppProfilePage() {
     setEditNameValue(user?.fullName || '')
     setEditPhoneValue(user?.phone || '')
     setEditEmailValue(user?.email || '')
+    setEditGender(user?.gender || '')
     setEditPermanentAddress(user?.permanentAddress || '')
     setEditCurrentLocation(user?.currentLocation || '')
     setEditCity(user?.city || '')
@@ -395,6 +403,7 @@ export function AppProfilePage() {
         fullName: trimmedName,
         phone: trimmedPhone || undefined,
         email: trimmedEmail || undefined,
+        ...(user?.role === USER_ROLES.LABOUR ? { gender: editGender } : {}),
         permanentAddress: editPermanentAddress.trim() || undefined,
         currentLocation: editCurrentLocation.trim() || undefined,
         city: editCity.trim() || undefined,
@@ -423,7 +432,7 @@ export function AppProfilePage() {
     } finally {
       setSavingProfile(false)
     }
-  }, [editNameValue, editPhoneValue, editEmailValue, editPermanentAddress, editCurrentLocation, editCity, editState, editCountry, editExperienceYears, user, dispatch])
+  }, [editNameValue, editPhoneValue, editEmailValue, editGender, editPermanentAddress, editCurrentLocation, editCity, editState, editCountry, editExperienceYears, user, dispatch])
 
   const handleToggleRole = useCallback(async () => {
     const newRole = user?.role === USER_ROLES.CUSTOMER ? USER_ROLES.CONTRACTOR : USER_ROLES.CUSTOMER
@@ -779,6 +788,30 @@ export function AppProfilePage() {
             </div>
             {user?.role === USER_ROLES.LABOUR ? (
               <div>
+                <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Gender</span>
+                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Gender">
+                  {GENDER_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={editGender === opt.value}
+                      disabled={savingProfile}
+                      onClick={() => setEditGender(opt.value)}
+                      className={`rounded-xl border px-3 py-2.5 text-sm font-bold transition ${
+                        editGender === opt.value
+                          ? 'border-brand bg-brand text-white'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-brand/40'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {user?.role === USER_ROLES.LABOUR ? (
+              <div>
                 <label htmlFor="edit-experience" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
                   Experience (Years)
                 </label>
@@ -848,6 +881,13 @@ export function AppProfilePage() {
                 </span>
               } 
             />
+            {user?.role === USER_ROLES.LABOUR ? (
+              <DetailRow
+                icon={Sparkles}
+                label="Gender"
+                value={<span className="truncate">{GENDER_OPTIONS.find((o) => o.value === user?.gender)?.label || '—'}</span>}
+              />
+            ) : null}
             {user?.role === USER_ROLES.LABOUR ? (
               <DetailRow 
                 icon={Wrench} 

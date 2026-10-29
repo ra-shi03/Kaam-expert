@@ -58,6 +58,15 @@ function KycPill({ status, submittedAt }) {
   )
 }
 
+const GENDER_LABELS = { male: 'Male', female: 'Female', other: 'Other' }
+const formatGender = (g) => GENDER_LABELS[g] || 'Not provided'
+
+function GenderBadge({ gender }) {
+  if (!GENDER_LABELS[gender]) return <span className="text-slate-400">—</span>
+  const tone = { male: 'bg-sky-50 text-sky-700', female: 'bg-pink-50 text-pink-700', other: 'bg-violet-50 text-violet-700' }[gender]
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${tone}`}>{GENDER_LABELS[gender]}</span>
+}
+
 function StatusPill({ active }) {
   return (
     <span
@@ -454,6 +463,7 @@ export function AdminLabourPage() {
               <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Phone</th>
+                <th className="px-4 py-3">Gender</th>
                 <th className="px-4 py-3">KYC</th>
                 {activeTab !== 'contractor' && <th className="px-4 py-3">Skill</th>}
                 <th className="px-4 py-3">Location</th>
@@ -466,7 +476,7 @@ export function AdminLabourPage() {
               {loading
                 ? Array.from({ length: 6 }).map((_, i) => (
                     <tr key={i} className="border-b border-slate-100">
-                      {Array.from({ length: activeTab === 'contractor' ? 7 : 8 }).map((__, j) => (
+                      {Array.from({ length: activeTab === 'contractor' ? 8 : 9 }).map((__, j) => (
                         <td key={j} className="px-4 py-3">
                           <div className="h-4 animate-pulse rounded bg-slate-200/80" />
                         </td>
@@ -481,6 +491,9 @@ export function AdminLabourPage() {
                       </td>
                       <td className="px-4 py-3 font-mono text-xs tabular-nums text-slate-700">
                         {u.phone ? `+91 ${u.phone}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        <GenderBadge gender={u.gender} />
                       </td>
                       <td className="px-4 py-3">
                         <KycPill status={(u.contractorProfile || u.labourProfile)?.kycStatus} submittedAt={(u.contractorProfile || u.labourProfile)?.kycSubmittedAt} />
@@ -560,6 +573,7 @@ export function AdminLabourPage() {
                     <p className="font-bold text-slate-900">{u.fullName || '—'}</p>
                     {u.email ? <p className="mt-0.5 text-[11px] text-slate-500">{u.email}</p> : null}
                     <p className="mt-0.5 font-mono text-xs text-slate-600">+91 {u.phone || '—'}</p>
+                    <p className="mt-0.5 text-xs text-slate-600">Gender: {formatGender(u.gender)}</p>
                   </div>
                   <StatusPill active={u.isActive !== false} />
                 </div>
@@ -663,6 +677,7 @@ export function AdminLabourPage() {
                     <p className="text-xs font-bold uppercase text-slate-400">Worker</p>
                     <p className="text-base font-extrabold text-slate-900">{detailUser.fullName || '—'}</p>
                     <p className="font-mono text-xs text-slate-600">+91 {detailUser.phone}</p>
+                    <p className="text-xs text-slate-600">Gender: {formatGender(detailUser.gender)}</p>
                     {(detailUser.contractorProfile || detailUser.labourProfile)?.aadhaarMasked ? (
                       <p className="mt-1 font-mono text-sm text-slate-800">Aadhaar: {(detailUser.contractorProfile || detailUser.labourProfile).aadhaarMasked}</p>
                     ) : null}

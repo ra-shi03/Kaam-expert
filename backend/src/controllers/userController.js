@@ -58,7 +58,7 @@ function sanitizeKycVideoMeta(meta) {
 
 /** PATCH /users/me — update basic profile fields (mobile-first parity with future app) */
 export const updateMe = asyncHandler(async (req, res) => {
-  const { fullName, profileImageUrl, phone, email, role, permanentAddress, currentLocation, city, state, country } = req.body
+  const { fullName, profileImageUrl, phone, email, gender, role, permanentAddress, currentLocation, city, state, country } = req.body
   const user = req.user
 
   if (role === USER_ROLES.CUSTOMER || role === USER_ROLES.CONTRACTOR) {
@@ -71,6 +71,8 @@ export const updateMe = asyncHandler(async (req, res) => {
   if (phone != null) user.phone = String(phone).trim()
   if (email != null) user.email = String(email).trim().toLowerCase() || undefined
   
+  if (gender !== undefined) user.gender = gender || undefined
+
   if (permanentAddress !== undefined) user.permanentAddress = String(permanentAddress).trim()
   if (currentLocation !== undefined) user.currentLocation = String(currentLocation).trim()
   if (city !== undefined) user.city = String(city).trim()

@@ -156,6 +156,7 @@ const userSchema = new mongoose.Schema(
       lat: Number,
       lng: Number
     },
+    gender: { type: String, enum: ['male', 'female', 'other'] },
     permanentAddress: { type: String, trim: true },
     currentLocation: { type: String, trim: true },
     city: { type: String, trim: true },
