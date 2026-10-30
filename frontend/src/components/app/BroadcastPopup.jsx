@@ -7,6 +7,7 @@ import { broadcastsApi } from '../../api/broadcastsApi.js'
 import { ApiError } from '../../api/http.js'
 import { useSocket } from '../../context/SocketContext.jsx'
 import { USER_ROLES } from '../../constants/userRoles.js'
+import { playNotificationSound } from '../../lib/notificationSound.js'
 
 /** 240 -> "4 Hours", 90 -> "1.5 Hours", 45 -> "45 Minutes" */
 function formatTotalHours(minutes) {
@@ -65,6 +66,15 @@ export function BroadcastPopup() {
       socket.off('BOOKING_EXPIRED', handleExpired)
     }
   }, [socket, isWorkerOrContractor])
+
+  // Ring when a job offer pops up and keep ringing until it is answered or expires
+  const incomingBookingId = incoming?.bookingId
+  useEffect(() => {
+    if (!incomingBookingId) return undefined
+    playNotificationSound({ urgent: true })
+    const ring = setInterval(() => playNotificationSound({ urgent: true }), 4000)
+    return () => clearInterval(ring)
+  }, [incomingBookingId])
 
   // Fetch pending broadcasts on mount, tab focus/visibility, and interval polling (throttled to 25s)
   useEffect(() => {

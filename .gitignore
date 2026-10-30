@@ -8,8 +8,6 @@ ehthumbs.db
 Thumbs.db
 
 # Environment variables & secrets
-.env
-.env.local
 .env.*.local
 *.pem
 *.key
@@ -21,7 +19,6 @@ src/config/firebase-service-account.json
 .claude/
 .gemini/
 .idea/
-.vscode/
 *.swp
 *.swo
 
@@ -44,3 +41,5 @@ yarn-error.log*
 temp_auto_push.bat
 temp_interactive_push.bat
 
+branch_structure.json
+config.bat
