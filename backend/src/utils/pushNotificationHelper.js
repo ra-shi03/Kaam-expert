@@ -32,6 +32,29 @@ export async function sendNotificationToUser(userId, payload, includeMobile = tr
         body: payload.body,
       },
       data: payload.data || {},
+      // Ring with the phone's default notification sound (and vibrate) even when the app is in the background
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+          channelId: 'kaamexpert_default',
+        },
+      },
+      apns: {
+        headers: { 'apns-priority': '10' },
+        payload: { aps: { sound: 'default' } },
+      },
+      webpush: {
+        headers: { Urgency: 'high' },
+        notification: {
+          icon: '/favicon.ico',
+          vibrate: [200, 100, 200],
+          renotify: true,
+          tag: String(payload.data?.bookingId || payload.data?.type || 'kaamexpert'),
+        },
+      },
       tokens: uniqueTokens,
     };
 
