@@ -345,23 +345,28 @@ export function LabourCategorySetup({ variant = 'app', onComplete }) {
       return
     }
 
+    // Only send services that are currently listed; ids left over in the saved profile
+    // (deleted or malformed) would fail the server's ID validation.
     const servicesPayload = []
-    for (const [id] of selected.entries()) {
-      let subcategoryId = id
-      for (const group of tradeGroups) {
-        for (const cat of group.categories || []) {
-          if (String(cat._id) === id) {
-            if (cat.subcategoryId) subcategoryId = String(cat.subcategoryId)
-          }
-        }
+    const sent = new Set()
+    for (const group of tradeGroups) {
+      for (const cat of group.categories || []) {
+        const id = String(cat._id)
+        if (!selected.has(id) || sent.has(id) || !/^[a-f\d]{24}$/i.test(id)) continue
+        sent.add(id)
+        servicesPayload.push({
+          serviceId: id,
+          subcategoryId: cat.subcategoryId ? String(cat.subcategoryId) : id,
+          minPrice: 0,
+          maxPrice: 0,
+        })
       }
+    }
 
-      servicesPayload.push({
-        serviceId: id,
-        subcategoryId: subcategoryId,
-        minPrice: 0,
-        maxPrice: 0,
-      })
+    if (servicesPayload.length === 0) {
+      setError('Your earlier selection is no longer available. Please pick your work types again.')
+      setSelected(new Map())
+      return
     }
 
     setSaving(true)

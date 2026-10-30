@@ -45,6 +45,7 @@ import { AdminRefundPolicyPage } from './pages/admin/AdminRefundPolicyPage.jsx'
 import { AdminReferralsPage } from './pages/admin/AdminReferralsPage.jsx'
 import { AdminBonusesPage } from './pages/admin/AdminBonusesPage.jsx'
 
+import { NotificationSoundListener } from './components/app/NotificationSoundListener.jsx'
 import { BroadcastPopup } from './components/app/BroadcastPopup.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 import { useEffect } from 'react'
@@ -157,6 +158,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <BroadcastPopup />
+        <NotificationSoundListener />
         </AuthProvider>
       </BrandingProvider>
     </BrowserRouter>

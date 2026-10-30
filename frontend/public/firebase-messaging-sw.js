@@ -18,10 +18,30 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
   const notificationTitle = payload?.notification?.title || 'Notification';
+  const data = payload?.data || {};
   const notificationOptions = {
     body: payload?.notification?.body || '',
-    icon: '/favicon.ico'
+    icon: '/favicon.ico',
+    data,
+    // Same tag as the server-sent one, so the alert is replaced instead of shown twice
+    tag: String(data.bookingId || data.type || 'kaamexpert'),
+    renotify: true,
+    vibrate: [200, 100, 200],
+    requireInteraction: data.type === 'booking_received',
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || '/app';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      for (const client of windows) {
+        if ('focus' in client) return client.focus();
+      }
+      return self.clients.openWindow(target);
+    })
+  );
 });

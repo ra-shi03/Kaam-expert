@@ -2,6 +2,7 @@ import { app, messaging } from '../config/firebase.js';
 import { getToken, onMessage } from 'firebase/messaging';
 import { apiRequest } from '../api/http.js';
 import { store } from '../store/index.js';
+import { playNotificationSound } from '../lib/notificationSound.js';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
@@ -130,6 +131,7 @@ export function setupForegroundNotificationHandler(handler) {
   if (!messaging) return;
   onMessage(messaging, (payload) => {
     console.log('Foreground message received:', payload);
+    playNotificationSound({ urgent: payload?.data?.type === 'booking_received' });
     
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
