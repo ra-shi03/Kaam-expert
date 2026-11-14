@@ -142,6 +142,16 @@
   padding-right: 32px;
 }
 
+/* Phones: continuously animating large blurred layers exhausts iOS Safari GPU memory (page crash) */
+@media (max-width: 767px) {
+  .lp-drift,
+  .lp-drift-reverse,
+  .lp-float,
+  .lp-float-delayed {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lp-marquee,
   .lp-float,

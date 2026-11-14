@@ -306,7 +306,21 @@ export function IndividualBookingFlowPage() {
         }).catch(err => console.error(err))
       }
     } else if (bookingEvent.type === 'BOOKING_FAILED') {
-      setNoMatch(true)
+      // Confirm with the server before showing "not available": one labourer declining must not end the search
+      if (realUser && activeBookingId) {
+        bookingsApi.getBookingStatus(activeBookingId).then((res) => {
+          const status = res.data?.booking?.status
+          if (status === 'BROADCASTING' || status === 'CREATED') return // still looking for labourers
+          if (status && status !== 'FAILED' && status !== 'CANCELLED') {
+            goStep('active') // someone accepted
+            if (res.data?.booking) setActiveBooking(res.data.booking)
+            return
+          }
+          setNoMatch(true)
+        }).catch(() => setNoMatch(true))
+      } else {
+        setNoMatch(true)
+      }
     } else if (bookingEvent.type === 'BOOKING_STATUS_UPDATE') {
       const newStatus = bookingEvent.data?.status
       setActiveBooking(prev => prev ? { ...prev, status: newStatus } : null)

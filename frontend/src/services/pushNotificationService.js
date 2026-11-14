@@ -131,14 +131,20 @@ export function setupForegroundNotificationHandler(handler) {
   if (!messaging) return;
   onMessage(messaging, (payload) => {
     console.log('Foreground message received:', payload);
-    playNotificationSound({ urgent: payload?.data?.type === 'booking_received' });
-    
+    const isBroadcast = payload?.data?.type === 'booking_received'
+    // Job offers ring /broadcast.mp3 from the broadcast popup itself; everything else gets the chime
+    if (!isBroadcast) playNotificationSound();
+
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
         new Notification(payload?.notification?.title || 'KaamExpert Notification', {
           body: payload?.notification?.body || '',
           icon: payload?.notification?.icon || '/favicon.ico',
-          data: payload?.data
+          data: payload?.data,
+          tag: String(payload?.data?.bookingId || payload?.data?.type || 'kaamexpert'),
+          renotify: true,
+          vibrate: isBroadcast ? [250, 120, 250, 120, 250] : [200, 100, 200],
+          requireInteraction: isBroadcast,
         });
       } catch (e) {
         console.warn('Could not show system notification in foreground:', e);

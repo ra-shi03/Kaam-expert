@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
@@ -371,7 +371,9 @@ export function AdminLayout() {
             animate={{ opacity: 1, y: 0 }}
             transition={reduce ? { duration: 0 } : appSpring}
           >
-            <Outlet />
+            <Suspense fallback={<div className="min-h-[40vh]" />}>
+              <Outlet />
+            </Suspense>
           </motion.div>
         </main>
       </div>

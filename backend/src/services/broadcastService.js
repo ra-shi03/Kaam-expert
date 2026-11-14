@@ -97,7 +97,8 @@ export async function startBroadcastCycle(bookingId) {
   const busyLabourIds = busyBookings.map(b => b.acceptedLabourId)
 
   const andClauses = [
-    { _id: { $nin: busyLabourIds } },
+    // skip labourers busy on another job, and anyone who already rejected this booking (re-broadcast)
+    { _id: { $nin: [...busyLabourIds, ...(booking.rejectedBy || [])] } },
     { role: { $in: ['labour', 'contractor'] } },
     { 'labourProfile.availabilityStatus': { $nin: ['busy', 'offline'] } },
   ]

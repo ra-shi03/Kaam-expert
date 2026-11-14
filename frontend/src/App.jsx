@@ -5,51 +5,51 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute.jsx'
 import { AppShell } from './layouts/AppShell.jsx'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
 import { LandingPage } from './pages/LandingPage'
-import { AuthEntryPage } from './pages/auth/AuthEntryPage.jsx'
-import { LegalPublicPage } from './pages/legal/LegalPublicPage.jsx'
-import { AdminSupportPage } from './pages/admin/AdminSupportPage.jsx'
-import { ReferralLandingPage } from './pages/ReferralLandingPage.jsx'
-import { LabourCategoriesPage } from './pages/app/LabourCategoriesPage.jsx'
+const AuthEntryPage = lazy(() => import('./pages/auth/AuthEntryPage.jsx').then((m) => ({ default: m.AuthEntryPage })))
+const LegalPublicPage = lazy(() => import('./pages/legal/LegalPublicPage.jsx').then((m) => ({ default: m.LegalPublicPage })))
+const AdminSupportPage = lazy(() => import('./pages/admin/AdminSupportPage.jsx').then((m) => ({ default: m.AdminSupportPage })))
+const ReferralLandingPage = lazy(() => import('./pages/ReferralLandingPage.jsx').then((m) => ({ default: m.ReferralLandingPage })))
+const LabourCategoriesPage = lazy(() => import('./pages/app/LabourCategoriesPage.jsx').then((m) => ({ default: m.LabourCategoriesPage })))
 import { appShellChildRoutes } from './routes/appRoutes.jsx'
 import { bootRoutes } from './routes/bootRoutes.jsx'
-import { AdminCategoriesPage } from './pages/admin/AdminCategoriesPage.jsx'
-import { AdminSubCategoriesPage } from './pages/admin/AdminSubCategoriesPage.jsx'
-import { AdminServicesPage } from './pages/admin/AdminServicesPage.jsx'
-import { AdminLoginPage } from './pages/admin/AdminLoginPage.jsx'
-import { AdminDashboardPage } from './pages/admin/AdminDashboardPage.jsx'
-import { AdminUsersPage } from './pages/admin/AdminUsersPage.jsx'
-import { AdminLabourPage } from './pages/admin/AdminLabourPage.jsx'
+const AdminCategoriesPage = lazy(() => import('./pages/admin/AdminCategoriesPage.jsx').then((m) => ({ default: m.AdminCategoriesPage })))
+const AdminSubCategoriesPage = lazy(() => import('./pages/admin/AdminSubCategoriesPage.jsx').then((m) => ({ default: m.AdminSubCategoriesPage })))
+const AdminServicesPage = lazy(() => import('./pages/admin/AdminServicesPage.jsx').then((m) => ({ default: m.AdminServicesPage })))
+const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage.jsx').then((m) => ({ default: m.AdminLoginPage })))
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage.jsx').then((m) => ({ default: m.AdminDashboardPage })))
+const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage.jsx').then((m) => ({ default: m.AdminUsersPage })))
+const AdminLabourPage = lazy(() => import('./pages/admin/AdminLabourPage.jsx').then((m) => ({ default: m.AdminLabourPage })))
 
-import { AdminBookingsPage } from './pages/admin/AdminBookingsPage.jsx'
+const AdminBookingsPage = lazy(() => import('./pages/admin/AdminBookingsPage.jsx').then((m) => ({ default: m.AdminBookingsPage })))
 
-import { AdminBillingPage } from './pages/admin/AdminBillingPage.jsx'
-import { AdminSettingsPage } from './pages/admin/AdminSettingsPage.jsx'
-import { AdminReportsPage } from './pages/admin/AdminReportsPage.jsx'
-import { AdminZoneManagementPage } from './pages/admin/AdminZoneManagementPage.jsx'
-import { AdminBannersPage } from './pages/admin/AdminBannersPage.jsx'
-import { AdminComplaintsPage } from './pages/admin/AdminComplaintsPage.jsx'
-import { AdminProfilePage } from './pages/admin/AdminProfilePage.jsx'
-import { AdminZonesPage } from './pages/admin/AdminZonesPage.jsx'
-import { AdminPlatformFeePage } from './pages/admin/AdminPlatformFeePage.jsx'
-import { AdminCommissionFeePage } from './pages/admin/AdminCommissionFeePage.jsx'
-import { AdminLabourWalletPage } from './pages/admin/AdminLabourWalletPage.jsx'
-import { AdminCashManagementPage } from './pages/admin/AdminCashManagementPage.jsx'
-import { AdminReviewsRatingsPage } from './pages/admin/AdminReviewsRatingsPage.jsx'
-import { AdminLabourSubscriptionsPage } from './pages/admin/AdminLabourSubscriptionsPage.jsx'
-import { AdminFreeTrialPage } from './pages/admin/AdminFreeTrialPage.jsx'
-import { AdminPrivacyPolicyPage } from './pages/admin/AdminPrivacyPolicyPage.jsx'
-import { AdminTermsConditionsPage } from './pages/admin/AdminTermsConditionsPage.jsx'
-import { AdminFAQsPage } from './pages/admin/AdminFAQsPage.jsx'
-import { AdminCancellationPolicyPage } from './pages/admin/AdminCancellationPolicyPage.jsx'
-import { AdminRefundPolicyPage } from './pages/admin/AdminRefundPolicyPage.jsx'
-import { AdminReferralsPage } from './pages/admin/AdminReferralsPage.jsx'
-import { AdminBonusesPage } from './pages/admin/AdminBonusesPage.jsx'
+const AdminBillingPage = lazy(() => import('./pages/admin/AdminBillingPage.jsx').then((m) => ({ default: m.AdminBillingPage })))
+const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage.jsx').then((m) => ({ default: m.AdminSettingsPage })))
+const AdminReportsPage = lazy(() => import('./pages/admin/AdminReportsPage.jsx').then((m) => ({ default: m.AdminReportsPage })))
+const AdminZoneManagementPage = lazy(() => import('./pages/admin/AdminZoneManagementPage.jsx').then((m) => ({ default: m.AdminZoneManagementPage })))
+const AdminBannersPage = lazy(() => import('./pages/admin/AdminBannersPage.jsx').then((m) => ({ default: m.AdminBannersPage })))
+const AdminComplaintsPage = lazy(() => import('./pages/admin/AdminComplaintsPage.jsx').then((m) => ({ default: m.AdminComplaintsPage })))
+const AdminProfilePage = lazy(() => import('./pages/admin/AdminProfilePage.jsx').then((m) => ({ default: m.AdminProfilePage })))
+const AdminZonesPage = lazy(() => import('./pages/admin/AdminZonesPage.jsx').then((m) => ({ default: m.AdminZonesPage })))
+const AdminPlatformFeePage = lazy(() => import('./pages/admin/AdminPlatformFeePage.jsx').then((m) => ({ default: m.AdminPlatformFeePage })))
+const AdminCommissionFeePage = lazy(() => import('./pages/admin/AdminCommissionFeePage.jsx').then((m) => ({ default: m.AdminCommissionFeePage })))
+const AdminLabourWalletPage = lazy(() => import('./pages/admin/AdminLabourWalletPage.jsx').then((m) => ({ default: m.AdminLabourWalletPage })))
+const AdminCashManagementPage = lazy(() => import('./pages/admin/AdminCashManagementPage.jsx').then((m) => ({ default: m.AdminCashManagementPage })))
+const AdminReviewsRatingsPage = lazy(() => import('./pages/admin/AdminReviewsRatingsPage.jsx').then((m) => ({ default: m.AdminReviewsRatingsPage })))
+const AdminLabourSubscriptionsPage = lazy(() => import('./pages/admin/AdminLabourSubscriptionsPage.jsx').then((m) => ({ default: m.AdminLabourSubscriptionsPage })))
+const AdminFreeTrialPage = lazy(() => import('./pages/admin/AdminFreeTrialPage.jsx').then((m) => ({ default: m.AdminFreeTrialPage })))
+const AdminPrivacyPolicyPage = lazy(() => import('./pages/admin/AdminPrivacyPolicyPage.jsx').then((m) => ({ default: m.AdminPrivacyPolicyPage })))
+const AdminTermsConditionsPage = lazy(() => import('./pages/admin/AdminTermsConditionsPage.jsx').then((m) => ({ default: m.AdminTermsConditionsPage })))
+const AdminFAQsPage = lazy(() => import('./pages/admin/AdminFAQsPage.jsx').then((m) => ({ default: m.AdminFAQsPage })))
+const AdminCancellationPolicyPage = lazy(() => import('./pages/admin/AdminCancellationPolicyPage.jsx').then((m) => ({ default: m.AdminCancellationPolicyPage })))
+const AdminRefundPolicyPage = lazy(() => import('./pages/admin/AdminRefundPolicyPage.jsx').then((m) => ({ default: m.AdminRefundPolicyPage })))
+const AdminReferralsPage = lazy(() => import('./pages/admin/AdminReferralsPage.jsx').then((m) => ({ default: m.AdminReferralsPage })))
+const AdminBonusesPage = lazy(() => import('./pages/admin/AdminBonusesPage.jsx').then((m) => ({ default: m.AdminBonusesPage })))
 
 import { NotificationSoundListener } from './components/app/NotificationSoundListener.jsx'
 import { BroadcastPopup } from './components/app/BroadcastPopup.jsx'
 import { ViewportLock } from './components/app/ViewportLock.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { APP_B2C_ROLES } from './constants/panelRoles.js'
 import { USER_ROLES } from './constants/userRoles.js'
 import { initializePushNotifications, setupForegroundNotificationHandler } from './services/pushNotificationService.js'
@@ -59,7 +59,7 @@ function App() {
     initializePushNotifications();
     setupForegroundNotificationHandler((payload) => {
       // You can replace this with a custom toast notification library like react-hot-toast if desired
-      if (payload?.notification) {
+      if (payload?.notification && payload?.data?.type !== 'booking_received') {
         alert(`New Notification: ${payload.notification.title}\n${payload.notification.body}`);
       }
       if (payload.data?.link) {
@@ -74,6 +74,7 @@ function App() {
       <ViewportLock />
       <BrandingProvider>
         <AuthProvider>
+        <Suspense fallback={<div className="min-h-dvh bg-white" />}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           {bootRoutes}
@@ -159,6 +160,7 @@ function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
         <BroadcastPopup />
         <NotificationSoundListener />
         </AuthProvider>

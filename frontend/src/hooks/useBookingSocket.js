@@ -37,7 +37,8 @@ export function useBookingSocket(bookingId) {
     })
 
     socket.on('BOOKING_FAILED', (data) => {
-      if (!bookingId || data.bookingId === bookingId) {
+      // Strict match: a failure from some other / older booking must never end this search
+      if (bookingId && String(data.bookingId) === String(bookingId)) {
         setBookingEvent({ type: 'BOOKING_FAILED', data })
       }
     })

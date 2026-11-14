@@ -347,24 +347,60 @@ export const rejectBroadcast = asyncHandler(async (req, res) => {
     console.error('[broadcastController] Failed to track booking opportunity:', e)
   }
 
-  // If everyone eligible has rejected it, fail it (for INSTANT bookings).
-  // For SCHEDULED bookings, do not fail early - leave the booking open until scheduledAt
-  if (booking.type !== 'SCHEDULED' && booking.rejectedBy.length >= (booking.eligibleLabourCount || 0)) {
-    booking.status = 'FAILED'
-    await booking.save()
+  // One labourer declining must never end the search while other labourers are still deciding.
+  // Resolve the booking only once EVERY labourer who was offered it has answered:
+  //  - nobody accepted  -> FAILED  (customer sees "not available")
+  //  - some accepted    -> ACCEPTED with the partial crew (multi-labour bookings), never FAILED
+  // Applies to instant and scheduled bookings alike (scheduled offers a worker merely lets lapse stay PENDING).
+  {
+    const [offered, pending] = await Promise.all([
+      BroadcastLog.countDocuments({ bookingId: booking._id }),
+      BroadcastLog.countDocuments({ bookingId: booking._id, status: { $in: ['PENDING', 'pending'] } }),
+    ])
+    // BroadcastLog is the source of truth for who was offered the job. Only fall back to the stored
+    // eligible count if logs are missing, and never treat an unset (0) count as "everyone declined".
+    const eligible = booking.eligibleLabourCount || 0
+    const everyoneAnswered = offered > 0
+      ? pending === 0
+      : eligible > 0 && booking.rejectedBy.length >= eligible
 
-    import('../socket.js')
-      .then(({ emitToUser, getIo }) => {
-        emitToUser(booking.userId, 'BOOKING_FAILED', {
-          bookingId: booking._id,
-          reason: 'All available labourers declined',
-        })
-        const io = getIo()
-        if (io) {
-          io.emit('BOOKING_EXPIRED', { bookingId: booking._id })
-        }
-      })
-      .catch((err) => console.error('Failed to notify sockets on reject:', err))
+    if (everyoneAnswered) {
+      const noAcceptances = [{ acceptedLabourIds: { $exists: false } }, { acceptedLabourIds: { $size: 0 } }]
+      // Atomic status flips so a labourer accepting at the same moment can't be overwritten
+      const failed = await Booking.findOneAndUpdate(
+        { _id: booking._id, status: 'BROADCASTING', $or: noAcceptances },
+        { $set: { status: 'FAILED' } },
+        { new: true }
+      )
+      const partial = failed
+        ? null
+        : await Booking.findOneAndUpdate(
+            { _id: booking._id, status: 'BROADCASTING', 'acceptedLabourIds.0': { $exists: true } },
+            { $set: { status: 'ACCEPTED' } },
+            { new: true }
+          )
+
+      if (failed || partial) {
+        import('../socket.js')
+          .then(({ emitToUser, getIo }) => {
+            if (failed) {
+              emitToUser(booking.userId, 'BOOKING_FAILED', {
+                bookingId: booking._id,
+                reason: 'All available labourers declined',
+              })
+            } else {
+              emitToUser(booking.userId, 'BOOKING_ACCEPTED', {
+                bookingId: booking._id,
+                partial: true,
+                acceptedCount: partial.acceptedLabourIds.length,
+              })
+            }
+            const io = getIo()
+            if (io) io.emit('BOOKING_EXPIRED', { bookingId: booking._id })
+          })
+          .catch((err) => console.error('Failed to notify sockets on reject:', err))
+      }
+    }
   }
 
   return sendSuccess(res, { message: 'Booking rejected successfully' })

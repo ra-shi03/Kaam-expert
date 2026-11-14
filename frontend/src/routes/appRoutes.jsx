@@ -1,32 +1,33 @@
+import { lazy } from 'react'
 import { Navigate, Route } from 'react-router-dom'
 import { RoleRoute } from '../components/auth/RoleRoute.jsx'
-import { AppHomePage } from '../pages/app/AppHomePage.jsx'
-import { AppBookingsPage } from '../pages/app/AppBookingsPage.jsx'
-import { AppJobsPage } from '../pages/app/AppJobsPage.jsx'
-import { AppSupportPage } from '../pages/app/AppSupportPage.jsx'
-import { AppProfilePage } from '../pages/app/AppProfilePage.jsx'
-import { AppEarningsPage } from '../pages/app/AppEarningsPage.jsx'
+const AppHomePage = lazy(() => import('../pages/app/AppHomePage.jsx').then((m) => ({ default: m.AppHomePage })))
+const AppBookingsPage = lazy(() => import('../pages/app/AppBookingsPage.jsx').then((m) => ({ default: m.AppBookingsPage })))
+const AppJobsPage = lazy(() => import('../pages/app/AppJobsPage.jsx').then((m) => ({ default: m.AppJobsPage })))
+const AppSupportPage = lazy(() => import('../pages/app/AppSupportPage.jsx').then((m) => ({ default: m.AppSupportPage })))
+const AppProfilePage = lazy(() => import('../pages/app/AppProfilePage.jsx').then((m) => ({ default: m.AppProfilePage })))
+const AppEarningsPage = lazy(() => import('../pages/app/AppEarningsPage.jsx').then((m) => ({ default: m.AppEarningsPage })))
 
-import { AppKycPage } from '../pages/app/AppKycPage.jsx'
-import { LabourNotificationsPage } from '../pages/app/labour/LabourNotificationsPage.jsx'
-import { IndividualBookingFlowPage } from '../pages/app/booking/IndividualBookingFlowPage.jsx'
+const AppKycPage = lazy(() => import('../pages/app/AppKycPage.jsx').then((m) => ({ default: m.AppKycPage })))
+const LabourNotificationsPage = lazy(() => import('../pages/app/labour/LabourNotificationsPage.jsx').then((m) => ({ default: m.LabourNotificationsPage })))
+const IndividualBookingFlowPage = lazy(() => import('../pages/app/booking/IndividualBookingFlowPage.jsx').then((m) => ({ default: m.IndividualBookingFlowPage })))
 
-import { AppIndividualSearchPage } from '../pages/app/AppIndividualSearchPage.jsx'
-import { ServiceCatalog } from '../pages/app/ServiceCatalog.jsx'
-import { Checkout } from '../pages/app/Checkout.jsx'
-import { JobTracking } from '../pages/app/JobTracking.jsx'
-import { MyBookings } from '../pages/app/MyBookings.jsx'
-import { ActiveJob } from '../pages/app/ActiveJob.jsx'
-import { LaborWallet } from '../pages/app/LaborWallet.jsx'
-import { AppSubCategoryServicePage } from '../pages/app/AppSubCategoryServicePage.jsx'
-import { AppSubscriptionPage } from '../pages/app/AppSubscriptionPage.jsx'
-import { AppPrivacyPolicyPage } from '../pages/app/AppPrivacyPolicyPage.jsx'
-import { AppTermsConditionsPage } from '../pages/app/AppTermsConditionsPage.jsx'
-import { AppFAQsPage } from '../pages/app/AppFAQsPage.jsx'
-import { AppCancellationPolicyPage } from '../pages/app/AppCancellationPolicyPage.jsx'
-import { AppRefundPolicyPage } from '../pages/app/AppRefundPolicyPage.jsx'
-import { AppBillingPage } from '../pages/app/AppBillingPage.jsx'
-import { AppReferralPage } from '../pages/app/AppReferralPage.jsx'
+const AppIndividualSearchPage = lazy(() => import('../pages/app/AppIndividualSearchPage.jsx').then((m) => ({ default: m.AppIndividualSearchPage })))
+const ServiceCatalog = lazy(() => import('../pages/app/ServiceCatalog.jsx').then((m) => ({ default: m.ServiceCatalog })))
+const Checkout = lazy(() => import('../pages/app/Checkout.jsx').then((m) => ({ default: m.Checkout })))
+const JobTracking = lazy(() => import('../pages/app/JobTracking.jsx').then((m) => ({ default: m.JobTracking })))
+const MyBookings = lazy(() => import('../pages/app/MyBookings.jsx').then((m) => ({ default: m.MyBookings })))
+const ActiveJob = lazy(() => import('../pages/app/ActiveJob.jsx').then((m) => ({ default: m.ActiveJob })))
+const LaborWallet = lazy(() => import('../pages/app/LaborWallet.jsx').then((m) => ({ default: m.LaborWallet })))
+const AppSubCategoryServicePage = lazy(() => import('../pages/app/AppSubCategoryServicePage.jsx').then((m) => ({ default: m.AppSubCategoryServicePage })))
+const AppSubscriptionPage = lazy(() => import('../pages/app/AppSubscriptionPage.jsx').then((m) => ({ default: m.AppSubscriptionPage })))
+const AppPrivacyPolicyPage = lazy(() => import('../pages/app/AppPrivacyPolicyPage.jsx').then((m) => ({ default: m.AppPrivacyPolicyPage })))
+const AppTermsConditionsPage = lazy(() => import('../pages/app/AppTermsConditionsPage.jsx').then((m) => ({ default: m.AppTermsConditionsPage })))
+const AppFAQsPage = lazy(() => import('../pages/app/AppFAQsPage.jsx').then((m) => ({ default: m.AppFAQsPage })))
+const AppCancellationPolicyPage = lazy(() => import('../pages/app/AppCancellationPolicyPage.jsx').then((m) => ({ default: m.AppCancellationPolicyPage })))
+const AppRefundPolicyPage = lazy(() => import('../pages/app/AppRefundPolicyPage.jsx').then((m) => ({ default: m.AppRefundPolicyPage })))
+const AppBillingPage = lazy(() => import('../pages/app/AppBillingPage.jsx').then((m) => ({ default: m.AppBillingPage })))
+const AppReferralPage = lazy(() => import('../pages/app/AppReferralPage.jsx').then((m) => ({ default: m.AppReferralPage })))
 import { USER_ROLES } from '../constants/userRoles.js'
 
 

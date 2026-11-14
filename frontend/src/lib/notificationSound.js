@@ -103,6 +103,22 @@ export function startBroadcastSound() {
   })
 }
 
+/** Plays /broadcast.mp3 once (e.g. a push arrived while the tab was in the background). */
+export function playBroadcastSoundOnce() {
+  if (!isNotificationSoundEnabled() || broadcastWanted) return // already ringing for a live offer
+  const a = getBroadcastAudio()
+  if (!a) return playNotificationSound({ urgent: true })
+  a.loop = false
+  a.muted = false
+  a.currentTime = 0
+  const restoreLoop = () => {
+    a.loop = true
+    a.removeEventListener('ended', restoreLoop)
+  }
+  a.addEventListener('ended', restoreLoop)
+  a.play().catch(() => playNotificationSound({ urgent: true }))
+}
+
 export function stopBroadcastSound() {
   broadcastWanted = false
   if (!broadcastAudio) return

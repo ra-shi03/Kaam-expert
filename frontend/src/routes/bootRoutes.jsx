@@ -1,6 +1,7 @@
+import { lazy } from 'react'
 import { Route } from 'react-router-dom'
-import { RoleSelectPage } from '../pages/boot/RoleSelectPage.jsx'
-import { SplashPage } from '../pages/boot/SplashPage.jsx'
+const RoleSelectPage = lazy(() => import('../pages/boot/RoleSelectPage.jsx').then((m) => ({ default: m.RoleSelectPage })))
+const SplashPage = lazy(() => import('../pages/boot/SplashPage.jsx').then((m) => ({ default: m.SplashPage })))
 
 /** Public mobile bootstrap routes (splash → role select). */
 export const bootRoutes = (

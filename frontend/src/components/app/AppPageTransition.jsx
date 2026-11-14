@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useLocation, useOutlet } from 'react-router-dom'
 
@@ -16,7 +17,7 @@ export function AppPageTransition() {
         exit={reduce ? undefined : { opacity: 0 }}
         transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
       >
-        {outlet}
+        <Suspense fallback={<div className="min-h-[40vh]" />}>{outlet}</Suspense>
       </motion.div>
     </AnimatePresence>
   )

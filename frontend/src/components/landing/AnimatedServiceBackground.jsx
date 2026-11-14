@@ -113,21 +113,21 @@ export function AnimatedServiceBackground() {
     <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
       {/* Dynamic Ambient Gradient Blobs with subtle parallax */}
       <motion.div
-        className="absolute -top-32 left-1/4 h-[550px] w-[550px] rounded-full bg-gradient-to-tr from-blue-500/12 via-indigo-500/8 to-emerald-400/10 blur-[110px]"
+        className="max-md:hidden absolute -top-32 left-1/4 h-[550px] w-[550px] rounded-full bg-gradient-to-tr from-blue-500/12 via-indigo-500/8 to-emerald-400/10 blur-[110px]"
         style={reduce ? undefined : { x: blobAX, y: blobAY }}
         animate={reduce ? undefined : { scale: [1, 1.05, 1] }}
         transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
       />
 
       <motion.div
-        className="absolute top-1/3 -right-24 h-[500px] w-[500px] rounded-full bg-gradient-to-bl from-emerald-500/10 via-teal-400/8 to-blue-600/10 blur-[100px]"
+        className="max-md:hidden absolute top-1/3 -right-24 h-[500px] w-[500px] rounded-full bg-gradient-to-bl from-emerald-500/10 via-teal-400/8 to-blue-600/10 blur-[100px]"
         style={reduce ? undefined : { x: blobBX, y: blobBY }}
         animate={reduce ? undefined : { scale: [1.05, 1, 1.05] }}
         transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
       />
 
       <motion.div
-        className="absolute -bottom-20 left-1/3 h-[480px] w-[480px] rounded-full bg-gradient-to-tr from-amber-500/8 via-sky-400/8 to-blue-500/10 blur-[110px]"
+        className="max-md:hidden absolute -bottom-20 left-1/3 h-[480px] w-[480px] rounded-full bg-gradient-to-tr from-amber-500/8 via-sky-400/8 to-blue-500/10 blur-[110px]"
         style={reduce ? undefined : { x: blobCX, y: blobCY }}
       />
 

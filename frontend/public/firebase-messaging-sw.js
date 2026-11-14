@@ -31,6 +31,13 @@ messaging.onBackgroundMessage((payload) => {
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+
+  // A tab may be open but in the background: let it ring /broadcast.mp3 (service workers can't play audio)
+  if (data.type === 'booking_received') {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+      windows.forEach((client) => client.postMessage({ type: 'PLAY_BROADCAST_SOUND', bookingId: data.bookingId }));
+    });
+  }
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -39,7 +46,10 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       for (const client of windows) {
-        if ('focus' in client) return client.focus();
+        if ('focus' in client) {
+          if ('navigate' in client && target) client.navigate(target).catch(() => {});
+          return client.focus();
+        }
       }
       return self.clients.openWindow(target);
     })

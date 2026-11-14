@@ -25,16 +25,23 @@ export async function sendNotificationToUser(userId, payload, includeMobile = tr
       return;
     }
 
+    const isBroadcast = payload.data?.type === 'booking_received'
+    // FCM data values must be strings
+    const data = Object.fromEntries(Object.entries(payload.data || {}).map(([k, v]) => [k, String(v)]))
+    if (isBroadcast && !data.url) data.url = '/app'
+
     // Prepare message
     const message = {
       notification: {
         title: payload.title,
         body: payload.body,
       },
-      data: payload.data || {},
+      data,
       // Ring with the phone's default notification sound (and vibrate) even when the app is in the background
       android: {
         priority: 'high',
+        // A job offer is worthless once the broadcast window (5 min) closes
+        ...(isBroadcast ? { ttl: 300000 } : {}),
         notification: {
           sound: 'default',
           defaultSound: true,
@@ -43,14 +50,15 @@ export async function sendNotificationToUser(userId, payload, includeMobile = tr
         },
       },
       apns: {
-        headers: { 'apns-priority': '10' },
+        headers: { 'apns-priority': '10', ...(isBroadcast ? { 'apns-expiration': String(Math.floor(Date.now() / 1000) + 300) } : {}) },
         payload: { aps: { sound: 'default' } },
       },
       webpush: {
-        headers: { Urgency: 'high' },
+        headers: { Urgency: 'high', ...(isBroadcast ? { TTL: '300' } : {}) },
         notification: {
           icon: '/favicon.ico',
-          vibrate: [200, 100, 200],
+          vibrate: isBroadcast ? [250, 120, 250, 120, 250] : [200, 100, 200],
+          requireInteraction: isBroadcast,
           renotify: true,
           tag: String(payload.data?.bookingId || payload.data?.type || 'kaamexpert'),
         },

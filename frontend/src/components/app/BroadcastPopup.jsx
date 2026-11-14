@@ -7,7 +7,9 @@ import { broadcastsApi } from '../../api/broadcastsApi.js'
 import { ApiError } from '../../api/http.js'
 import { useSocket } from '../../context/SocketContext.jsx'
 import { USER_ROLES } from '../../constants/userRoles.js'
-import { startBroadcastSound, stopBroadcastSound } from '../../lib/notificationSound.js'
+import { playBroadcastSoundOnce, startBroadcastSound, stopBroadcastSound } from '../../lib/notificationSound.js'
+import { showBroadcastNotification, clearBroadcastNotification } from '../../lib/broadcastNotification.js'
+import { registerFCMToken } from '../../services/pushNotificationService.js'
 
 /** 240 -> "4 Hours", 90 -> "1.5 Hours", 45 -> "45 Minutes" */
 function formatTotalHours(minutes) {
@@ -25,6 +27,15 @@ export function BroadcastPopup() {
   const timerRef = useRef(null)
   const lastFetchRef = useRef(0)
   const initialTimeoutRef = useRef(30)
+  // Offers this worker already rejected / let expire / accepted: never show them again
+  const [dismissed] = useState(() => {
+    try { return new Set(JSON.parse(sessionStorage.getItem('kaam_dismissed_broadcasts') || '[]')) } catch { return new Set() }
+  })
+  const markDismissed = useCallback((bookingId) => {
+    if (!bookingId) return
+    dismissed.add(String(bookingId))
+    try { sessionStorage.setItem('kaam_dismissed_broadcasts', JSON.stringify([...dismissed].slice(-100))) } catch { /* storage unavailable */ }
+  }, [dismissed])
 
   const [incoming, setIncoming] = useState(null)
   const [timeLeft, setTimeLeft] = useState(30)
@@ -37,12 +48,43 @@ export function BroadcastPopup() {
   // Only render for labour and contractor users
   const isWorkerOrContractor = user?.role === USER_ROLES.LABOUR || user?.role === 'labour' || user?.role === USER_ROLES.CONTRACTOR || user?.role === 'contractor'
 
+  // Push setup for workers: browsers (iOS especially) only show the permission prompt from a user gesture,
+  // so ask on the first tap/key press. Also re-sync the token if permission was already granted.
+  useEffect(() => {
+    if (!isWorkerOrContractor || typeof Notification === 'undefined') return undefined
+    const register = (force) => registerFCMToken(force).catch((e) => console.warn('Push registration failed', e))
+
+    if (Notification.permission === 'granted') {
+      if (!localStorage.getItem('fcm_token_web')) register(true)
+      return undefined
+    }
+    if (Notification.permission === 'denied') return undefined
+
+    const events = ['pointerdown', 'keydown']
+    const onGesture = () => {
+      events.forEach((e) => window.removeEventListener(e, onGesture))
+      register(true)
+    }
+    events.forEach((e) => window.addEventListener(e, onGesture, { passive: true }))
+    return () => events.forEach((e) => window.removeEventListener(e, onGesture))
+  }, [isWorkerOrContractor])
+
+  // A push arrived while this tab was open but hidden: the service worker can't play audio, so ring here
+  useEffect(() => {
+    if (!isWorkerOrContractor || !('serviceWorker' in navigator)) return undefined
+    const onMessage = (event) => {
+      if (event.data?.type === 'PLAY_BROADCAST_SOUND') playBroadcastSoundOnce()
+    }
+    navigator.serviceWorker.addEventListener('message', onMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', onMessage)
+  }, [isWorkerOrContractor])
+
   // Listen for broadcast events
   useEffect(() => {
     if (!socket || !isWorkerOrContractor) return
 
     const handleBroadcast = (data) => {
-      console.log('--- BOOKING_RECEIVED EVENT ---', data);
+      if (dismissed.has(String(data.bookingId))) return
       const isSched = data.type === 'SCHEDULED' && (data.scheduledAt || data.date)
       const timeout = isSched
         ? Math.max(30, Math.floor((new Date(data.scheduledAt || data.date).getTime() - Date.now()) / 1000))
@@ -57,6 +99,7 @@ export function BroadcastPopup() {
 
     socket.on('BOOKING_RECEIVED', handleBroadcast)
     const handleExpired = (data) => {
+      markDismissed(data.bookingId)
       setIncoming((prev) => (prev?.bookingId === data.bookingId ? null : prev))
     }
     socket.on('BOOKING_EXPIRED', handleExpired)
@@ -65,14 +108,23 @@ export function BroadcastPopup() {
       socket.off('BOOKING_RECEIVED', handleBroadcast)
       socket.off('BOOKING_EXPIRED', handleExpired)
     }
-  }, [socket, isWorkerOrContractor])
+  }, [socket, isWorkerOrContractor, markDismissed, dismissed])
 
   // Play /broadcast.mp3 on loop while a job offer is showing; stops when answered, expired or dismissed
   const incomingBookingId = incoming?.bookingId
+  const incomingRef = useRef(null)
+  useEffect(() => {
+    incomingRef.current = incoming
+  }, [incoming])
   useEffect(() => {
     if (!incomingBookingId) return undefined
     startBroadcastSound()
-    return () => stopBroadcastSound()
+    // Also raise a system notification (shows when the tab is hidden / the phone is locked)
+    showBroadcastNotification(incomingRef.current)
+    return () => {
+      stopBroadcastSound()
+      clearBroadcastNotification(incomingBookingId)
+    }
   }, [incomingBookingId])
 
   // Fetch pending broadcasts on mount, tab focus/visibility, and interval polling (throttled to 25s)
@@ -82,7 +134,7 @@ export function BroadcastPopup() {
     const fetchPending = () => {
       lastFetchRef.current = Date.now()
       broadcastsApi.getPendingBroadcasts().then((res) => {
-        const offers = res.data?.offers || []
+        const offers = (res.data?.offers || []).filter((o) => !dismissed.has(String(o.bookingId)))
         if (offers.length > 0) {
           const offer = offers[0]
           const isSched = offer.type === 'SCHEDULED' && (offer.scheduledAt || offer.date)
@@ -122,7 +174,7 @@ export function BroadcastPopup() {
       document.removeEventListener('visibilitychange', handleVisibility)
       clearInterval(timer)
     }
-  }, [isWorkerOrContractor])
+  }, [isWorkerOrContractor, dismissed])
 
   // Countdown timer
   useEffect(() => {
@@ -134,6 +186,7 @@ export function BroadcastPopup() {
           clearInterval(timerRef.current)
           // For INSTANT bookings: auto-reject so subsequent workers in queue can receive it.
           // For SCHEDULED bookings: DO NOT reject on backend; dismiss popup while leaving offer alive in liveOffers.
+          if (incoming?.bookingId) markDismissed(incoming.bookingId)
           if (incoming?.type !== 'SCHEDULED' && incoming?.bookingId) {
             broadcastsApi.rejectBroadcast(incoming.bookingId).catch(() => {})
           }
@@ -147,7 +200,7 @@ export function BroadcastPopup() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [incoming])
+  }, [incoming, markDismissed])
 
   const handleAccept = useCallback(async () => {
     if (!incoming) return
@@ -166,6 +219,7 @@ export function BroadcastPopup() {
       await broadcastsApi.acceptBroadcast(incoming.bookingId, payload)
       if (timerRef.current) clearInterval(timerRef.current)
       const bookingId = incoming.bookingId
+      markDismissed(bookingId)
       setIncoming(null)
       navigate(`/app/active-job/${bookingId}`)
     } catch (err) {
@@ -175,7 +229,7 @@ export function BroadcastPopup() {
       }
       setResponding(false)
     }
-  }, [incoming, navigate, selectedServiceId])
+  }, [incoming, navigate, selectedServiceId, markDismissed])
 
   // Hide the offer (without rejecting it) and go recharge — scheduled offers stay in the pending list
   const handleGoRecharge = useCallback(() => {
@@ -190,12 +244,10 @@ export function BroadcastPopup() {
   const handleReject = useCallback(async () => {
     if (!incoming) return
     setResponding(true)
+    // Remember it before the network call so an in-flight poll can't pop the same offer back up
+    markDismissed(incoming.bookingId)
     try {
-      // Only notify backend of explicit rejection for INSTANT bookings.
-      // For SCHEDULED bookings, worker dismissing the popup leaves the opportunity open.
-      if (incoming.type !== 'SCHEDULED') {
-        await broadcastsApi.rejectBroadcast(incoming.bookingId)
-      }
+      await broadcastsApi.rejectBroadcast(incoming.bookingId)
     } catch {
       /* ignore */
     } finally {
@@ -203,7 +255,7 @@ export function BroadcastPopup() {
       setIncoming(null)
       setResponding(false)
     }
-  }, [incoming])
+  }, [incoming, markDismissed])
 
   if (!isWorkerOrContractor) return null
 
