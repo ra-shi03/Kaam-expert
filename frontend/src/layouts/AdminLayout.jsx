@@ -191,7 +191,7 @@ export function AdminLayout() {
   `
 
   return (
-    <div className="flex h-dvh max-h-dvh w-full overflow-hidden bg-white text-slate-900">
+    <div className="allow-select flex h-dvh max-h-dvh w-full overflow-hidden bg-white text-slate-900">
       <AnimatePresence>
         {mobileOpen ? (
           <motion.button

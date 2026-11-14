@@ -403,7 +403,7 @@ function AppShellContent({ kycLocked }) {
         {!hideShellHeader ? (
           <header
             ref={headerRef}
-            className={`sticky top-0 z-30 hide-on-print ${isIndividualAppHome ? 'bg-transparent px-4 pb-1 pt-3' : 'px-3 pt-3'
+            className={`sticky top-0 z-30 hide-on-print ${isIndividualAppHome ? 'bg-transparent px-4 pb-1 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]' : 'px-3 pt-[env(safe-area-inset-top,0px)]'
               }`}
           >
             {isIndividualAppHome ? (

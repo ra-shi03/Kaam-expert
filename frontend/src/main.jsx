@@ -6,6 +6,9 @@ import { store } from './store/index.js'
 import { SocketProvider } from './context/SocketContext.jsx'
 import './index.css'
 import App from './App.jsx'
+import { installZoomGuards } from './lib/viewportLock.js'
+
+installZoomGuards()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -47,6 +47,7 @@ import { AdminBonusesPage } from './pages/admin/AdminBonusesPage.jsx'
 
 import { NotificationSoundListener } from './components/app/NotificationSoundListener.jsx'
 import { BroadcastPopup } from './components/app/BroadcastPopup.jsx'
+import { ViewportLock } from './components/app/ViewportLock.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 import { useEffect } from 'react'
 import { APP_B2C_ROLES } from './constants/panelRoles.js'
@@ -70,6 +71,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ViewportLock />
       <BrandingProvider>
         <AuthProvider>
         <Routes>

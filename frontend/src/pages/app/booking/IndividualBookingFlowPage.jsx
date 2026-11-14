@@ -71,6 +71,8 @@ import {
   buildBookingFlowPath,
 } from '../../../lib/bookingFlowNavigation.js'
 import { calculateEndTime, getDraftDurationMinutes, formatTime12 } from '../../../lib/bookingTimeUtils.js'
+import { scrollAppToTop } from '../../../lib/viewportLock.js'
+import { formatDurationMinutes } from '../../../lib/individualBookings.js'
 
 const TIME_SLOTS = ['9:00 AM – 12:00 PM', '12:00 PM – 3:00 PM', '3:00 PM – 6:00 PM', '6:00 PM – 9:00 PM']
 
@@ -216,7 +218,7 @@ export function IndividualBookingFlowPage() {
   const markerInstance = useRef(null)
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    scrollAppToTop('instant')
   }, [step])
 
 
@@ -1075,10 +1077,10 @@ export function IndividualBookingFlowPage() {
             ) : null}
           </div>
           <motion.div className="mt-6 flex flex-col gap-2">
-            <BookingPrimaryButton type="button" onClick={() => { window.scrollTo(0, 0); clearBookingDraft(); navigate('/app/my-bookings', { replace: true }) }}>
+            <BookingPrimaryButton type="button" onClick={() => { scrollAppToTop(); clearBookingDraft(); navigate('/app/my-bookings', { replace: true }) }}>
               View my bookings
             </BookingPrimaryButton>
-            <AppButton type="button" variant="secondary" onClick={() => { window.scrollTo(0, 0); clearBookingDraft(); navigate('/app', { replace: true }) }}>
+            <AppButton type="button" variant="secondary" onClick={() => { scrollAppToTop(); clearBookingDraft(); navigate('/app', { replace: true }) }}>
               Back to home
             </AppButton>
           </motion.div>
@@ -1142,7 +1144,7 @@ export function IndividualBookingFlowPage() {
   if (noMatch) {
     return (
       <div className="space-y-4 pb-8">
-        <AppStackScreenHeader title="No match" onBack={() => { window.scrollTo(0, 0); navigate('/app') }} />
+        <AppStackScreenHeader title="No match" onBack={() => { scrollAppToTop(); navigate('/app') }} />
         <GlassPanel className="p-6 text-center">
           <AlertCircle className="mx-auto h-10 w-10 text-amber-500" aria-hidden />
           <p className="mt-3 text-sm font-bold text-slate-900">Labourers are currently not available</p>
@@ -1151,7 +1153,7 @@ export function IndividualBookingFlowPage() {
             <BookingPrimaryButton type="button" onClick={() => { setNoMatch(false); confirmBooking() }}>
               Retry search
             </BookingPrimaryButton>
-            <AppButton type="button" variant="secondary" onClick={() => { window.scrollTo(0, 0); navigate('/app') }}>
+            <AppButton type="button" variant="secondary" onClick={() => { scrollAppToTop(); navigate('/app') }}>
               Cancel
             </AppButton>
           </motion.div>

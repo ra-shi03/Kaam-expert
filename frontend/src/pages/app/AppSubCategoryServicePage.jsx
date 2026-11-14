@@ -160,9 +160,9 @@ export function AppSubCategoryServicePage() {
   const services = cat?.services || []
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 -mx-4 -mt-[max(0.5rem,env(safe-area-inset-top,0px))]">
+    <div className="flex flex-col min-h-screen bg-slate-50 -mx-4 -mt-4">
       {/* Header */}
-      <div className="sticky top-[max(0.5rem,env(safe-area-inset-top,0.5rem))] z-30 px-4 pt-2 pb-1 bg-slate-50/80 backdrop-blur-md">
+      <div className="sticky top-0 z-30 px-4 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] pb-1 bg-slate-50/80 backdrop-blur-md">
         <div className="rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-3.5">
             <button 
