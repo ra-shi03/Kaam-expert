@@ -136,14 +136,14 @@ export function AuthEntryPage({ authGroup = 'users' }) {
     clearOtpError()
     const nextEmpty = cells.findIndex((c) => c === '')
     queueMicrotask(() => {
-      otpInputRefs.current[nextEmpty === -1 ? 5 : nextEmpty]?.focus()
+      otpInputRefs.current[nextEmpty === -1 ? 5 : nextEmpty]?.focus({ preventScroll: true })
     })
   }
 
   useEffect(() => {
     if (step !== 'otp') return
     queueMicrotask(() => {
-      otpInputRefs.current[0]?.focus()
+      otpInputRefs.current[0]?.focus({ preventScroll: true })
     })
   }, [step])
 
@@ -294,7 +294,8 @@ export function AuthEntryPage({ authGroup = 'users' }) {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-white selection:bg-brand/20 overflow-hidden overscroll-none touch-none">
+    <div className="fixed inset-0 overflow-y-auto overflow-x-hidden overscroll-none bg-white selection:bg-brand/20 pb-[var(--kb-inset,0px)] [-webkit-overflow-scrolling:touch]">
+    <div className="flex min-h-full flex-col">
       {/* Top Header Section with Wave */}
       <div className="relative flex flex-col pt-10 pb-10 text-white bg-linear-to-b from-brand to-brand-bright shrink-0">
         {/* Wave SVG */}
@@ -321,8 +322,8 @@ export function AuthEntryPage({ authGroup = 'users' }) {
       </div>
 
       {/* Bottom Form Section */}
-      <div className="flex-1 bg-white px-6 pb-4 overflow-y-auto overscroll-contain touch-pan-y">
-        <div className="mx-auto max-w-lg h-full flex flex-col">
+      <div className="flex-1 bg-white px-6 pb-8">
+        <div className="mx-auto max-w-lg flex flex-col">
 
 
         {step === 'form' ? (
@@ -558,7 +559,7 @@ export function AuthEntryPage({ authGroup = 'users' }) {
                           next[i] = d
                           setOtpCells(next)
                           clearOtpError()
-                          if (i < 5) otpInputRefs.current[i + 1]?.focus()
+                          if (i < 5) otpInputRefs.current[i + 1]?.focus({ preventScroll: true })
                         } else {
                           next[i] = ''
                           setOtpCells(next)
@@ -583,18 +584,18 @@ export function AuthEntryPage({ authGroup = 'users' }) {
                             next[i - 1] = ''
                             setOtpCells(next)
                             clearOtpError()
-                            otpInputRefs.current[i - 1]?.focus()
+                            otpInputRefs.current[i - 1]?.focus({ preventScroll: true })
                           }
                           return
                         }
                         if (e.key === 'ArrowLeft' && i > 0) {
                           e.preventDefault()
-                          otpInputRefs.current[i - 1]?.focus()
+                          otpInputRefs.current[i - 1]?.focus({ preventScroll: true })
                           return
                         }
                         if (e.key === 'ArrowRight' && i < 5) {
                           e.preventDefault()
-                          otpInputRefs.current[i + 1]?.focus()
+                          otpInputRefs.current[i + 1]?.focus({ preventScroll: true })
                           return
                         }
                         if (e.ctrlKey || e.metaKey) return
@@ -629,6 +630,7 @@ export function AuthEntryPage({ authGroup = 'users' }) {
 
         </div>
       </div>
+    </div>
     </div>
   )
 }

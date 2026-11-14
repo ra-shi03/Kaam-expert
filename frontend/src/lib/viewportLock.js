@@ -66,3 +66,45 @@ export function installZoomGuards() {
   document.addEventListener('contextmenu', (e) => !isEditable(e.target) && e.preventDefault())
   document.addEventListener('dragstart', (e) => !isEditable(e.target) && e.preventDefault())
 }
+
+/**
+ * Keyboard handling (iOS Safari especially):
+ *  - exposes the on-screen keyboard height as --kb-inset so scroll containers can pad for it
+ *  - scrolls the focused field into view (centered) inside its scroll container
+ *  - snaps the page back after the keyboard closes so it never stays shifted
+ */
+export function installKeyboardGuards() {
+  const root = document.documentElement
+  const vv = window.visualViewport
+  const isField = (t) => t instanceof Element && t.matches('input, textarea, select, [contenteditable="true"]')
+
+  const syncInset = () => {
+    if (!vv) return
+    const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+    root.style.setProperty('--kb-inset', `${inset}px`)
+  }
+  vv?.addEventListener('resize', syncInset)
+  vv?.addEventListener('scroll', syncInset)
+
+  let timer = 0
+  document.addEventListener('focusin', (e) => {
+    if (!isField(e.target)) return
+    const el = e.target
+    clearTimeout(timer)
+    // wait for the keyboard animation, then centre the field
+    timer = window.setTimeout(() => {
+      syncInset()
+      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+    }, 320)
+  })
+
+  document.addEventListener('focusout', () => {
+    clearTimeout(timer)
+    timer = window.setTimeout(() => {
+      if (isField(document.activeElement)) return
+      root.style.setProperty('--kb-inset', '0px')
+      // iOS can leave the window shifted after the keyboard closes
+      window.scrollTo(0, 0)
+    }, 150)
+  })
+}

@@ -917,7 +917,6 @@ export function AppProfilePage() {
         </GlassPanel>
       )}
 
-
       {user?.role === USER_ROLES.LABOUR ? (
         <GlassPanel className="border-slate-200/90 p-4 ring-1 ring-slate-100/90">
           <AppSectionHeader title="Worker profile" className="mb-3" />

@@ -1,7 +1,7 @@
 /**
  * In-app notification chime. The OS plays its default sound for background pushes;
  * this covers the app being open, where browsers show notifications silently.
- * Generated with Web Audio, so there is no audio file to ship.
+ * Short chimes are generated with Web Audio; new job offers use /broadcast.mp3 on loop.
  */
 
 const PREF_KEY = 'kaam_notification_sound'
@@ -40,11 +40,74 @@ export function installNotificationSoundUnlock() {
   const unlock = () => {
     const c = getContext()
     if (c?.state === 'suspended') c.resume().catch(() => {})
-    if (c?.state === 'running') {
+    primeBroadcastAudio()
+    if (c?.state === 'running' && broadcastPrimed) {
       ;['pointerdown', 'keydown', 'touchstart'].forEach((e) => window.removeEventListener(e, unlock))
     }
   }
   ;['pointerdown', 'keydown', 'touchstart'].forEach((e) => window.addEventListener(e, unlock, { passive: true }))
+}
+
+/* ---------- Broadcast (new job offer) sound: /broadcast.mp3, looped until stopped ---------- */
+
+const BROADCAST_SRC = '/broadcast.mp3'
+let broadcastAudio = null
+let broadcastPrimed = false
+let broadcastWanted = false
+
+function getBroadcastAudio() {
+  if (typeof Audio === 'undefined') return null
+  if (!broadcastAudio) {
+    broadcastAudio = new Audio(BROADCAST_SRC)
+    broadcastAudio.loop = true
+    broadcastAudio.preload = 'auto'
+  }
+  return broadcastAudio
+}
+
+/** Mobile browsers only let an <audio> play after a gesture has "touched" it; do that silently once. */
+function primeBroadcastAudio() {
+  const a = getBroadcastAudio()
+  if (!a || broadcastPrimed) return
+  broadcastPrimed = true
+  const wasWanted = () => broadcastWanted
+  a.muted = true
+  a.play()
+    .then(() => {
+      if (!wasWanted()) a.pause()
+      a.currentTime = 0
+      a.muted = false
+    })
+    .catch(() => {
+      broadcastPrimed = false
+      a.muted = false
+    })
+}
+
+/** Rings /broadcast.mp3 on loop (with vibration) until stopBroadcastSound(). Falls back to the chime. */
+export function startBroadcastSound() {
+  if (!isNotificationSoundEnabled()) return
+  broadcastWanted = true
+  try {
+    navigator.vibrate?.([250, 120, 250, 120, 250])
+  } catch {
+    /* vibration unsupported */
+  }
+  const a = getBroadcastAudio()
+  if (!a) return playNotificationSound({ urgent: true })
+  a.muted = false
+  a.currentTime = 0
+  a.play().catch(() => {
+    // blocked (no gesture yet) or failed to load — use the synthesized chime instead
+    if (broadcastWanted) playNotificationSound({ urgent: true })
+  })
+}
+
+export function stopBroadcastSound() {
+  broadcastWanted = false
+  if (!broadcastAudio) return
+  broadcastAudio.pause()
+  broadcastAudio.currentTime = 0
 }
 
 function tone(c, freq, start, duration, volume) {

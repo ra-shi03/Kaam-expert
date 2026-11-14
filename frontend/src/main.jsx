@@ -6,9 +6,10 @@ import { store } from './store/index.js'
 import { SocketProvider } from './context/SocketContext.jsx'
 import './index.css'
 import App from './App.jsx'
-import { installZoomGuards } from './lib/viewportLock.js'
+import { installKeyboardGuards, installZoomGuards } from './lib/viewportLock.js'
 
 installZoomGuards()
+installKeyboardGuards()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
