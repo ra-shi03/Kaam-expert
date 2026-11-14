@@ -56,7 +56,8 @@ export async function sendNotificationToUser(userId, payload, includeMobile = tr
       webpush: {
         headers: { Urgency: 'high', ...(isBroadcast ? { TTL: '300' } : {}) },
         notification: {
-          icon: '/favicon.ico',
+          icon: '/icon-192.png',
+          badge: '/favicon.png',
           vibrate: isBroadcast ? [250, 120, 250, 120, 250] : [200, 100, 200],
           requireInteraction: isBroadcast,
           renotify: true,

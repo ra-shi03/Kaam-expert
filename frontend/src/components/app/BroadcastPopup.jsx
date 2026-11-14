@@ -60,7 +60,7 @@ export function BroadcastPopup() {
     }
     if (Notification.permission === 'denied') return undefined
 
-    const events = ['pointerdown', 'keydown']
+    const events = ['pointerdown', 'touchend', 'click', 'keydown']
     const onGesture = () => {
       events.forEach((e) => window.removeEventListener(e, onGesture))
       register(true)

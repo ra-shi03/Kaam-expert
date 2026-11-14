@@ -21,7 +21,8 @@ messaging.onBackgroundMessage((payload) => {
   const data = payload?.data || {};
   const notificationOptions = {
     body: payload?.notification?.body || '',
-    icon: '/favicon.ico',
+    icon: '/icon-192.png',
+    badge: '/favicon.png',
     data,
     // Same tag as the server-sent one, so the alert is replaced instead of shown twice
     tag: String(data.bookingId || data.type || 'kaamexpert'),

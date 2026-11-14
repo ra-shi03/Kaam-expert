@@ -25,7 +25,8 @@ export async function showBroadcastNotification(offer) {
   const earnings = offer?.estimatedEarnings ?? offer?.laborShare
   const options = {
     body: `${service} job near you${earnings != null ? ` · Earn ₹${earnings}` : ''}. Tap to accept.`,
-    icon: '/favicon.ico',
+    icon: '/icon-192.png',
+    badge: '/favicon.png',
     tag: tagFor(offer),
     renotify: true,
     requireInteraction: true,

@@ -139,7 +139,7 @@ export function setupForegroundNotificationHandler(handler) {
       try {
         new Notification(payload?.notification?.title || 'KaamExpert Notification', {
           body: payload?.notification?.body || '',
-          icon: payload?.notification?.icon || '/favicon.ico',
+          icon: payload?.notification?.icon || '/icon-192.png',
           data: payload?.data,
           tag: String(payload?.data?.bookingId || payload?.data?.type || 'kaamexpert'),
           renotify: true,
