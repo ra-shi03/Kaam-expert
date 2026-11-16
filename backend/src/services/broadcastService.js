@@ -3,7 +3,9 @@ import { Booking } from '../models/Booking.js'
 import { BroadcastLog } from '../models/BroadcastLog.js'
 import { SystemSetting } from '../models/SystemSetting.js'
 import { getRoadDistances } from '../utils/googleMapsDistance.js'
-import { UserSubscription } from '../models/UserSubscription.js'
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// import { UserSubscription } from '../models/UserSubscription.js'
+// [/DISABLED-SUBSCRIPTION]
 import { Review } from '../models/Review.js'
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 import { emitToUser, getIo } from '../socket.js'
@@ -231,51 +233,55 @@ export async function startBroadcastCycle(bookingId) {
     }
   }
 
-  // 3b. Subscription Eligibility Filter
-  const isSubEnabled = settings?.isUserSubscriptionEnabled ?? false
-  let subEligible = []
-  const activeSubsMap = {} // Store to increment bookingsReceived later
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // // 3b. Subscription Eligibility Filter
+  // const isSubEnabled = settings?.isUserSubscriptionEnabled ?? false
+  // let subEligible = []
+  // const activeSubsMap = {} // Store to increment bookingsReceived later
 
-  if (!isSubEnabled) {
-    console.log(`[BROADCAST] Subscription check disabled in master_config. All ${walletEligible.length} labourers eligible.`)
-    subEligible = walletEligible
-  } else {
-    const today = new Date().toISOString().split('T')[0]
-    console.log(`[BROADCAST-DEBUG] Wallet eligible labourers count: ${walletEligible.length}`)
+  // if (!isSubEnabled) {
+  //   console.log(`[BROADCAST] Subscription check disabled in master_config. All ${walletEligible.length} labourers eligible.`)
+  //   subEligible = walletEligible
+  // } else {
+  //   const today = new Date().toISOString().split('T')[0]
+  //   console.log(`[BROADCAST-DEBUG] Wallet eligible labourers count: ${walletEligible.length}`)
 
-    for (const labor of walletEligible) {
-      const trialEnds = labor.labourProfile?.trialEndsAt
-      const now = new Date()
+  //   for (const labor of walletEligible) {
+  //     const trialEnds = labor.labourProfile?.trialEndsAt
+  //     const now = new Date()
       
-      console.log(`[BROADCAST-DEBUG] Checking labour ${labor._id} | trialEndsAt: ${trialEnds} | now: ${now}`)
-      if (trialEnds && now <= new Date(trialEnds)) {
-        subEligible.push(labor) // Free trial
-        console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via free trial`)
-        continue
-      }
+  //     console.log(`[BROADCAST-DEBUG] Checking labour ${labor._id} | trialEndsAt: ${trialEnds} | now: ${now}`)
+  //     if (trialEnds && now <= new Date(trialEnds)) {
+  //       subEligible.push(labor) // Free trial
+  //       console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via free trial`)
+  //       continue
+  //     }
 
-      const activeSub = await UserSubscription.findOne({
-        labour: labor._id,
-        date: { $lte: today },
-        endDate: { $gte: today },
-        status: 'active'
-      })
+  //     const activeSub = await UserSubscription.findOne({
+  //       labour: labor._id,
+  //       date: { $lte: today },
+  //       endDate: { $gte: today },
+  //       status: 'active'
+  //     })
       
-      if (activeSub) {
-        console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via active subscription ${activeSub._id}`)
-        subEligible.push(labor)
-        activeSubsMap[labor._id] = activeSub
-      } else {
-        console.log(`[BROADCAST-DEBUG] Labour ${labor._id} NOT eligible. No active sub for today (${today}).`)
-      }
-    }
-  }
+  //     if (activeSub) {
+  //       console.log(`[BROADCAST-DEBUG] Labour ${labor._id} eligible via active subscription ${activeSub._id}`)
+  //       subEligible.push(labor)
+  //       activeSubsMap[labor._id] = activeSub
+  //     } else {
+  //       console.log(`[BROADCAST-DEBUG] Labour ${labor._id} NOT eligible. No active sub for today (${today}).`)
+  //     }
+  //   }
+  // }
 
-  if (subEligible.length === 0) {
-    console.log(`[BROADCAST-DEBUG] Booking ${booking._id} failed: No eligible laborers found (Subscription)`)
-    await markBookingFailed(booking, 'No eligible laborers found (Subscription)')
-    return
-  }
+  // if (subEligible.length === 0) {
+  //   console.log(`[BROADCAST-DEBUG] Booking ${booking._id} failed: No eligible laborers found (Subscription)`)
+  //   await markBookingFailed(booking, 'No eligible laborers found (Subscription)')
+  //   return
+  // }
+  // [/DISABLED-SUBSCRIPTION]
+  const subEligible = walletEligible // subscription eligibility filter is disabled (see DISABLED-SUBSCRIPTION above)
+  const activeSubsMap = {}
 
   // 4. Precise Distance Filter (Google Maps)
   const destinations = subEligible.map(l => ({
@@ -599,11 +605,13 @@ export async function startBroadcastCycle(bookingId) {
       })
     }
 
-    const sub = activeSubsMap[labor._id]
-    if (sub) {
-      sub.bookingsReceived += 1
-      sub.save().catch(err => console.error('Failed to increment bookingsReceived', err))
-    }
+    // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+    // const sub = activeSubsMap[labor._id]
+    // if (sub) {
+    //   sub.bookingsReceived += 1
+    //   sub.save().catch(err => console.error('Failed to increment bookingsReceived', err))
+    // }
+    // [/DISABLED-SUBSCRIPTION]
 
     laborUpdates.push(
       User.findByIdAndUpdate(labor._id, {

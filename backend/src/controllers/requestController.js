@@ -576,14 +576,16 @@ export const mockPayRequest = asyncHandler(async (req, res) => {
   const workerIds = await Assignment.distinct('labourId', { requestId: request._id });
   qualifyReferralsInBackground(request.clientId, ...workerIds);
 
-  if (request.sourceType === 'contractor') {
-    const { UserSubscription } = await import('../models/UserSubscription.js');
-    const activeSub = await UserSubscription.findOne({ user: request.clientId, status: 'active' });
-    if (activeSub) {
-      activeSub.bookingsUsed += 1;
-      await activeSub.save();
-    }
-  }
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // if (request.sourceType === 'contractor') {
+  //   const { UserSubscription } = await import('../models/UserSubscription.js');
+  //   const activeSub = await UserSubscription.findOne({ user: request.clientId, status: 'active' });
+  //   if (activeSub) {
+  //     activeSub.bookingsUsed += 1;
+  //     await activeSub.save();
+  //   }
+  // }
+  // [/DISABLED-SUBSCRIPTION]
 
   sendSuccess(res, { message: 'Payment simulated successfully' });
 });

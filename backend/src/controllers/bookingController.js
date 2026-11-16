@@ -323,7 +323,8 @@ export const calculateBill = asyncHandler(async (req, res) => {
       totalAmount,
       commissionAmount,
       laborShare: basePrice - commissionAmount,
-      paymentModes: settings.paymentModes || { cashEnabled: true, onlineEnabled: true },
+      // [DISABLED-RAZORPAY] was: paymentModes: settings.paymentModes || { cashEnabled: true, onlineEnabled: true },
+      paymentModes: { ...(settings.paymentModes?.toObject?.() || settings.paymentModes || { cashEnabled: true }), cashEnabled: true, onlineEnabled: false }, // online (Razorpay) payments are off for now
       breakdown,
       availableSlots, // service's enabled slots — helps frontend avoid extra API call
     },
@@ -589,7 +590,8 @@ export const createBooking = asyncHandler(async (req, res) => {
     totalAmount,
     commissionAmount,
     laborShare,
-    paymentMethod,
+    // [DISABLED-RAZORPAY] was: paymentMethod,
+    paymentMethod: 'CASH', // online (Razorpay) payments are off for now
     status: 'CREATED',
     startOtp,
     completionOtp,
@@ -736,10 +738,11 @@ export const updatePaymentMethod = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'Payment is already completed for this booking', statusCode: HTTP_STATUS.CONFLICT })
   }
 
-  booking.paymentMethod = paymentMethod
+  // [DISABLED-RAZORPAY] was: booking.paymentMethod = paymentMethod
+  booking.paymentMethod = 'CASH' // online (Razorpay) payments are off for now
   await booking.save()
 
-  res.json({ success: true, paymentMethod })
+  res.json({ success: true, paymentMethod: booking.paymentMethod })
 })
 
 export const updateBookingStatus = asyncHandler(async (req, res) => {

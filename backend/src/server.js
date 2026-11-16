@@ -4,7 +4,9 @@ import app from './app.js'
 import { connectDb } from './config/db.js'
 import { initSocket } from './socket.js'
 import { initBroadcastCron } from './cron/broadcastCron.js'
-import { initSubscriptionRefundCron } from './cron/subscriptionRefund.js'
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// import { initSubscriptionRefundCron } from './cron/subscriptionRefund.js'
+// [/DISABLED-SUBSCRIPTION]
 
 const port = Number(process.env.PORT) || 5005
 
@@ -15,7 +17,9 @@ async function main() {
   initSocket(server)
   console.log('Cron jobs initialized')
   initBroadcastCron()
-  initSubscriptionRefundCron()
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // initSubscriptionRefundCron()
+  // [/DISABLED-SUBSCRIPTION]
 
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {

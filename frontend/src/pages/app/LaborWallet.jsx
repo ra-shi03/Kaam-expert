@@ -20,7 +20,9 @@ import {
 import { walletsApi } from '../../api/walletsApi.js'
 import { ApiError } from '../../api/http.js'
 import { useAuth } from '../../hooks/useAuth.js'
-import { payWithRazorpay } from '../../lib/razorpayCheckout.js'
+// [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+// import { payWithRazorpay } from '../../lib/razorpayCheckout.js'
+// [/DISABLED-RAZORPAY]
 import { BONUS_TYPE_LABELS, WALLET_CONTEXT_LABELS, formatRupees } from '../../lib/walletLabels.js'
 import { AppStackScreenHeader } from '../../components/app/AppStackScreenHeader.jsx'
 import { AppSectionHeader } from '../../components/app-ui/layout/AppSectionHeader.jsx'
@@ -124,17 +126,20 @@ export function LaborWallet() {
     setPaying(true)
     setNotice(null)
     try {
-      const res = await payWithRazorpay({
-        amount: numericAmount,
-        purpose: 'WALLET_RECHARGE',
-        description: 'Wallet recharge',
-        prefill: { name: realUser?.fullName || '', contact: realUser?.phone || '' },
-      })
-      if (res) {
-        setNotice({ type: 'success', text: `₹${numericAmount} added to your wallet.` })
-        setAmountInput('')
-        setReloadKey((k) => k + 1)
-      }
+      // [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+      // const res = await payWithRazorpay({
+      //   amount: numericAmount,
+      //   purpose: 'WALLET_RECHARGE',
+      //   description: 'Wallet recharge',
+      //   prefill: { name: realUser?.fullName || '', contact: realUser?.phone || '' },
+      // })
+      // if (res) {
+      //   setNotice({ type: 'success', text: `₹${numericAmount} added to your wallet.` })
+      //   setAmountInput('')
+      //   setReloadKey((k) => k + 1)
+      // }
+      // [/DISABLED-RAZORPAY]
+      setNotice({ type: 'error', text: 'Wallet recharge is temporarily unavailable.' })
     } catch (err) {
       setNotice({ type: 'error', text: err instanceof ApiError ? err.message : err.message || 'Recharge failed' })
     } finally {
@@ -240,6 +245,7 @@ export function LaborWallet() {
         </Link>
       </motion.section>
 
+      {/* [DISABLED-RAZORPAY] — Recharge wallet card (needs Razorpay); uncomment to re-enable
       <GlassPanel className="space-y-4 p-5">
         <div>
           <h2 className="text-base font-extrabold text-slate-900">Recharge wallet</h2>
@@ -300,6 +306,7 @@ export function LaborWallet() {
           {paying ? 'Processing…' : amountValid ? `Recharge ₹${numericAmount.toLocaleString('en-IN')}` : 'Recharge'}
         </button>
       </GlassPanel>
+      [/DISABLED-RAZORPAY] */}
 
       <section>
         <AppSectionHeader title="How cash jobs work" className="mb-3 px-0.5" />

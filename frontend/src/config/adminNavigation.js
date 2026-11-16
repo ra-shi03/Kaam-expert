@@ -94,8 +94,12 @@ export const ADMIN_NAV_SECTIONS = [
       { to: '/admin/labour-wallet', label: 'Labour Wallet', icon: Wallet },
       { to: '/admin/bonuses', label: 'Bonuses', icon: BadgeIndianRupee },
       { to: '/admin/cash-management', label: 'Cash Management', icon: Wallet },
-      { to: '/admin/labour-subscriptions', label: 'Labour Subscriptions', icon: CalendarDays },
-      { to: '/admin/free-trials', label: 'Free Trials', icon: CalendarDays },
+      // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+      // { to: '/admin/labour-subscriptions', label: 'Labour Subscriptions', icon: CalendarDays },
+      // [/DISABLED-SUBSCRIPTION]
+      // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+      // { to: '/admin/free-trials', label: 'Free Trials', icon: CalendarDays },
+      // [/DISABLED-SUBSCRIPTION]
     ],
   },
   {
@@ -141,8 +145,12 @@ const ROUTE_TITLES = [
   { prefix: '/admin/bonuses', title: 'Bonuses' },
   { prefix: '/admin/cash-management', title: 'Cash Management' },
   { prefix: '/admin/billing', title: 'Payments & billing' },
-  { prefix: '/admin/labour-subscriptions', title: 'Labour Subscriptions' },
-  { prefix: '/admin/free-trials', title: 'Free Trials' },
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // { prefix: '/admin/labour-subscriptions', title: 'Labour Subscriptions' },
+  // [/DISABLED-SUBSCRIPTION]
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // { prefix: '/admin/free-trials', title: 'Free Trials' },
+  // [/DISABLED-SUBSCRIPTION]
   { prefix: '/admin/reviews', title: 'Reviews & Ratings' },
   { prefix: '/admin/privacy-policy', title: 'Privacy Policy' },
   { prefix: '/admin/terms-conditions', title: 'Terms & Conditions' },

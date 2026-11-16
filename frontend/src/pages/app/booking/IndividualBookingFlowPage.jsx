@@ -27,20 +27,24 @@ import { AppSearchableSelect } from '../../../components/app-ui/inputs/AppSearch
 import { GlassPanel } from '../../../components/ui/GlassPanel.jsx'
 import { fetchLabourCategoriesGrouped, getCachedLabourCategoriesGrouped } from '../../../api/labourCategoriesApi.js'
 import { bookingsApi } from '../../../api/bookingsApi.js'
-import { paymentsApi } from '../../../api/paymentsApi.js'
+// [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+// import { paymentsApi } from '../../../api/paymentsApi.js'
+// [/DISABLED-RAZORPAY]
 import { getPublicSettings } from '../../../api/adminSettingsApi.js'
 import { calculateCompletedBookingBill } from '../../../lib/completedBillingHelper.js'
 
-function loadRazorpay() {
-  return new Promise((resolve) => {
-    if (window.Razorpay) { resolve(true); return }
-    const script = document.createElement('script')
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-    script.onload = () => resolve(true)
-    script.onerror = () => resolve(false)
-    document.body.appendChild(script)
-  })
-}
+// [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+// function loadRazorpay() {
+//   return new Promise((resolve) => {
+//     if (window.Razorpay) { resolve(true); return }
+//     const script = document.createElement('script')
+//     script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+//     script.onload = () => resolve(true)
+//     script.onerror = () => resolve(false)
+//     document.body.appendChild(script)
+//   })
+// }
+// [/DISABLED-RAZORPAY]
 import { uploadMedia, assetUrlFromUpload } from '../../../api/uploadApi.js'
 import { BookingFindingScreen } from '../../../components/app/booking/BookingFindingScreen.jsx'
 import { BookingTypeSheet } from '../../../components/app/booking/BookingTypeSheet.jsx'
@@ -419,7 +423,8 @@ export function IndividualBookingFlowPage() {
     return () => { cancelled = true }
   }, [])
 
-  const [paymentModes, setPaymentModes] = useState({ cashEnabled: true, onlineEnabled: true })
+  // [DISABLED-RAZORPAY] was: useState({ cashEnabled: true, onlineEnabled: true })
+  const [paymentModes, setPaymentModes] = useState({ cashEnabled: true, onlineEnabled: false })
   const [globalDurationOptions, setGlobalDurationOptions] = useState([])
   const [extraTimeModalOpen, setExtraTimeModalOpen] = useState(false)
   const [selectedExtraSlot, setSelectedExtraSlot] = useState(null)
@@ -595,7 +600,8 @@ export function IndividualBookingFlowPage() {
     let cancelled = false
     getPublicSettings().then(res => {
       if (!cancelled) {
-        if (res.data?.paymentModes) setPaymentModes(res.data.paymentModes)
+        // [DISABLED-RAZORPAY] was: if (res.data?.paymentModes) setPaymentModes(res.data.paymentModes)
+        if (res.data?.paymentModes) setPaymentModes({ ...res.data.paymentModes, onlineEnabled: false })
         if (Array.isArray(res.data?.durationOptions)) setGlobalDurationOptions(res.data.durationOptions)
       }
     }).catch(() => {})
@@ -848,80 +854,84 @@ export function IndividualBookingFlowPage() {
     if (!activeBooking) return
     setIsPaying(true)
     try {
-      const razorpayLoaded = await loadRazorpay()
-      if (!razorpayLoaded) {
-        alert('Payment gateway failed to load. Please try again.')
-        return
-      }
-      const rawAmount = completedBill.isContractorBooking
-        ? completedBill.completedTotalAmount
-        : activeBooking.totalAmount
-      const payAmount = Math.max(1, Math.round(Number(rawAmount) || 0))
-      const targetBookingId = activeBooking._id || activeBookingId
+      // [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+      // const razorpayLoaded = await loadRazorpay()
+      // if (!razorpayLoaded) {
+      //   alert('Payment gateway failed to load. Please try again.')
+      //   return
+      // }
+      // const rawAmount = completedBill.isContractorBooking
+      //   ? completedBill.completedTotalAmount
+      //   : activeBooking.totalAmount
+      // const payAmount = Math.max(1, Math.round(Number(rawAmount) || 0))
+      // const targetBookingId = activeBooking._id || activeBookingId
 
-      const payRes = await paymentsApi.initPayment({
-        amount: payAmount,
-        purpose: 'BOOKING',
-        bookingId: targetBookingId,
-      })
-      const order = payRes.data?.order
-      if (!order) throw new Error('Payment initialization failed')
+      // const payRes = await paymentsApi.initPayment({
+      //   amount: payAmount,
+      //   purpose: 'BOOKING',
+      //   bookingId: targetBookingId,
+      // })
+      // const order = payRes.data?.order
+      // if (!order) throw new Error('Payment initialization failed')
 
-      if (order.mock || order.id?.startsWith('order_mock_')) {
-        await paymentsApi.verifyPayment({
-          razorpayOrderId: order.id,
-          razorpayPaymentId: `pay_mock_${Date.now()}`,
-          razorpaySignature: 'mock_signature',
-        })
-        setActiveBooking(prev => prev ? { ...prev, paymentStatus: 'PAID' } : null)
-        if (activeBooking?.type === 'SCHEDULED') {
-          setPaymentSuccess(true)
-        } else {
-          handleOpenReview()
-        }
-        return
-      }
+      // if (order.mock || order.id?.startsWith('order_mock_')) {
+      //   await paymentsApi.verifyPayment({
+      //     razorpayOrderId: order.id,
+      //     razorpayPaymentId: `pay_mock_${Date.now()}`,
+      //     razorpaySignature: 'mock_signature',
+      //   })
+      //   setActiveBooking(prev => prev ? { ...prev, paymentStatus: 'PAID' } : null)
+      //   if (activeBooking?.type === 'SCHEDULED') {
+      //     setPaymentSuccess(true)
+      //   } else {
+      //     handleOpenReview()
+      //   }
+      //   return
+      // }
 
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_8sYbzHWidwe5Zw',
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        order_id: order.id,
-        name: 'KaamExpert',
-        description: `Payment for Booking`,
-        prefill: {
-          name: realUser?.fullName || '',
-          contact: realUser?.phone || '',
-          email: realUser?.email || ''
-        },
-        handler: async function (response) {
-          try {
-            await paymentsApi.verifyPayment({
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-            })
-            // Payment successful!
-            setActiveBooking(prev => prev ? { ...prev, paymentStatus: 'PAID' } : null)
-            if (activeBooking?.type === 'SCHEDULED') {
-              setPaymentSuccess(true)
-            } else {
-              handleOpenReview()
-            }
-          } catch (err) {
-            alert('Payment verification failed. Contact support.')
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setIsPaying(false)
-          }
-        },
-        theme: { color: '#002b5c' },
-      }
+      // const options = {
+      //   key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_8sYbzHWidwe5Zw',
+      //   amount: order.amount,
+      //   currency: order.currency || 'INR',
+      //   order_id: order.id,
+      //   name: 'KaamExpert',
+      //   description: `Payment for Booking`,
+      //   prefill: {
+      //     name: realUser?.fullName || '',
+      //     contact: realUser?.phone || '',
+      //     email: realUser?.email || ''
+      //   },
+      //   handler: async function (response) {
+      //     try {
+      //       await paymentsApi.verifyPayment({
+      //         razorpayOrderId: response.razorpay_order_id,
+      //         razorpayPaymentId: response.razorpay_payment_id,
+      //         razorpaySignature: response.razorpay_signature,
+      //       })
+      //       // Payment successful!
+      //       setActiveBooking(prev => prev ? { ...prev, paymentStatus: 'PAID' } : null)
+      //       if (activeBooking?.type === 'SCHEDULED') {
+      //         setPaymentSuccess(true)
+      //       } else {
+      //         handleOpenReview()
+      //       }
+      //     } catch (err) {
+      //       alert('Payment verification failed. Contact support.')
+      //     }
+      //   },
+      //   modal: {
+      //     ondismiss: () => {
+      //       setIsPaying(false)
+      //     }
+      //   },
+      //   theme: { color: '#002b5c' },
+      // }
 
-      const rzp = new window.Razorpay(options)
-      rzp.open()
+      // const rzp = new window.Razorpay(options)
+      // rzp.open()
+      // [/DISABLED-RAZORPAY]
+      alert('Online payment is temporarily unavailable. Please pay the labourer in cash.')
+      setIsPaying(false)
     } catch (err) {
       alert(err.message || 'Payment failed')
     } finally {
@@ -959,21 +969,25 @@ export function IndividualBookingFlowPage() {
       const computedEnd = draft.bookingType === 'scheduled'
         ? calculateEndTime(draft.timeSlot, durationMinutes)
         : calculateEndTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }), durationMinutes)
-      setCalculatedBill(res.data)
+      // [DISABLED-RAZORPAY] was: setCalculatedBill(res.data)
+      setCalculatedBill({ ...res.data, paymentModes: { ...(res.data.paymentModes || {}), cashEnabled: true, onlineEnabled: false } })
       syncDraft({ billAmount: res.data.totalAmount, endTime: computedEnd })
 
-      const modes = res.data.paymentModes || { cashEnabled: true, onlineEnabled: true }
-      let currentPaymentMethod = draft.paymentMethod || 'CASH'
-      
-      if (realUser?.role === 'contractor') {
-        currentPaymentMethod = 'ONLINE'
-      } else {
-        if (currentPaymentMethod === 'CASH' && !modes.cashEnabled && modes.onlineEnabled) {
-          currentPaymentMethod = 'ONLINE'
-        } else if (currentPaymentMethod === 'ONLINE' && !modes.onlineEnabled && modes.cashEnabled) {
-          currentPaymentMethod = 'CASH'
-        }
-      }
+      // [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+      // const modes = res.data.paymentModes || { cashEnabled: true, onlineEnabled: true }
+      // let currentPaymentMethod = draft.paymentMethod || 'CASH'
+      //
+      // if (realUser?.role === 'contractor') {
+      //   currentPaymentMethod = 'ONLINE'
+      // } else {
+      //   if (currentPaymentMethod === 'CASH' && !modes.cashEnabled && modes.onlineEnabled) {
+      //     currentPaymentMethod = 'ONLINE'
+      //   } else if (currentPaymentMethod === 'ONLINE' && !modes.onlineEnabled && modes.cashEnabled) {
+      //     currentPaymentMethod = 'CASH'
+      //   }
+      // }
+      // [/DISABLED-RAZORPAY]
+      const currentPaymentMethod = 'CASH' // online (Razorpay) payments are off for now
       
       if (currentPaymentMethod !== draft.paymentMethod) {
         syncDraft({ paymentMethod: currentPaymentMethod })
@@ -1012,9 +1026,8 @@ export function IndividualBookingFlowPage() {
       const computedEnd = draft.bookingType === 'scheduled'
         ? calculateEndTime(draft.timeSlot, durationMinutes)
         : calculateEndTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }), durationMinutes)
-      const resolvedPaymentMethod = realUser?.role === 'contractor'
-        ? 'ONLINE'
-        : String(draft.paymentMethod || 'CASH').toUpperCase()
+      // [DISABLED-RAZORPAY] was: realUser?.role === 'contractor' ? 'ONLINE' : String(draft.paymentMethod || 'CASH').toUpperCase()
+      const resolvedPaymentMethod = 'CASH' // online (Razorpay) payments are off for now
       const payload = {
         serviceId: draft.serviceId || draft.contractorServices?.[0]?.serviceId || draft.categoryId,
         type: draft.bookingType === 'scheduled' ? 'SCHEDULED' : 'INSTANT',
@@ -1547,6 +1560,7 @@ export function IndividualBookingFlowPage() {
                 </div>
               </div>
             )}
+            {/* [DISABLED-RAZORPAY] — Online-only payment card (contractor billing); uncomment to re-enable
             {step === 'billing' && (
               <div className="lc-booking-flow-card space-y-3 mt-4">
                 <p className="lc-booking-flow-label font-bold text-slate-800">Payment Method</p>
@@ -1565,6 +1579,7 @@ export function IndividualBookingFlowPage() {
                 </div>
               </div>
             )}
+            [/DISABLED-RAZORPAY] */}
         {step === 'payment' ? (
           <motion.div className="space-y-4">
             <FieldLabel>Select Payment Method</FieldLabel>
@@ -2371,8 +2386,9 @@ export function IndividualBookingFlowPage() {
 
               <div className="lc-booking-flow-card space-y-3">
                 <p className="lc-booking-flow-label font-bold text-slate-800">Payment Method</p>
-                <div className={`grid gap-3 ${calculatedBill?.paymentModes?.cashEnabled && calculatedBill?.paymentModes?.onlineEnabled && realUser?.role !== 'contractor' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                  {calculatedBill?.paymentModes?.cashEnabled !== false && realUser?.role !== 'contractor' && (
+                <div className={`grid gap-3 ${calculatedBill?.paymentModes?.cashEnabled && calculatedBill?.paymentModes?.onlineEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {/* [DISABLED-RAZORPAY] was: ... && realUser?.role !== 'contractor' && ( */}
+                  {calculatedBill?.paymentModes?.cashEnabled !== false && (
                     <button
                       type="button"
                       onClick={() => syncDraft({ paymentMethod: 'CASH' })}

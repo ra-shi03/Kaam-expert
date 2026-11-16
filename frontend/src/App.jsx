@@ -35,8 +35,12 @@ const AdminCommissionFeePage = lazy(() => import('./pages/admin/AdminCommissionF
 const AdminLabourWalletPage = lazy(() => import('./pages/admin/AdminLabourWalletPage.jsx').then((m) => ({ default: m.AdminLabourWalletPage })))
 const AdminCashManagementPage = lazy(() => import('./pages/admin/AdminCashManagementPage.jsx').then((m) => ({ default: m.AdminCashManagementPage })))
 const AdminReviewsRatingsPage = lazy(() => import('./pages/admin/AdminReviewsRatingsPage.jsx').then((m) => ({ default: m.AdminReviewsRatingsPage })))
-const AdminLabourSubscriptionsPage = lazy(() => import('./pages/admin/AdminLabourSubscriptionsPage.jsx').then((m) => ({ default: m.AdminLabourSubscriptionsPage })))
-const AdminFreeTrialPage = lazy(() => import('./pages/admin/AdminFreeTrialPage.jsx').then((m) => ({ default: m.AdminFreeTrialPage })))
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// const AdminLabourSubscriptionsPage = lazy(() => import('./pages/admin/AdminLabourSubscriptionsPage.jsx').then((m) => ({ default: m.AdminLabourSubscriptionsPage })))
+// [/DISABLED-SUBSCRIPTION]
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// const AdminFreeTrialPage = lazy(() => import('./pages/admin/AdminFreeTrialPage.jsx').then((m) => ({ default: m.AdminFreeTrialPage })))
+// [/DISABLED-SUBSCRIPTION]
 const AdminPrivacyPolicyPage = lazy(() => import('./pages/admin/AdminPrivacyPolicyPage.jsx').then((m) => ({ default: m.AdminPrivacyPolicyPage })))
 const AdminTermsConditionsPage = lazy(() => import('./pages/admin/AdminTermsConditionsPage.jsx').then((m) => ({ default: m.AdminTermsConditionsPage })))
 const AdminFAQsPage = lazy(() => import('./pages/admin/AdminFAQsPage.jsx').then((m) => ({ default: m.AdminFAQsPage })))
@@ -149,8 +153,12 @@ function App() {
             <Route path="bonuses" element={<AdminBonusesPage />} />
             <Route path="cash-management" element={<AdminCashManagementPage />} />
             <Route path="reviews" element={<AdminReviewsRatingsPage />} />
+            {/* [DISABLED-SUBSCRIPTION] admin labour-subscriptions — uncomment to re-enable
             <Route path="labour-subscriptions" element={<AdminLabourSubscriptionsPage />} />
+            [/DISABLED-SUBSCRIPTION] */}
+            {/* [DISABLED-SUBSCRIPTION] admin free-trials — uncomment to re-enable
             <Route path="free-trials" element={<AdminFreeTrialPage />} />
+            [/DISABLED-SUBSCRIPTION] */}
             <Route path="privacy-policy" element={<AdminPrivacyPolicyPage />} />
             <Route path="terms-conditions" element={<AdminTermsConditionsPage />} />
             <Route path="support-page" element={<AdminSupportPage />} />

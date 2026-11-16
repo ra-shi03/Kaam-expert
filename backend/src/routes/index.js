@@ -11,9 +11,13 @@ import systemSettingRoutes from './systemSettingRoutes.js'
 import bookingRoutes from './bookingRoutes.js'
 import walletRoutes from './walletRoutes.js'
 import broadcastRoutes from './broadcastRoutes.js'
-import paymentRoutes from './paymentRoutes.js'
+// [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+// import paymentRoutes from './paymentRoutes.js'
+// [/DISABLED-RAZORPAY]
 import reviewRoutes from './reviewRoutes.js'
-import userSubscriptionRoutes from './userSubscriptionRoutes.js'
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// import userSubscriptionRoutes from './userSubscriptionRoutes.js'
+// [/DISABLED-SUBSCRIPTION]
 
 import adminZoneRoutes from './adminZoneRoutes.js'
 import locationRoutes from './locationRoutes.js'
@@ -25,7 +29,9 @@ import bannerRoutes from './bannerRoutes.js'
 import adminBannerRoutes from './adminBannerRoutes.js'
 import adminReportsRoutes from './adminReportsRoutes.js'
 import adminBookingRoutes from './adminBookingRoutes.js'
-import adminSubscriptionRoutes from './adminSubscriptionRoutes.js'
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// import adminSubscriptionRoutes from './adminSubscriptionRoutes.js'
+// [/DISABLED-SUBSCRIPTION]
 import policyRoutes from './policyRoutes.js'
 import fcmTokenRoutes from './fcmTokenRoutes.js'
 import adminProfileRoutes from './adminProfileRoutes.js'
@@ -45,11 +51,15 @@ router.use('/workforce', workforceRoutes)
 router.use('/bookings', bookingRoutes)
 router.use('/wallets', walletRoutes)
 router.use('/broadcasts', broadcastRoutes)
-router.use('/payments', paymentRoutes)
+// [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+// router.use('/payments', paymentRoutes)
+// [/DISABLED-RAZORPAY]
 router.use('/reviews', reviewRoutes)
 router.use('/complaints', complaintRoutes)
 router.use('/banners', bannerRoutes)
-router.use('/user-subscriptions', userSubscriptionRoutes)
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// router.use('/user-subscriptions', userSubscriptionRoutes)
+// [/DISABLED-SUBSCRIPTION]
 router.use('/policies', policyRoutes)
 router.use('/fcm-tokens', fcmTokenRoutes)
 router.use('/notifications', notificationsRoutes)
@@ -64,7 +74,9 @@ router.use('/admin/dashboard', adminDashboardRoutes)
 router.use('/admin/banners', adminBannerRoutes)
 router.use('/admin/reports', adminReportsRoutes)
 router.use('/admin/bookings', adminBookingRoutes)
-router.use('/admin/labour-subscriptions', adminSubscriptionRoutes)
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// router.use('/admin/labour-subscriptions', adminSubscriptionRoutes)
+// [/DISABLED-SUBSCRIPTION]
 router.use('/admin/profile', adminProfileRoutes)
 router.use('/admin/referrals', adminReferralRoutes)
 router.use('/admin/bonuses', adminBonusRoutes)

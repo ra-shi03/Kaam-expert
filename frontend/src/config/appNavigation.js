@@ -110,7 +110,9 @@ export function getAppShellTitle(pathname) {
   if (pathname.startsWith('/app/booking/flow')) return 'Book labour'
   if (pathname.startsWith('/app/support')) return 'Support'
   if (pathname.startsWith('/app/refer')) return 'Refer & earn'
-  if (pathname.startsWith('/app/subscriptions')) return 'Subscription'
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // if (pathname.startsWith('/app/subscriptions')) return 'Subscription'
+  // [/DISABLED-SUBSCRIPTION]
   if (pathname.startsWith('/app/billing')) return 'Invoice & Billing'
   if (pathname.startsWith('/app/profile')) return 'Profile'
   if (pathname.startsWith('/app/bookings')) return 'My bookings'

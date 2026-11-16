@@ -7,7 +7,9 @@ import { USER_ROLES, KYC_STATUS } from '../../constants/userRoles.js'
 import { getRoleHomePath } from '../../lib/roleHomePath.js'
 import { IndividualHomeScreen } from './home/IndividualHomeScreen.jsx'
 import { LabourHomeScreen } from './home/LabourHomeScreen.jsx'
-import { userSubscriptionApi } from '../../api/userSubscriptionApi.js'
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// import { userSubscriptionApi } from '../../api/userSubscriptionApi.js'
+// [/DISABLED-SUBSCRIPTION]
 
 /**
  * For labour users — check trial/subscription gate before rendering dashboard
@@ -23,19 +25,22 @@ function LabourGate({ user }) {
       return
     }
 
-    userSubscriptionApi.checkAccess()
-      .then((res) => {
-        const data = res?.data
-        if (!data?.hasAccess) {
-          navigate('/app/subscription', { replace: true })
-        } else {
-          setChecking(false)
-        }
-      })
-      .catch(() => {
-        // On error, allow access (fail-open)
-        setChecking(false)
-      })
+    // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+    // userSubscriptionApi.checkAccess()
+    //   .then((res) => {
+    //     const data = res?.data
+    //     if (!data?.hasAccess) {
+    //       navigate('/app/subscription', { replace: true })
+    //     } else {
+    //       setChecking(false)
+    //     }
+    //   })
+    //   .catch(() => {
+    //     // On error, allow access (fail-open)
+    //     setChecking(false)
+    //   })
+    // [/DISABLED-SUBSCRIPTION]
+    setChecking(false) // subscription gate is disabled (see DISABLED-SUBSCRIPTION above)
   }, [user, navigate])
 
   if (checking) {

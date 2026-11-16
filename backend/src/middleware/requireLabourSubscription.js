@@ -1,5 +1,7 @@
 import { SystemSetting } from '../models/SystemSetting.js'
-import { UserSubscription } from '../models/UserSubscription.js'
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// import { UserSubscription } from '../models/UserSubscription.js'
+// [/DISABLED-SUBSCRIPTION]
 import { HTTP_STATUS, sendError } from '../utils/apiResponse.js'
 import { USER_ROLES, KYC_STATUS } from '../constants/roles.js'
 
@@ -33,28 +35,30 @@ export const requireLabourSubscription = async (req, res, next) => {
     })
   }
 
-  // 3. Check Free Trial
-  const trialEnds = req.user.labourProfile?.trialEndsAt
-  if (trialEnds && now <= new Date(trialEnds)) {
-    return next() // Trial is active
-  }
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // // 3. Check Free Trial
+  // const trialEnds = req.user.labourProfile?.trialEndsAt
+  // if (trialEnds && now <= new Date(trialEnds)) {
+  //   return next() // Trial is active
+  // }
 
-  // 4. Check Daily Subscription
-  const today = now.toISOString().split('T')[0]
-  const activeSub = await UserSubscription.findOne({
-    labour: req.user._id,
-    date: { $lte: today },
-    endDate: { $gte: today },
-    status: 'active'
-  })
+  // // 4. Check Daily Subscription
+  // const today = now.toISOString().split('T')[0]
+  // const activeSub = await UserSubscription.findOne({
+  //   labour: req.user._id,
+  //   date: { $lte: today },
+  //   endDate: { $gte: today },
+  //   status: 'active'
+  // })
 
-  if (!activeSub) {
-    return sendError(res, {
-      message: 'You need an active daily subscription to receive bookings today',
-      statusCode: HTTP_STATUS.FORBIDDEN,
-      code: 'NO_ACTIVE_SUBSCRIPTION',
-    })
-  }
+  // if (!activeSub) {
+  //   return sendError(res, {
+  //     message: 'You need an active daily subscription to receive bookings today',
+  //     statusCode: HTTP_STATUS.FORBIDDEN,
+  //     code: 'NO_ACTIVE_SUBSCRIPTION',
+  //   })
+  // }
+  // [/DISABLED-SUBSCRIPTION]
 
   next()
 }

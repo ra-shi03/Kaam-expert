@@ -97,7 +97,9 @@ function formatPunchTime(iso) {
 }
 
 const QUICK_ACTIONS = [
-  { to: '/app/subscription', label: 'Subscription', icon: Crown, bg: 'from-amber-500/15 to-amber-50', iconTone: 'text-amber-700' },
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // { to: '/app/subscription', label: 'Subscription', icon: Crown, bg: 'from-amber-500/15 to-amber-50', iconTone: 'text-amber-700' },
+  // [/DISABLED-SUBSCRIPTION]
   { to: '/app/earnings', label: 'Earnings', icon: IndianRupee, bg: 'from-blue-600/15 to-blue-50', iconTone: 'text-blue-700' },
   { to: '/app/wallet', label: 'Wallet', icon: Wallet, bg: 'from-sky-500/15 to-sky-50', iconTone: 'text-sky-700' },
   { to: '/app/jobs', label: 'My jobs', icon: HardHat, bg: 'from-emerald-500/15 to-emerald-50', iconTone: 'text-emerald-800' },
@@ -140,7 +142,9 @@ export function LabourHomeScreen({ user }) {
     availablePaise: 0,
     pendingPaise: 0
   })
-  const [freeTrialMessage, setFreeTrialMessage] = useState('')
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // const [freeTrialMessage, setFreeTrialMessage] = useState('')
+  // [/DISABLED-SUBSCRIPTION]
 
   const loadBookings = useCallback(() => {
     if (!user || user.id === 'guest') return
@@ -163,15 +167,17 @@ export function LabourHomeScreen({ user }) {
     loadBookings()
   }, [loadBookings])
 
-  useEffect(() => {
-    let cancelled = false
-    getPublicSettings().then(res => {
-      if (!cancelled && res.data?.freeTrialMessage) {
-        setFreeTrialMessage(res.data.freeTrialMessage)
-      }
-    }).catch(console.error)
-    return () => { cancelled = true }
-  }, [])
+  // [DISABLED-SUBSCRIPTION] — free-trial message fetch; commented out for now, uncomment to re-enable
+  // useEffect(() => {
+  //   let cancelled = false
+  //   getPublicSettings().then(res => {
+  //     if (!cancelled && res.data?.freeTrialMessage) {
+  //       setFreeTrialMessage(res.data.freeTrialMessage)
+  //     }
+  //   }).catch(console.error)
+  //   return () => { cancelled = true }
+  // }, [])
+  // [/DISABLED-SUBSCRIPTION]
   const [toast, setToast] = useState('')
   const [safetyIdx, setSafetyIdx] = useState(0)
   const [appLocation, setAppLocation] = useState(() => readAppUserLocation())
@@ -227,10 +233,12 @@ export function LabourHomeScreen({ user }) {
         : 'Skilled worker'
       : 'Worker'
 
-  const isOnFreeTrial = useMemo(() => {
-    if (!user?.labourProfile?.trialEndsAt) return false
-    return new Date(user.labourProfile.trialEndsAt).getTime() > Date.now()
-  }, [user])
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // const isOnFreeTrial = useMemo(() => {
+  //   if (!user?.labourProfile?.trialEndsAt) return false
+  //   return new Date(user.labourProfile.trialEndsAt).getTime() > Date.now()
+  // }, [user])
+  // [/DISABLED-SUBSCRIPTION]
 
 
   useEffect(() => subscribeWallet(setWallet), [])
@@ -534,6 +542,7 @@ export function LabourHomeScreen({ user }) {
       </section>
 
       <div className="space-y-5 px-4">
+        {/* [DISABLED-SUBSCRIPTION] free-trial banner — uncomment to re-enable
         {kycOk && isOnFreeTrial && freeTrialMessage && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -553,6 +562,7 @@ export function LabourHomeScreen({ user }) {
             </div>
           </motion.div>
         )}
+        [/DISABLED-SUBSCRIPTION] */}
 
         {isScheduleOffline && (
           <motion.div
@@ -794,6 +804,7 @@ export function LabourHomeScreen({ user }) {
         </section>
 
         {/* Subscription Banner (Below Quick Actions with Home Theme) */}
+        {/* [DISABLED-SUBSCRIPTION] Labour Subscription banner — uncomment to re-enable
         <motion.section
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -825,6 +836,7 @@ export function LabourHomeScreen({ user }) {
             </div>
           </Link>
         </motion.section>
+        [/DISABLED-SUBSCRIPTION] */}
 
         {/* 5. Earnings breakdown */}
         <motion.section

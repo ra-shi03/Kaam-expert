@@ -20,7 +20,9 @@ const MyBookings = lazy(() => import('../pages/app/MyBookings.jsx').then((m) => 
 const ActiveJob = lazy(() => import('../pages/app/ActiveJob.jsx').then((m) => ({ default: m.ActiveJob })))
 const LaborWallet = lazy(() => import('../pages/app/LaborWallet.jsx').then((m) => ({ default: m.LaborWallet })))
 const AppSubCategoryServicePage = lazy(() => import('../pages/app/AppSubCategoryServicePage.jsx').then((m) => ({ default: m.AppSubCategoryServicePage })))
-const AppSubscriptionPage = lazy(() => import('../pages/app/AppSubscriptionPage.jsx').then((m) => ({ default: m.AppSubscriptionPage })))
+// [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+// const AppSubscriptionPage = lazy(() => import('../pages/app/AppSubscriptionPage.jsx').then((m) => ({ default: m.AppSubscriptionPage })))
+// [/DISABLED-SUBSCRIPTION]
 const AppPrivacyPolicyPage = lazy(() => import('../pages/app/AppPrivacyPolicyPage.jsx').then((m) => ({ default: m.AppPrivacyPolicyPage })))
 const AppTermsConditionsPage = lazy(() => import('../pages/app/AppTermsConditionsPage.jsx').then((m) => ({ default: m.AppTermsConditionsPage })))
 const AppFAQsPage = lazy(() => import('../pages/app/AppFAQsPage.jsx').then((m) => ({ default: m.AppFAQsPage })))
@@ -105,6 +107,7 @@ export const appShellChildRoutes = (
         </RoleRoute>
       }
     />
+    {/* [DISABLED-SUBSCRIPTION] /app/subscriptions route — uncomment to re-enable
     <Route
       path="subscriptions"
       element={
@@ -113,6 +116,8 @@ export const appShellChildRoutes = (
         </RoleRoute>
       }
     />
+    [/DISABLED-SUBSCRIPTION] */}
+    {/* [DISABLED-SUBSCRIPTION] /app/subscription route — uncomment to re-enable
     <Route
       path="subscription"
       element={
@@ -121,6 +126,7 @@ export const appShellChildRoutes = (
         </RoleRoute>
       }
     />
+    [/DISABLED-SUBSCRIPTION] */}
 
     {/* New: My Bookings (API-backed) */}
     <Route

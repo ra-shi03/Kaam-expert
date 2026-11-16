@@ -18,7 +18,9 @@ import {
  */
 async function validateLabourBookingAccess(labour) {
   const { SystemSetting } = await import('../models/SystemSetting.js')
-  const { UserSubscription } = await import('../models/UserSubscription.js')
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // const { UserSubscription } = await import('../models/UserSubscription.js')
+  // [/DISABLED-SUBSCRIPTION]
 
   // 1. KYC check
   const isDev = process.env.NODE_ENV !== 'production'
@@ -31,51 +33,54 @@ async function validateLabourBookingAccess(labour) {
     return { allowed: false, code: 'KYC_NOT_APPROVED', message: 'KYC not approved. Cannot receive bookings.' }
   }
 
-  const settings = await SystemSetting.findOne({ configKey: 'master_config' })
-  const isSubEnabled = settings?.isUserSubscriptionEnabled ?? false
-  const startHour = settings?.subscriptionStartHour ?? 8
-  const endHour = settings?.subscriptionEndHour ?? 20
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // const settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  // const isSubEnabled = settings?.isUserSubscriptionEnabled ?? false
+  // const startHour = settings?.subscriptionStartHour ?? 8
+  // const endHour = settings?.subscriptionEndHour ?? 20
 
-  // 2. Check free trial
-  const trialEndsAt = labour.labourProfile?.trialEndsAt
-  const now = new Date()
-  const inTrial = trialEndsAt && new Date(trialEndsAt) > now
+  // // 2. Check free trial
+  // const trialEndsAt = labour.labourProfile?.trialEndsAt
+  // const now = new Date()
+  // const inTrial = trialEndsAt && new Date(trialEndsAt) > now
 
-  // 3. If subscription feature is disabled — skip subscription check
-  if (!isSubEnabled || inTrial) {
-    return { allowed: true }
-  }
+  // // 3. If subscription feature is disabled — skip subscription check
+  // if (!isSubEnabled || inTrial) {
+  //   return { allowed: true }
+  // }
 
-  // 4. Check today's subscription
-  const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-  const subscription = await UserSubscription.findOne({ 
-    labour: labour._id, 
-    status: 'active',
-    date: { $lte: todayIST },
-    endDate: { $gte: todayIST }
-  })
+  // // 4. Check today's subscription
+  // const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  // const subscription = await UserSubscription.findOne({ 
+  //   labour: labour._id, 
+  //   status: 'active',
+  //   date: { $lte: todayIST },
+  //   endDate: { $gte: todayIST }
+  // })
 
-  if (!subscription) {
-    return {
-      allowed: false,
-      code: 'SUBSCRIPTION_REQUIRED',
-      message: 'Daily subscription required to receive bookings.',
-    }
-  }
+  // if (!subscription) {
+  //   return {
+  //     allowed: false,
+  //     code: 'SUBSCRIPTION_REQUIRED',
+  //     message: 'Daily subscription required to receive bookings.',
+  //   }
+  // }
 
-  // 5. Check operating window
-  const currentHour = parseInt(
-    new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false })
-  )
-  if (currentHour < startHour || currentHour >= endHour) {
-    return {
-      allowed: false,
-      code: 'OUTSIDE_OPERATING_HOURS',
-      message: `Bookings are only available between ${startHour}:00 and ${endHour}:00.`,
-    }
-  }
+  // // 5. Check operating window
+  // const currentHour = parseInt(
+  //   new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false })
+  // )
+  // if (currentHour < startHour || currentHour >= endHour) {
+  //   return {
+  //     allowed: false,
+  //     code: 'OUTSIDE_OPERATING_HOURS',
+  //     message: `Bookings are only available between ${startHour}:00 and ${endHour}:00.`,
+  //   }
+  // }
 
-  return { allowed: true, subscription }
+  // return { allowed: true, subscription }
+  // [/DISABLED-SUBSCRIPTION]
+  return { allowed: true } // subscription / trial / operating-hours chain is disabled (see DISABLED-SUBSCRIPTION above)
 }
 
 export const acceptBroadcast = asyncHandler(async (req, res) => {
@@ -269,13 +274,15 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
     { $set: { status: 'ACCEPTED', respondedAt: new Date() } }
   )
 
-  // Increment subscription bookingsAccepted count
-  if (accessCheck.subscription) {
-    const { UserSubscription } = await import('../models/UserSubscription.js')
-    await UserSubscription.findByIdAndUpdate(accessCheck.subscription._id, {
-      $inc: { bookingsReceived: 1, bookingOpportunitiesAccepted: 1 },
-    })
-  }
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // // Increment subscription bookingsAccepted count
+  // if (accessCheck.subscription) {
+  //   const { UserSubscription } = await import('../models/UserSubscription.js')
+  //   await UserSubscription.findByIdAndUpdate(accessCheck.subscription._id, {
+  //     $inc: { bookingsReceived: 1, bookingOpportunitiesAccepted: 1 },
+  //   })
+  // }
+  // [/DISABLED-SUBSCRIPTION]
 
   // Increment lifetime broadcasts accepted
   const { User } = await import('../models/User.js')
@@ -319,33 +326,35 @@ export const rejectBroadcast = asyncHandler(async (req, res) => {
     { $set: { status: 'REJECTED', respondedAt: new Date() } }
   )
 
-  // Track booking opportunities offered to this labour (even if rejected)
-  // Per spec: a booking offered but rejected still counts as an opportunity
-  try {
-    const { SystemSetting } = await import('../models/SystemSetting.js')
-    const { UserSubscription } = await import('../models/UserSubscription.js')
-    const settings = await SystemSetting.findOne({ configKey: 'master_config' })
-    const isSubEnabled = settings?.isUserSubscriptionEnabled ?? true
+  // [DISABLED-SUBSCRIPTION] — commented out for now; uncomment to re-enable
+  // // Track booking opportunities offered to this labour (even if rejected)
+  // // Per spec: a booking offered but rejected still counts as an opportunity
+  // try {
+  //   const { SystemSetting } = await import('../models/SystemSetting.js')
+  //   const { UserSubscription } = await import('../models/UserSubscription.js')
+  //   const settings = await SystemSetting.findOne({ configKey: 'master_config' })
+  //   const isSubEnabled = settings?.isUserSubscriptionEnabled ?? true
 
-    if (isSubEnabled) {
-      const trialEndsAt = labour.labourProfile?.trialEndsAt
-      const inTrial = trialEndsAt && new Date(trialEndsAt) > new Date()
-      if (!inTrial) {
-        const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-        await UserSubscription.findOneAndUpdate(
-          { 
-            labour: labour._id, 
-            status: 'active',
-            date: { $lte: todayIST },
-            endDate: { $gte: todayIST }
-          },
-          { $inc: { bookingOpportunitiesOffered: 1 } }
-        )
-      }
-    }
-  } catch (e) {
-    console.error('[broadcastController] Failed to track booking opportunity:', e)
-  }
+  //   if (isSubEnabled) {
+  //     const trialEndsAt = labour.labourProfile?.trialEndsAt
+  //     const inTrial = trialEndsAt && new Date(trialEndsAt) > new Date()
+  //     if (!inTrial) {
+  //       const todayIST = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  //       await UserSubscription.findOneAndUpdate(
+  //         { 
+  //           labour: labour._id, 
+  //           status: 'active',
+  //           date: { $lte: todayIST },
+  //           endDate: { $gte: todayIST }
+  //         },
+  //         { $inc: { bookingOpportunitiesOffered: 1 } }
+  //       )
+  //     }
+  //   }
+  // } catch (e) {
+  //   console.error('[broadcastController] Failed to track booking opportunity:', e)
+  // }
+  // [/DISABLED-SUBSCRIPTION]
 
   // One labourer declining must never end the search while other labourers are still deciding.
   // Resolve the booking only once EVERY labourer who was offered it has answered:

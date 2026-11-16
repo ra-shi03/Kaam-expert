@@ -11,7 +11,9 @@ import {
   Wallet,
 } from 'lucide-react'
 import { bookingsApi } from '../../api/bookingsApi.js'
-import { paymentsApi } from '../../api/paymentsApi.js'
+// [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+// import { paymentsApi } from '../../api/paymentsApi.js'
+// [/DISABLED-RAZORPAY]
 import { adminSettingsApi, getPublicSettings } from '../../api/adminSettingsApi.js'
 import { ApiError } from '../../api/http.js'
 import { AppStackScreenHeader } from '../../components/app/AppStackScreenHeader.jsx'
@@ -25,16 +27,18 @@ function formatInr(amount) {
   return `₹${Number(amount || 0).toLocaleString('en-IN')}`
 }
 
-function loadRazorpay() {
-  return new Promise((resolve) => {
-    if (window.Razorpay) { resolve(true); return }
-    const script = document.createElement('script')
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-    script.onload = () => resolve(true)
-    script.onerror = () => resolve(false)
-    document.body.appendChild(script)
-  })
-}
+// [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+// function loadRazorpay() {
+//   return new Promise((resolve) => {
+//     if (window.Razorpay) { resolve(true); return }
+//     const script = document.createElement('script')
+//     script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+//     script.onload = () => resolve(true)
+//     script.onerror = () => resolve(false)
+//     document.body.appendChild(script)
+//   })
+// }
+// [/DISABLED-RAZORPAY]
 
 const getNext5Days = () => {
   const days = []
@@ -287,53 +291,57 @@ export function Checkout() {
         return
       }
 
-      // Online payment — Razorpay flow
-      const razorpayLoaded = await loadRazorpay()
-      if (!razorpayLoaded) {
-        setSubmitError('Payment gateway failed to load. Please try again.')
-        setSubmitting(false)
-        return
-      }
+      // [DISABLED-RAZORPAY] — commented out for now; uncomment to re-enable
+      // // Online payment — Razorpay flow
+      // const razorpayLoaded = await loadRazorpay()
+      // if (!razorpayLoaded) {
+      //   setSubmitError('Payment gateway failed to load. Please try again.')
+      //   setSubmitting(false)
+      //   return
+      // }
 
-      const payRes = await paymentsApi.initPayment({
-        amount: booking.totalAmount,
-        purpose: 'BOOKING',
-        bookingId: booking._id,
-      })
+      // const payRes = await paymentsApi.initPayment({
+      //   amount: booking.totalAmount,
+      //   purpose: 'BOOKING',
+      //   bookingId: booking._id,
+      // })
 
-      const order = payRes.data?.order
-      if (!order) throw new Error('Payment initialization failed')
+      // const order = payRes.data?.order
+      // if (!order) throw new Error('Payment initialization failed')
 
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        order_id: order.id,
-        name: 'KaamExpert',
-        description: `Booking: ${subcategoryName}`,
-        handler: async function (response) {
-          try {
-            await paymentsApi.verifyPayment({
-              razorpayOrderId: response.razorpay_order_id,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpaySignature: response.razorpay_signature,
-            })
-            navigate(`/app/tracking/${booking._id}`, { replace: true })
-          } catch (err) {
-            setSubmitError('Payment verification failed. Contact support.')
-            setSubmitting(false)
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setSubmitting(false)
-          },
-        },
-        theme: { color: '#002b5c' },
-      }
+      // const options = {
+      //   key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+      //   amount: order.amount,
+      //   currency: order.currency || 'INR',
+      //   order_id: order.id,
+      //   name: 'KaamExpert',
+      //   description: `Booking: ${subcategoryName}`,
+      //   handler: async function (response) {
+      //     try {
+      //       await paymentsApi.verifyPayment({
+      //         razorpayOrderId: response.razorpay_order_id,
+      //         razorpayPaymentId: response.razorpay_payment_id,
+      //         razorpaySignature: response.razorpay_signature,
+      //       })
+      //       navigate(`/app/tracking/${booking._id}`, { replace: true })
+      //     } catch (err) {
+      //       setSubmitError('Payment verification failed. Contact support.')
+      //       setSubmitting(false)
+      //     }
+      //   },
+      //   modal: {
+      //     ondismiss: () => {
+      //       setSubmitting(false)
+      //     },
+      //   },
+      //   theme: { color: '#002b5c' },
+      // }
 
-      const rzp = new window.Razorpay(options)
-      rzp.open()
+      // const rzp = new window.Razorpay(options)
+      // rzp.open()
+      // [/DISABLED-RAZORPAY]
+      setSubmitError('Online payment is temporarily unavailable. Please choose cash.')
+      setSubmitting(false)
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : err.message || 'Booking failed')
       setSubmitting(false)
