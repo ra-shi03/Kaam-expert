@@ -105,7 +105,7 @@ export function getAppShellTitle(pathname) {
   if (pathname.startsWith('/app/earnings')) return 'Earnings'
   if (pathname.startsWith('/app/wallet')) return 'Wallet'
   if (pathname.startsWith('/app/kyc')) return 'KYC verification'
-  if (pathname.startsWith('/app/notifications')) return 'Notifications'
+  if (pathname.startsWith('/app/notifications') || pathname.startsWith('/app/inbox')) return 'Notifications'
   if (pathname.startsWith('/app/work-categories')) return 'Work types'
   if (pathname.startsWith('/app/booking/flow')) return 'Book labour'
   if (pathname.startsWith('/app/support')) return 'Support'

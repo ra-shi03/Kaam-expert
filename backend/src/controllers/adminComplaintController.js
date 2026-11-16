@@ -1,3 +1,4 @@
+import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 import { Complaint } from '../models/Complaint.js'
 import { User } from '../models/User.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
@@ -47,10 +48,22 @@ export const updateComplaintStatus = asyncHandler(async (req, res) => {
     return sendError(res, { message: 'Complaint not found', statusCode: HTTP_STATUS.NOT_FOUND })
   }
 
+  const prevStatus = complaint.status
+  const prevRemarks = complaint.adminRemarks
   if (status) complaint.status = status
   if (adminRemarks !== undefined) complaint.adminRemarks = adminRemarks
 
   await complaint.save()
+
+  // Tell the person who raised it when the status or the admin's reply changed
+  if (complaint.status !== prevStatus || (adminRemarks !== undefined && adminRemarks && adminRemarks !== prevRemarks)) {
+    const label = String(complaint.status || '').replace(/_/g, ' ').toLowerCase()
+    sendNotificationToUser(complaint.complainantId, {
+      title: 'Update on your complaint',
+      body: `"${complaint.title}" is now ${label}.${complaint.adminRemarks ? ` Admin: ${complaint.adminRemarks}` : ''}`,
+      data: { type: 'complaint_update', complaintId: String(complaint._id), url: '/app/support' },
+    })
+  }
 
   return sendSuccess(res, { message: 'Complaint updated successfully', data: { complaint } })
 })

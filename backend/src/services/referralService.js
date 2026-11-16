@@ -106,14 +106,14 @@ export async function rewardReferral(referralId, { settings, reviewedBy } = {}) 
     sendNotificationToUser(referral.referrerId, {
       title: 'Referral reward earned 🎉',
       body: `₹${referrerReward} has been added to your wallet.`,
-      data: { type: 'referral_reward', referralId: String(referral._id) },
+      data: { type: 'referral_reward', referralId: String(referral._id), url: '/app/refer' },
     }).catch(() => {})
   }
   if (refereeReward > 0) {
     sendNotificationToUser(referral.refereeId, {
       title: 'Welcome bonus unlocked',
       body: `₹${refereeReward} has been added to your wallet.`,
-      data: { type: 'referral_reward', referralId: String(referral._id) },
+      data: { type: 'referral_reward', referralId: String(referral._id), url: '/app/refer' },
     }).catch(() => {})
   }
 

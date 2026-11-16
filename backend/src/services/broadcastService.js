@@ -8,6 +8,7 @@ import { getRoadDistances } from '../utils/googleMapsDistance.js'
 // [/DISABLED-SUBSCRIPTION]
 import { Review } from '../models/Review.js'
 import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
+import { notifyBookingAccepted, notifyBookingFailed } from './notificationService.js'
 import { emitToUser, getIo } from '../socket.js'
 import { LabourService } from '../models/LabourService.js'
 import { Wallet } from '../models/Wallet.js'
@@ -30,7 +31,7 @@ function notifyRechargeRequired(lowBalance, fee, required) {
     const body = `A cash booking nearby needs a wallet balance of at least ₹${Math.ceil(required)} (platform fee ₹${fee}). Recharge ₹${shortfall} or more to start receiving cash job requests.`
     try {
       emitToUser(labor._id, 'CASH_WALLET_RECHARGE_REQUIRED', { title, body, shortfall, required: Math.ceil(required), balance })
-      sendNotificationToUser(labor._id, { title, body, data: { type: 'CASH_WALLET_RECHARGE_REQUIRED', url: `/app/wallet?recharge=${shortfall}` } })
+      sendNotificationToUser(labor._id, { title, body, data: { type: 'wallet_recharge_required', url: `/app/wallet?recharge=${shortfall}` } })
     } catch (err) {
       console.warn('[BROADCAST] recharge notice failed:', err.message || err)
     }
@@ -76,6 +77,7 @@ export async function startBroadcastCycle(bookingId) {
     import('../socket.js').then(({ emitToUser }) => {
       emitToUser(booking.userId, 'BOOKING_FAILED', { bookingId, reason: 'Invalid location' })
     }).catch(err => console.error(err))
+    notifyBookingFailed(booking, 'Invalid location')
     return
   }
 
@@ -639,6 +641,7 @@ export async function startBroadcastCycle(bookingId) {
           console.log(`[BROADCAST] Booking ${booking._id} EXPIRED with partial acceptance (${currentBooking.acceptedLabourIds.length}/${currentBooking.quantity || 1}).`)
           
           emitToUser(currentBooking.userId, 'BOOKING_ACCEPTED', { bookingId: currentBooking._id, partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
+          notifyBookingAccepted(currentBooking, { partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
           
           const io = getIo()
           if (io) io.emit('BOOKING_EXPIRED', { bookingId: currentBooking._id })
@@ -649,6 +652,7 @@ export async function startBroadcastCycle(bookingId) {
           
           // Notify customer
           emitToUser(currentBooking.userId, 'BOOKING_FAILED', { bookingId: currentBooking._id, reason: 'Expired' })
+          notifyBookingFailed(currentBooking, 'Expired')
           
           // Notify laborers that it expired
           eligibleLaborers.forEach(labor => {
@@ -665,11 +669,12 @@ export async function startBroadcastCycle(bookingId) {
 
 }
 
-async function markBookingFailed(booking, reason) {
+export async function markBookingFailed(booking, reason) {
   booking.status = 'FAILED'
   await booking.save()
   console.log(`Booking ${booking._id} FAILED: ${reason}`)
   import('../socket.js').then(({ emitToUser }) => {
     emitToUser(booking.userId, 'BOOKING_FAILED', { bookingId: booking._id, reason })
   }).catch(err => console.error(err))
+  notifyBookingFailed(booking, reason)
 }

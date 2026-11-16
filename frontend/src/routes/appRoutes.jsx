@@ -9,6 +9,7 @@ const AppProfilePage = lazy(() => import('../pages/app/AppProfilePage.jsx').then
 const AppEarningsPage = lazy(() => import('../pages/app/AppEarningsPage.jsx').then((m) => ({ default: m.AppEarningsPage })))
 
 const AppKycPage = lazy(() => import('../pages/app/AppKycPage.jsx').then((m) => ({ default: m.AppKycPage })))
+const AppNotificationsPage = lazy(() => import('../pages/app/AppNotificationsPage.jsx').then((m) => ({ default: m.AppNotificationsPage })))
 const LabourNotificationsPage = lazy(() => import('../pages/app/labour/LabourNotificationsPage.jsx').then((m) => ({ default: m.LabourNotificationsPage })))
 const IndividualBookingFlowPage = lazy(() => import('../pages/app/booking/IndividualBookingFlowPage.jsx').then((m) => ({ default: m.IndividualBookingFlowPage })))
 
@@ -200,6 +201,14 @@ export const appShellChildRoutes = (
       element={
         <RoleRoute allow={[USER_ROLES.LABOUR]}>
           <LabourNotificationsPage />
+        </RoleRoute>
+      }
+    />
+    <Route
+      path="inbox"
+      element={
+        <RoleRoute allow={[USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR, USER_ROLES.LABOUR]}>
+          <AppNotificationsPage />
         </RoleRoute>
       }
     />

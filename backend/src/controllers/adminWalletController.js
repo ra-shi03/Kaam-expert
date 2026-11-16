@@ -1,3 +1,4 @@
+import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 import { WithdrawalRequest } from '../models/WithdrawalRequest.js'
 import { Wallet } from '../models/Wallet.js'
 import { WalletTransaction } from '../models/WalletTransaction.js'
@@ -353,6 +354,14 @@ export const processWithdrawalRequest = asyncHandler(async (req, res) => {
 
     await request.save({ session })
     await session.commitTransaction()
+
+    sendNotificationToUser(request.labourId, {
+      title: status === 'APPROVED' ? 'Withdrawal approved 💸' : 'Withdrawal rejected',
+      body: status === 'APPROVED'
+        ? `₹${request.amount} is being sent to your bank account.${adminRemarks ? ` Note: ${adminRemarks}` : ''}`
+        : `Your withdrawal of ₹${request.amount} was rejected and the amount is back in your wallet.${adminRemarks ? ` Reason: ${adminRemarks}` : ''}`,
+      data: { type: 'withdrawal_status', status: status.toLowerCase(), requestId: String(request._id), url: '/app/wallet' },
+    })
 
     return sendSuccess(res, { message: `Withdrawal request ${status.toLowerCase()} successfully`, data: { request } })
   } catch (error) {

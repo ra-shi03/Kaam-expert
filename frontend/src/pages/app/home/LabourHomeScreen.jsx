@@ -74,6 +74,7 @@ import {
   subscribeLabourNotifications,
 } from '../../../lib/labourNotifications.js'
 import { getLabourBookingShare } from '../../../lib/bookingLabourShare.js'
+import { useNotifications } from '../../../hooks/useNotifications.js'
 
 function getTimeGreeting() {
   const h = new Date().getHours()
@@ -326,6 +327,9 @@ export function LabourHomeScreen({ user }) {
     [user, jobs, earnings, notifTick],
   )
 
+  const { unreadCount: inboxUnread } = useNotifications({ limit: 1 })
+  const bellUnread = notifications.unreadCount + inboxUnread
+
   const hasWorkLocation = useMemo(() => hasAppUserLocation(appLocation), [appLocation])
   const locationLabel = formatAppUserLocationLabel(appLocation) || 'Set your work area'
   const siteLabel = hasWorkLocation ? locationLabel : (todayJob?.siteName || todayJob?.title || 'No site assigned')
@@ -429,15 +433,15 @@ export function LabourHomeScreen({ user }) {
                   onClick={() => navigate('/app/notifications')}
                   className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20"
                   aria-label={
-                    notifications.unreadCount > 0
-                      ? `Notifications, ${notifications.unreadCount} unread`
+                    bellUnread > 0
+                      ? `Notifications, ${bellUnread} unread`
                       : 'Notifications'
                   }
                 >
                   <Bell className="h-5 w-5" />
-                  {notifications.unreadCount > 0 ? (
+                  {bellUnread > 0 ? (
                     <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-md ring-2 ring-slate-900/80">
-                      {notifications.unreadCount > 9 ? '9+' : notifications.unreadCount}
+                      {bellUnread > 9 ? '9+' : bellUnread}
                     </span>
                   ) : null}
                 </button>

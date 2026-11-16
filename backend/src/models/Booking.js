@@ -160,6 +160,9 @@ const bookingSchema = new mongoose.Schema(
       default: 'CREATED',
       index: true,
     },
+    // scheduled-job reminders already sent (so the cron never sends them twice)
+    reminder60SentAt: { type: Date },
+    reminder15SentAt: { type: Date },
     broadcastRadius: { type: Number },
     eligibleLabourCount: { type: Number, default: 0 },
     rejectedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

@@ -11,6 +11,7 @@ import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import { parseISTDateTime, calculateEndTime } from '../utils/dateHelper.js'
 import { qualifyReferralsInBackground } from '../services/referralService.js'
 import { creditEarnings, settleCashBooking } from '../services/walletService.js'
+import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 
 /**
  * Resolve price for a specific slot duration.
@@ -616,6 +617,11 @@ export const createBooking = asyncHandler(async (req, res) => {
     import('../socket.js').then(({ emitToUser }) => {
       emitToUser(booking.userId, 'BOOKING_SCHEDULED_QUEUED', { bookingId: booking._id, scheduledAt: booking.scheduledAt })
     }).catch(err => console.error(err))
+    sendNotificationToUser(booking.userId, {
+      title: 'Booking scheduled 📅',
+      body: `Your booking for ${new Date(booking.scheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} is confirmed. We'll find a labourer an hour before.`,
+      data: { type: 'booking_scheduled', bookingId: String(booking._id), url: '/app/bookings' },
+    })
   }
 
   // Save the address for future use if requested
@@ -890,11 +896,23 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
   // Also send Push Notification
   import('../utils/pushNotificationHelper.js').then(({ sendNotificationToUser }) => {
     // To Customer
-    sendNotificationToUser(booking.userId, {
-      title: 'Booking Update',
-      body: `Your booking status is now ${status}`,
-      data: { type: 'booking_update', bookingId: String(booking._id) }
-    })
+    if (status === 'COMPLETED' && booking.status === 'COMPLETED') {
+      // Replaces the generic update (same booking tag): tell the customer what to do next
+      const payLine = booking.paymentMethod === 'CASH' && booking.paymentStatus !== 'PAID'
+        ? `Please pay ₹${booking.totalAmount} in cash to the labourer, then rate your experience.`
+        : 'Thanks for booking with KaamExpert. Please rate your experience.'
+      sendNotificationToUser(booking.userId, {
+        title: 'Job completed ✅',
+        body: payLine,
+        data: { type: 'payment_due', bookingId: String(booking._id), url: '/app/bookings' },
+      })
+    } else {
+      sendNotificationToUser(booking.userId, {
+        title: 'Booking Update',
+        body: `Your booking status is now ${String(status).replace('_', ' ')}`,
+        data: { type: 'booking_update', bookingId: String(booking._id), url: '/app/bookings' }
+      })
+    }
     
     // To Labourers
     if (booking.assignments && booking.assignments.length > 0) {
@@ -903,16 +921,16 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
         if (lid) {
           sendNotificationToUser(lid, {
             title: 'Job Status Update',
-            body: `The job status has been updated to ${status}`,
-            data: { type: 'booking_update', bookingId: String(booking._id) }
+            body: `The job status has been updated to ${String(status).replace('_', ' ')}`,
+            data: { type: 'booking_update', bookingId: String(booking._id), url: `/app/active-job/${booking._id}` }
           })
         }
       });
     } else if (booking.laborId) {
       sendNotificationToUser(booking.laborId, {
         title: 'Job Status Update',
-        body: `The job status has been updated to ${status}`,
-        data: { type: 'booking_update', bookingId: String(booking._id) }
+        body: `The job status has been updated to ${String(status).replace('_', ' ')}`,
+        data: { type: 'booking_update', bookingId: String(booking._id), url: `/app/active-job/${booking._id}` }
       })
     }
   }).catch(err => console.error(err))
@@ -960,7 +978,7 @@ export const confirmCashPayment = asyncHandler(async (req, res) => {
         body: c.balance < 0
           ? `₹${c.amount} platform fee deducted. Wallet is at -₹${Math.abs(c.balance)} — recharge to keep taking cash jobs.`
           : `₹${c.amount} platform fee deducted from your wallet. Balance: ₹${c.balance}.`,
-        data: { type: 'cash_fee_deducted', bookingId: String(booking._id) }
+        data: { type: 'cash_fee_deducted', bookingId: String(booking._id), url: '/app/wallet' }
       }).catch(() => {})
     }
   }).catch(err => console.error(err))
@@ -1168,6 +1186,19 @@ export const addExtraTime = asyncHandler(async (req, res) => {
   import('../socket.js').then(({ emitToUser }) => {
     emitToUser(booking.userId, 'BOOKING_UPDATED', { bookingId: booking._id })
   }).catch(err => console.error(err))
+  // Both sides are told the time/price changed
+  sendNotificationToUser(booking.userId, {
+    title: 'Booking updated',
+    body: 'Extra time was added to your booking. Tap to see the new total.',
+    data: { type: 'booking_updated', bookingId: String(booking._id), url: '/app/bookings' },
+  })
+  ;(booking.assignments?.length ? booking.assignments.map((a) => a.labourId) : [booking.laborId]).filter(Boolean).forEach((lid) => {
+    sendNotificationToUser(lid, {
+      title: 'Extra time added',
+      body: 'The customer added extra time to your job. Your earnings were updated.',
+      data: { type: 'booking_updated', bookingId: String(booking._id), url: `/app/active-job/${booking._id}` },
+    })
+  })
 
   return sendSuccess(res, { message: 'Extra time added successfully', data: { booking } })
 })

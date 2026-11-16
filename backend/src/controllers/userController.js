@@ -9,6 +9,8 @@ import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import { populateLabourCategories } from '../utils/populateLabourCategories.js'
 import { isValidAadhaarLength, maskAadhaarLast4, normalizeAadhaar } from '../utils/aadhaar.js'
 import { normalizeStoredMediaUrl } from '../utils/mediaUrl.js'
+import { notifyAdmins } from '../services/notificationService.js'
+import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 
 const MAX_KYC_IMAGE_CHARS = 750_000
 
@@ -323,6 +325,12 @@ export const submitLabourKycDocuments = asyncHandler(async (req, res) => {
   if (req.user.role === USER_ROLES.LABOUR) {
     await populateLabourCategories(req.user)
   }
+
+  notifyAdmins({
+    title: 'New KYC to review',
+    body: `${req.user.fullName || 'A user'} submitted KYC documents.`,
+    data: { type: 'admin_new_kyc', userId: String(req.user._id), url: '/admin/labour' },
+  })
 
   return sendSuccess(res, {
     message: 'KYC video submitted — an admin will review your Aadhaar and PAN shortly.',
@@ -887,15 +895,10 @@ async function notifyKycDecision(user, decision, reviewNote) {
     const { emitToUser } = await import('../socket.js')
     emitToUser(user._id, 'KYC_STATUS_UPDATE', { status: approved ? KYC_STATUS.VERIFIED : KYC_STATUS.FAILED, title, body })
 
-    const tokens = [...new Set([...(user.fcmTokens || []), ...(user.fcmTokenMobile || [])])].filter(Boolean)
-    if (!tokens.length) return
-    const { getFirebaseAdmin } = await import('../config/firebase.js')
-    const firebase = getFirebaseAdmin()
-    if (!firebase) return
-    await firebase.messaging().sendEachForMulticast({
-      tokens,
-      notification: { title, body },
-      data: { type: 'KYC_STATUS_UPDATE', status: approved ? 'verified' : 'failed', url: '/app/kyc' },
+    await sendNotificationToUser(user._id, {
+      title,
+      body,
+      data: { type: 'kyc_status', status: approved ? 'verified' : 'failed', url: '/app/kyc' },
     })
   } catch (err) {
     console.warn('[KYC] notification failed:', err.message || err)

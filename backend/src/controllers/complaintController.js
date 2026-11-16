@@ -1,3 +1,4 @@
+import { notifyAdmins } from '../services/notificationService.js'
 import { Complaint } from '../models/Complaint.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { sendError, sendSuccess, HTTP_STATUS } from '../utils/apiResponse.js'
@@ -16,6 +17,12 @@ export const submitComplaint = asyncHandler(async (req, res) => {
     title,
     description,
     status: 'OPEN'
+  })
+
+  notifyAdmins({
+    title: 'New complaint received',
+    body: `${req.user.fullName || 'A user'}: ${title}`,
+    data: { type: 'admin_new_complaint', complaintId: String(complaint._id), url: '/admin/complaints' },
   })
 
   return sendSuccess(res, { message: 'Complaint submitted successfully', data: { complaint } }, HTTP_STATUS.CREATED)

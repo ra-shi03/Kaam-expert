@@ -2,6 +2,8 @@ import cron from 'node-cron'
 import { Booking } from '../models/Booking.js'
 import { BroadcastLog } from '../models/BroadcastLog.js'
 import { WorkforceRequest } from '../models/WorkforceRequest.js'
+import { runJobReminders } from '../services/reminderService.js'
+import { notifyBookingAccepted, notifyBookingFailed } from '../services/notificationService.js'
 import { startBroadcastCycle, getBroadcastTimeoutMs, activeBroadcastTimeouts } from '../services/broadcastService.js'
 import { emitToUser, getIo } from '../socket.js'
 import { User } from '../models/User.js'
@@ -22,21 +24,27 @@ export function initBroadcastCron() {
       const sevenMinsAgo = new Date(now.getTime() - 7 * 60 * 1000)
       const tenMinsAgo = new Date(now.getTime() - 10 * 60 * 1000)
       
-      const stuck = await Booking.updateMany(
-        {
-          status: 'BROADCASTING',
-          $or: [
-            { type: 'INSTANT', updatedAt: { $lt: sevenMinsAgo } },
-            { type: { $exists: false }, updatedAt: { $lt: sevenMinsAgo } },
-            { type: 'SCHEDULED', scheduledAt: { $lt: tenMinsAgo } },
-          ],
-        },
-        { $set: { status: 'FAILED' } }
-      )
+      const stuckFilter = {
+        status: 'BROADCASTING',
+        $or: [
+          { type: 'INSTANT', updatedAt: { $lt: sevenMinsAgo } },
+          { type: { $exists: false }, updatedAt: { $lt: sevenMinsAgo } },
+          { type: 'SCHEDULED', scheduledAt: { $lt: tenMinsAgo } },
+        ],
+      }
+      const stuckBookings = await Booking.find(stuckFilter).select('_id userId quantity acceptedLabourIds').lean()
+      const stuck = await Booking.updateMany(stuckFilter, { $set: { status: 'FAILED' } })
       if (stuck.modifiedCount > 0) {
         console.log(`[CRON] Marked ${stuck.modifiedCount} stuck BROADCASTING booking(s) as FAILED`)
-        // Clean up tracked timeouts for these bookings
+        // Tell the customers (push + inbox) instead of leaving them waiting
+        stuckBookings.forEach((b) => {
+          emitToUser(b.userId, 'BOOKING_FAILED', { bookingId: b._id, reason: 'Expired' })
+          notifyBookingFailed(b, 'Expired')
+        })
       }
+
+      // ===== 1b. SCHEDULED-JOB REMINDERS (1 hour / 15 min before) =====
+      await runJobReminders(now)
 
       // ===== 2. TRIGGER SCHEDULED BOOKINGS (1 hour before) =====
       const oneHourWindow = new Date(now.getTime() + 61 * 60 * 1000)
@@ -118,11 +126,13 @@ export function initBroadcastCron() {
                   await currentBooking.save()
                   console.log(`[CRON] Orphaned booking ${booking._id} EXPIRED with partial acceptance`)
                   emitToUser(currentBooking.userId, 'BOOKING_ACCEPTED', { bookingId: currentBooking._id, partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
+                  notifyBookingAccepted(currentBooking, { partial: true, acceptedCount: currentBooking.acceptedLabourIds.length })
                 } else {
                   currentBooking.status = 'FAILED'
                   await currentBooking.save()
                   console.log(`[CRON] Orphaned booking ${booking._id} EXPIRED without acceptance`)
                   emitToUser(currentBooking.userId, 'BOOKING_FAILED', { bookingId: currentBooking._id, reason: 'Expired' })
+                  notifyBookingFailed(currentBooking, 'Expired')
                 }
                 const io = getIo()
                 if (io) io.emit('BOOKING_EXPIRED', { bookingId: currentBooking._id })

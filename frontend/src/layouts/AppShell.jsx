@@ -5,6 +5,7 @@ import { Bell, ChevronDown, LogOut, MapPin, Menu, Sparkles, X } from 'lucide-rea
 import { useAuth } from '../hooks/useAuth.js'
 import { useKycStatusSync } from '../hooks/useKycStatusSync.js'
 import { useReferralProgram } from '../hooks/useReferralProgram.js'
+import { useNotifications } from '../hooks/useNotifications.js'
 import {
   getAppNavigation,
   getAppShellTitle,
@@ -69,6 +70,7 @@ function AppShellContent({ kycLocked }) {
   const [locationModalOpen, setLocationModalOpen] = useState(false)
   const [appLocation, setAppLocation] = useState(() => readAppUserLocation())
   const headerRef = useRef(null)
+  const { unreadCount: inboxUnread } = useNotifications({ limit: 1 })
   const reduce = useReducedMotion()
 
   const { showInApp: showReferral } = useReferralProgram()
@@ -93,6 +95,7 @@ function AppShellContent({ kycLocked }) {
     pathname === '/app/search' ||
     pathname === '/app/support' ||
     pathname === '/app/refer' ||
+    pathname === '/app/inbox' ||
     pathname === '/app/profile' ||
     pathname === '/app/wallet' ||
     isLabourAppHome ||
@@ -437,11 +440,16 @@ function AppShellContent({ kycLocked }) {
                   </div>
                 </button>
                 <Link
-                  to="/app/support"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition active:scale-95 hover:bg-white/25"
-                  aria-label="Support and notifications"
+                  to="/app/inbox"
+                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition active:scale-95 hover:bg-white/25"
+                  aria-label={inboxUnread > 0 ? `Notifications, ${inboxUnread} unread` : 'Notifications'}
                 >
                   <Bell className="h-5 w-5" aria-hidden />
+                  {inboxUnread > 0 ? (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white ring-2 ring-[#001a38]">
+                      {inboxUnread > 9 ? '9+' : inboxUnread}
+                    </span>
+                  ) : null}
                 </Link>
                 <Link
                   to="/app/profile"

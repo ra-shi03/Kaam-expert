@@ -10,6 +10,8 @@ const SOUND_EVENTS = [
   'BOOKING_UPDATED',
   'KYC_STATUS_UPDATE',
   'CASH_WALLET_RECHARGE_REQUIRED',
+  // every notification the server saves to the inbox (job offers ring from BroadcastPopup instead)
+  'NOTIFICATION_NEW',
 ]
 
 export function NotificationSoundListener() {
@@ -21,7 +23,10 @@ export function NotificationSoundListener() {
 
   useEffect(() => {
     if (!socket) return undefined
-    const onEvent = () => playNotificationSound()
+    const onEvent = (payload) => {
+      if (payload?.type === 'booking_received') return // BroadcastPopup rings /broadcast.mp3 for job offers
+      playNotificationSound()
+    }
     SOUND_EVENTS.forEach((e) => socket.on(e, onEvent))
     return () => SOUND_EVENTS.forEach((e) => socket.off(e, onEvent))
   }, [socket])

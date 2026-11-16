@@ -1,6 +1,7 @@
 import { Review } from '../models/Review.js'
 import { Booking } from '../models/Booking.js'
 import { User } from '../models/User.js'
+import { sendNotificationToUser } from '../utils/pushNotificationHelper.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 
@@ -36,6 +37,12 @@ export const submitReview = asyncHandler(async (req, res) => {
     revieweeId,
     rating,
     comment
+  })
+
+  sendNotificationToUser(revieweeId, {
+    title: `New ${rating}★ review`,
+    body: comment ? `"${String(comment).slice(0, 120)}"` : 'Someone rated your recent job.',
+    data: { type: 'review_received', bookingId: String(bookingId), reviewId: String(review._id), url: '/app/profile' },
   })
 
   return sendSuccess(res, { message: 'Review submitted successfully', data: { review } })

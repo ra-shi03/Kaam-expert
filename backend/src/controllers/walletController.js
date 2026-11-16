@@ -1,3 +1,4 @@
+import { notifyAdmins } from '../services/notificationService.js'
 import { Wallet } from '../models/Wallet.js'
 import { WalletTransaction } from '../models/WalletTransaction.js'
 import { SystemSetting } from '../models/SystemSetting.js'
@@ -288,6 +289,11 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
     }], { session })
 
     await session.commitTransaction()
+    notifyAdmins({
+      title: 'New withdrawal request',
+      body: `${req.user.fullName || 'A labourer'} requested a withdrawal of ₹${numAmount}.`,
+      data: { type: 'admin_new_withdrawal', requestId: String(request[0]._id), url: '/admin/labour-wallet' },
+    })
     return sendSuccess(res, { message: 'Withdrawal request submitted successfully', data: { request: request[0], wallet } })
   } catch (error) {
     await session.abortTransaction()

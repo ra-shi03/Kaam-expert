@@ -5,6 +5,7 @@ import { HTTP_STATUS, sendError, sendSuccess } from '../utils/apiResponse.js'
 import { KYC_STATUS, USER_ROLES } from '../constants/roles.js'
 import { getBroadcastTimeoutMs } from '../services/broadcastService.js'
 import { Wallet } from '../models/Wallet.js'
+import { notifyBookingAccepted, notifyBookingFailed, notifyBookingAssigned } from '../services/notificationService.js'
 import {
   checkCashJobEligibility,
   getCashWalletSettings,
@@ -290,6 +291,10 @@ export const acceptBroadcast = asyncHandler(async (req, res) => {
     $inc: { 'labourProfile.lifetimeBroadcastsAccepted': 1 }
   })
 
+  // Push + inbox: the customer is told even if their app is closed; the labourer gets the job confirmation
+  notifyBookingAccepted(booking, { labourName: labour.fullName })
+  notifyBookingAssigned(labour._id, booking, assignedServiceName)
+
   // Notify customer
   import('../socket.js')
     .then(({ emitToUser, getIo }) => {
@@ -388,6 +393,9 @@ export const rejectBroadcast = asyncHandler(async (req, res) => {
             { $set: { status: 'ACCEPTED' } },
             { new: true }
           )
+
+      if (failed) notifyBookingFailed(booking, 'All available labourers declined')
+      else if (partial) notifyBookingAccepted(partial, { partial: true, acceptedCount: partial.acceptedLabourIds.length })
 
       if (failed || partial) {
         import('../socket.js')

@@ -41,6 +41,8 @@ import {
 } from '../../../lib/labourJobDemoStorage.js'
 
 import { readWalletState, subscribeWallet } from '../../../lib/labourWalletStorage.js'
+import { useNotifications } from '../../../hooks/useNotifications.js'
+import { NotificationList } from '../../../components/app/NotificationList.jsx'
 import { buildEarningsGlance } from '../../../lib/labourHomeHelpers.js'
 
 const TABS = [
@@ -77,6 +79,7 @@ export function LabourNotificationsPage() {
   const [tick, setTick] = useState(0)
   const [confirmOfferId, setConfirmOfferId] = useState(null)
   const [toast, setToast] = useState('')
+  const inbox = useNotifications({ limit: 20 })
 
   const kycOk = user?.labourProfile?.kycStatus === KYC_STATUS.VERIFIED
 
@@ -225,6 +228,22 @@ export function LabourNotificationsPage() {
           <p className="rounded-xl border border-brand/25 bg-brand/10 px-4 py-2 text-center text-sm font-semibold text-brand">
             {toast}
           </p>
+        ) : null}
+
+        {inbox.items.length > 0 ? (
+          <section aria-label="Recent activity" className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-extrabold text-slate-900">
+                Recent activity{inbox.unreadCount > 0 ? ` · ${inbox.unreadCount} new` : ''}
+              </h2>
+              {inbox.unreadCount > 0 ? (
+                <button type="button" onClick={inbox.markAllRead} className="text-xs font-bold text-brand">
+                  Mark all read
+                </button>
+              ) : null}
+            </div>
+            <NotificationList items={inbox.items} onRead={inbox.markRead} />
+          </section>
         ) : null}
 
         <AppPillTabs items={TABS} value={tab} onChange={setTab} />

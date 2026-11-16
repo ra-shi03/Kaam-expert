@@ -117,7 +117,7 @@ export async function createBonus({ labourId, amount, bonusType, reason, interna
   sendNotificationToUser(result.bonus.labourId, {
     title: 'You received a bonus 🎉',
     body: `₹${amount} has been added to your wallet — ${input.reason}`,
-    data: { type: 'bonus_credited', bonusId: String(result.bonus._id) },
+    data: { type: 'bonus_credited', bonusId: String(result.bonus._id), url: '/app/wallet' },
   }).catch(() => {})
 
   return { ...result, duplicate: false }
@@ -165,7 +165,7 @@ export async function reverseBonus({ bonusId, adminId, reason }) {
   sendNotificationToUser(result.bonus.labourId, {
     title: 'Bonus reversed',
     body: `₹${result.bonus.amount} bonus (${result.bonus.bonusCode}) was reversed — ${reason}`,
-    data: { type: 'bonus_reversed', bonusId: String(result.bonus._id) },
+    data: { type: 'bonus_reversed', bonusId: String(result.bonus._id), url: '/app/wallet' },
   }).catch(() => {})
 
   return result
