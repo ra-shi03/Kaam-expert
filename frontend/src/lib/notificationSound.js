@@ -40,91 +40,30 @@ export function installNotificationSoundUnlock() {
   const unlock = () => {
     const c = getContext()
     if (c?.state === 'suspended') c.resume().catch(() => {})
-    primeBroadcastAudio()
-    if (c?.state === 'running' && broadcastPrimed) {
+    if (c?.state === 'running') {
       ;['pointerdown', 'keydown', 'touchstart'].forEach((e) => window.removeEventListener(e, unlock))
     }
   }
   ;['pointerdown', 'keydown', 'touchstart'].forEach((e) => window.addEventListener(e, unlock, { passive: true }))
 }
 
-/* ---------- Broadcast (new job offer) sound: /broadcast.mp3, looped until stopped ---------- */
+/* ---------- Broadcast (new job offer): sound removed, vibration only ---------- */
 
-const BROADCAST_SRC = '/broadcast.mp3'
-let broadcastAudio = null
-let broadcastPrimed = false
-let broadcastWanted = false
-
-function getBroadcastAudio() {
-  if (typeof Audio === 'undefined') return null
-  if (!broadcastAudio) {
-    broadcastAudio = new Audio(BROADCAST_SRC)
-    broadcastAudio.loop = true
-    broadcastAudio.preload = 'auto'
-  }
-  return broadcastAudio
-}
-
-/** Mobile browsers only let an <audio> play after a gesture has "touched" it; do that silently once. */
-function primeBroadcastAudio() {
-  const a = getBroadcastAudio()
-  if (!a || broadcastPrimed) return
-  broadcastPrimed = true
-  const wasWanted = () => broadcastWanted
-  a.muted = true
-  a.play()
-    .then(() => {
-      if (!wasWanted()) a.pause()
-      a.currentTime = 0
-      a.muted = false
-    })
-    .catch(() => {
-      broadcastPrimed = false
-      a.muted = false
-    })
-}
-
-/** Rings /broadcast.mp3 on loop (with vibration) until stopBroadcastSound(). Falls back to the chime. */
+/** Job-offer popup no longer plays any sound; it only vibrates (where supported). */
 export function startBroadcastSound() {
   if (!isNotificationSoundEnabled()) return
-  broadcastWanted = true
   try {
     navigator.vibrate?.([250, 120, 250, 120, 250])
   } catch {
     /* vibration unsupported */
   }
-  const a = getBroadcastAudio()
-  if (!a) return playNotificationSound({ urgent: true })
-  a.muted = false
-  a.currentTime = 0
-  a.play().catch(() => {
-    // blocked (no gesture yet) or failed to load — use the synthesized chime instead
-    if (broadcastWanted) playNotificationSound({ urgent: true })
-  })
 }
 
-/** Plays /broadcast.mp3 once (e.g. a push arrived while the tab was in the background). */
-export function playBroadcastSoundOnce() {
-  if (!isNotificationSoundEnabled() || broadcastWanted) return // already ringing for a live offer
-  const a = getBroadcastAudio()
-  if (!a) return playNotificationSound({ urgent: true })
-  a.loop = false
-  a.muted = false
-  a.currentTime = 0
-  const restoreLoop = () => {
-    a.loop = true
-    a.removeEventListener('ended', restoreLoop)
-  }
-  a.addEventListener('ended', restoreLoop)
-  a.play().catch(() => playNotificationSound({ urgent: true }))
-}
+/** No-op: broadcast sound removed. */
+export function playBroadcastSoundOnce() {}
 
-export function stopBroadcastSound() {
-  broadcastWanted = false
-  if (!broadcastAudio) return
-  broadcastAudio.pause()
-  broadcastAudio.currentTime = 0
-}
+/** No-op: broadcast sound removed. */
+export function stopBroadcastSound() {}
 
 function tone(c, freq, start, duration, volume) {
   const osc = c.createOscillator()
