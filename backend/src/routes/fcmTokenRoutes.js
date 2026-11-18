@@ -8,7 +8,11 @@ const router = Router()
 router.use(protect)
 
 router.post('/save', fcmTokenController.saveToken)
-router.post('/mobile/save', fcmTokenController.saveToken) // Can use same controller, just pass platform='mobile' in body
+// Native Android / iOS apps: tokens go to fcmTokenMobile (platform defaults to 'android'; send 'ios' for iPhones)
+router.post('/mobile/save', (req, res, next) => {
+  req.body = { ...req.body, platform: req.body?.platform && req.body.platform !== 'web' ? req.body.platform : 'android' }
+  next()
+}, fcmTokenController.saveToken)
 router.delete('/remove', fcmTokenController.removeToken)
 router.post('/test', fcmTokenController.testNotification)
 

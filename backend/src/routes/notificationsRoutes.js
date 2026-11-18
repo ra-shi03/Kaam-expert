@@ -8,7 +8,10 @@ const router = Router()
 router.use(protect)
 
 // Alias for old mobile app endpoints
-router.post('/token', fcmTokenController.saveToken)
+router.post('/token', (req, res, next) => {
+  req.body = { ...req.body, platform: req.body?.platform && req.body.platform !== 'web' ? req.body.platform : 'android' }
+  next()
+}, fcmTokenController.saveToken)
 
 // In-app notification inbox
 router.get('/', notificationController.listNotifications)

@@ -9,6 +9,8 @@ const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 // Request notification permission
 export async function requestNotificationPermission() {
   if ('Notification' in window) {
+    if (Notification.permission === 'granted') return true
+    if (Notification.permission === 'denied') return false
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       console.log('Notification permission granted');
@@ -98,7 +100,7 @@ export async function registerFCMToken(forceUpdate = false) {
 
     const response = await apiRequest('/fcm-tokens/save', {
       method: 'POST',
-      body: { token, platform: 'web' }
+      body: { token, platform: 'web', userAgent: navigator.userAgent }
     });
 
     if (response?.success) {
@@ -126,6 +128,38 @@ export async function sendTestNotification() {
   return response;
 }
 
+/**
+ * Shows a system notification while the app is open. Mobile Chrome (Android) does not allow
+ * `new Notification()` — it must go through the service worker registration — so use that first
+ * and only fall back to the constructor on desktop browsers that lack a registration.
+ */
+export async function showForegroundNotification(payload, isBroadcast = false) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false
+  const title = payload?.notification?.title || 'KaamExpert Notification'
+  const options = {
+    body: payload?.notification?.body || '',
+    icon: payload?.notification?.icon || '/icon-192.png',
+    badge: '/favicon.png',
+    data: payload?.data,
+    tag: String(payload?.data?.bookingId || payload?.data?.type || 'kaamexpert'),
+    renotify: true,
+    vibrate: isBroadcast ? [250, 120, 250, 120, 250] : [200, 100, 200],
+    requireInteraction: isBroadcast,
+  }
+  try {
+    const reg = (await navigator.serviceWorker?.getRegistration('/firebase-messaging-sw.js')) || (await navigator.serviceWorker?.ready)
+    if (reg) {
+      await reg.showNotification(title, options)
+      return true
+    }
+    new Notification(title, options)
+    return true
+  } catch (e) {
+    console.warn('Could not show system notification in foreground:', e)
+    return false
+  }
+}
+
 // Setup foreground notification handler
 export function setupForegroundNotificationHandler(handler) {
   if (!messaging) return;
@@ -135,21 +169,7 @@ export function setupForegroundNotificationHandler(handler) {
     // Job offers ring /broadcast.mp3 from the broadcast popup itself; everything else gets the chime
     if (!isBroadcast) playNotificationSound();
 
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(payload?.notification?.title || 'KaamExpert Notification', {
-          body: payload?.notification?.body || '',
-          icon: payload?.notification?.icon || '/icon-192.png',
-          data: payload?.data,
-          tag: String(payload?.data?.bookingId || payload?.data?.type || 'kaamexpert'),
-          renotify: true,
-          vibrate: isBroadcast ? [250, 120, 250, 120, 250] : [200, 100, 200],
-          requireInteraction: isBroadcast,
-        });
-      } catch (e) {
-        console.warn('Could not show system notification in foreground:', e);
-      }
-    }
+    showForegroundNotification(payload, isBroadcast)
 
     if (handler) {
       handler(payload);

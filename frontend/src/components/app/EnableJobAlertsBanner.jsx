@@ -5,6 +5,7 @@ import { USER_ROLES } from '../../constants/userRoles.js'
 import { registerFCMToken, requestNotificationPermission } from '../../services/pushNotificationService.js'
 
 const DISMISS_KEY = 'kaam_job_alerts_banner_dismissed'
+const SYNCED_KEY = 'kaam_push_synced_for'
 
 function readDismissed() {
   try {
@@ -24,13 +25,17 @@ function isIOS() {
 }
 
 /**
- * Job-alert setup for workers on phones.
- *  - Android / desktop: a real button (a genuine tap) to allow notifications — the browser only shows the prompt for that.
- *  - iPhone / iPad: web notifications only exist once the site is added to the Home Screen, so explain that first.
+ * Push-notification setup for every signed-in customer, contractor and labourer on phones and desktops.
+ *  - Already allowed: silently makes sure THIS device's token is saved on the server (once per sign-in),
+ *    so a session that was restored, or a token the server dropped, never leaves the phone unregistered.
+ *  - Not asked yet: a real button (a genuine tap) — mobile browsers only show the permission prompt from one.
+ *  - iPhone / iPad in Safari: notifications need the site added to the Home Screen, so explain that first.
  *  - Blocked: explain how to turn it back on.
  */
 export function EnableJobAlertsBanner() {
   const user = useSelector((s) => s.auth.user)
+  const token = useSelector((s) => s.auth.token)
+  const eligible = Boolean(token && user && user.id !== 'guest' && user.role !== USER_ROLES.ADMIN)
   const isWorker = user?.role === USER_ROLES.LABOUR || user?.role === USER_ROLES.CONTRACTOR
   const [permission, setPermission] = useState(() => (typeof Notification === 'undefined' ? 'unsupported' : Notification.permission))
   const [dismissed, setDismissed] = useState(readDismissed)
@@ -46,6 +51,27 @@ export function EnableJobAlertsBanner() {
       window.removeEventListener('focus', sync)
     }
   }, [])
+
+  // Permission already granted: make sure the server has this device's token (no prompt needed, no tap needed)
+  useEffect(() => {
+    if (!eligible || permission !== 'granted') return
+    let done = false
+    try {
+      done = sessionStorage.getItem(SYNCED_KEY) === String(user._id || user.id)
+    } catch {
+      /* storage unavailable */
+    }
+    if (done) return
+    registerFCMToken(true)
+      .then(() => {
+        try {
+          sessionStorage.setItem(SYNCED_KEY, String(user._id || user.id))
+        } catch {
+          /* storage unavailable */
+        }
+      })
+      .catch((err) => console.warn('Push registration failed', err))
+  }, [eligible, permission, user])
 
   const dismiss = useCallback(() => {
     setDismissed(true)
@@ -65,7 +91,7 @@ export function EnableJobAlertsBanner() {
       if (granted) await registerFCMToken(true)
     } catch (err) {
       // Permission may still have been granted even if the push token step failed (e.g. Firebase not configured):
-      // in-app job notifications work from permission alone.
+      // in-app notifications work from permission alone.
       console.warn('Push token registration failed', err)
     } finally {
       if (typeof Notification !== 'undefined') setPermission(Notification.permission)
@@ -73,15 +99,16 @@ export function EnableJobAlertsBanner() {
     }
   }, [])
 
-  if (!isWorker || dismissed) return null
+  if (!eligible || dismissed) return null
 
+  const purpose = isWorker ? 'job alerts' : 'booking alerts'
   let content = null
   if (isIOS() && !isStandalone()) {
     content = (
       <>
         <Share className="mt-0.5 h-5 w-5 shrink-0 text-brand" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-extrabold text-slate-900">Get job alerts on your iPhone</p>
+          <p className="text-sm font-extrabold text-slate-900">Get {purpose} on your iPhone</p>
           <p className="mt-0.5 text-xs font-medium text-slate-600">
             Tap <span className="font-bold">Share</span> in Safari, choose <span className="font-bold">Add to Home Screen</span>, then open KaamExpert from your Home Screen and tap Enable.
           </p>
@@ -93,15 +120,19 @@ export function EnableJobAlertsBanner() {
       <>
         <Bell className="mt-0.5 h-5 w-5 shrink-0 text-brand" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-extrabold text-slate-900">Turn on job alerts</p>
-          <p className="mt-0.5 text-xs font-medium text-slate-600">Get a notification with sound the moment a new job is near you.</p>
+          <p className="text-sm font-extrabold text-slate-900">Turn on {purpose}</p>
+          <p className="mt-0.5 text-xs font-medium text-slate-600">
+            {isWorker
+              ? 'Get a notification with sound the moment a new job is near you.'
+              : 'Get notified when a labourer accepts, is on the way, or your job is done.'}
+          </p>
           <button
             type="button"
             onClick={enable}
             disabled={busy}
             className="mt-2 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white shadow-sm active:scale-95 disabled:opacity-60"
           >
-            {busy ? 'Enabling…' : 'Enable job alerts'}
+            {busy ? 'Enabling…' : `Enable ${purpose}`}
           </button>
         </div>
       </>
@@ -111,7 +142,7 @@ export function EnableJobAlertsBanner() {
       <>
         <Bell className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-extrabold text-slate-900">Job alerts are blocked</p>
+          <p className="text-sm font-extrabold text-slate-900">Notifications are blocked</p>
           <p className="mt-0.5 text-xs font-medium text-slate-600">
             Open your phone's Settings → Notifications (or the site settings in Chrome) and allow notifications for KaamExpert.
           </p>

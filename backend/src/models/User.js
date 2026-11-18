@@ -164,11 +164,27 @@ const userSchema = new mongoose.Schema(
     country: { type: String, trim: true },
     fcmTokens: {
       type: [String],
-      default: []
+      default: [],
+      index: true,
     },
     fcmTokenMobile: {
       type: [String],
-      default: []
+      default: [],
+      index: true,
+    },
+    /** What each registered token belongs to (web browser / android / ios) — used for diagnostics */
+    fcmDevices: {
+      type: [
+        {
+          _id: false,
+          token: { type: String, required: true },
+          platform: { type: String, enum: ['web', 'android', 'ios'], default: 'web' },
+          userAgent: { type: String, default: '' },
+          appVersion: { type: String, default: '' },
+          updatedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
     },
     /** Own shareable referral code (assigned at signup, or lazily for older accounts) */
     referralCode: {

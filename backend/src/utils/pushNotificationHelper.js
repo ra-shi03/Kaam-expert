@@ -4,10 +4,11 @@ import { Notification } from '../models/Notification.js'
 import { emitToUser } from '../socket.js'
 
 /** Firebase error codes that mean the device token is dead and should be forgotten. */
+// NOTE: 'messaging/invalid-argument' is deliberately NOT here — it can describe a bad payload, and
+// treating it as a dead token would wipe every device the first time the message shape is wrong.
 const DEAD_TOKEN_CODES = new Set([
   'messaging/registration-token-not-registered',
   'messaging/invalid-registration-token',
-  'messaging/invalid-argument',
 ])
 
 // Allows tests / alternative transports to replace the Firebase messaging client
@@ -29,7 +30,7 @@ async function pruneDeadTokens(userId, tokens, responses) {
     if (!r.success && DEAD_TOKEN_CODES.has(r.error?.code)) dead.push(tokens[i])
   })
   if (dead.length === 0) return 0
-  await User.updateOne({ _id: userId }, { $pull: { fcmTokens: { $in: dead }, fcmTokenMobile: { $in: dead } } })
+  await User.updateOne({ _id: userId }, { $pull: { fcmTokens: { $in: dead }, fcmTokenMobile: { $in: dead }, fcmDevices: { token: { $in: dead } } } })
   return dead.length
 }
 
@@ -138,6 +139,8 @@ export async function sendNotificationToUser(userId, payload, includeMobile = tr
     if (!messaging) throw new Error('Firebase Admin not configured properly')
 
     const response = await messaging.sendEachForMulticast(message)
+    // Per-device outcome (used by the test endpoint to show exactly which device failed and why)
+    response.results = (response.responses || []).map((r, i) => ({ token: uniqueTokens[i], ok: !!r.success, error: r.error?.code || null }))
     console.log(`Successfully sent: ${response.successCount} messages to user ${userId} (${type})`)
     if (response.failureCount > 0) {
       const removed = await pruneDeadTokens(userId, uniqueTokens, response.responses || [])
