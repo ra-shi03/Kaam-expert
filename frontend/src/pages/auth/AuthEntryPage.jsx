@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { AppRouteLoader } from '../../components/app/AppRouteLoader.jsx'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   ArrowLeft,
@@ -81,7 +82,17 @@ function AuthField({ label, hint, children }) {
 const inputClass =
   'w-full rounded-full border border-slate-100 bg-slate-50 px-5 py-3 text-[15px] font-medium text-slate-900 outline-none transition focus:border-brand/30 focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400'
 
+/** Already-logged-in users never see the login form; they go straight to their home. */
 export function AuthEntryPage({ authGroup = 'users' }) {
+  const { token, realUser, loading } = useAuth()
+  if (loading) return <AppRouteLoader />
+  if (token && realUser?.role) {
+    return <Navigate to={getRoleHomePath(realUser.role)} replace />
+  }
+  return <AuthEntryForm authGroup={authGroup} />
+}
+
+function AuthEntryForm({ authGroup = 'users' }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { applySession } = useAuth()
