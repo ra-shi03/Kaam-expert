@@ -7,12 +7,35 @@ function readStoredToken() {
   return localStorage.getItem(AUTH_STORAGE_KEY)
 }
 
+const USER_CACHE_KEY = 'lc_cached_user'
+
+function readCachedUser() {
+  try {
+    if (typeof localStorage === 'undefined' || !localStorage.getItem(AUTH_STORAGE_KEY)) return null
+    const raw = localStorage.getItem(USER_CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function writeCachedUser(user) {
+  try {
+    if (user) localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user))
+    else localStorage.removeItem(USER_CACHE_KEY)
+  } catch {
+    // ignore storage errors
+  }
+}
+
+const cachedUser = readCachedUser()
+
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
     token: readStoredToken(),
-    user: null,
-    loading: Boolean(readStoredToken()),
+    user: cachedUser,
+    loading: Boolean(readStoredToken()) && !cachedUser,
   },
   reducers: {
     setCredentials(state, action) {
@@ -21,15 +44,18 @@ const authSlice = createSlice({
       else localStorage.removeItem(AUTH_STORAGE_KEY)
       state.token = accessToken ?? null
       state.user = user ?? null
+      writeCachedUser(state.user)
     },
     setUser(state, action) {
       state.user = action.payload
+      writeCachedUser(action.payload)
     },
     setLoading(state, action) {
       state.loading = action.payload
     },
     clearSession(state) {
       localStorage.removeItem(AUTH_STORAGE_KEY)
+      writeCachedUser(null)
       state.token = null
       state.user = null
       state.loading = false

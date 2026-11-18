@@ -30,8 +30,12 @@ export function AuthProvider({ children }) {
       .then((res) => {
         if (!cancelled) dispatch(setUser(res.data?.user ?? null))
       })
-      .catch(() => {
-        if (!cancelled) dispatch(clearSession())
+      .catch((err) => {
+        // Only an explicit rejection by the server ends the session.
+        // Network errors / timeouts / 5xx on cold start must keep the user logged in.
+        if (!cancelled && err?.status === 401) {
+          dispatch(clearSession())
+        }
       })
       .finally(() => {
         if (!cancelled) dispatch(setLoading(false))
