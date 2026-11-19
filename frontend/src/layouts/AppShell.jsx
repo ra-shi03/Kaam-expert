@@ -19,6 +19,7 @@ import { AppBottomNav } from '../components/app-ui/navigation/AppBottomNav.jsx'
 import { AppBadge } from '../components/app-ui/data-display/AppBadge.jsx'
 import { adminInitials } from '../lib/formatAdminLastLogin.js'
 import { readAppUserLocation } from '../lib/appUserLocationStorage.js'
+import { AutoLocationFetcher } from '../components/app/AutoLocationFetcher.jsx'
 import { AppUserLocationModal } from '../components/app/AppUserLocationModal.jsx'
 import { BOOT_ROUTES } from '../constants/bootFlow.js'
 import { APP_HOME_LOCATION, APP_HOME_PATH, hasBookingFlowQuery } from '../lib/bookingFlowNavigation.js'
@@ -36,6 +37,7 @@ export function AppShell() {
   }
   return (
     <>
+      <AutoLocationFetcher />
       {notice ? (
         <div className="fixed inset-x-0 top-0 z-[100] mx-auto max-w-md px-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
           <div
