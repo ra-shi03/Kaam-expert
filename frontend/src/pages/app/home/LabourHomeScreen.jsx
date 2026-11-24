@@ -404,10 +404,6 @@ export function LabourHomeScreen({ user }) {
           transition={{ duration: 0.4 }}
           className="relative overflow-hidden rounded-[1.75rem] border border-white/20 bg-linear-to-br from-slate-900 via-slate-800 to-slate-950 text-white shadow-[0_20px_50px_-24px_rgba(0,0,0,0.55)]"
         >
-          <motion.div
-            className="pointer-events-none absolute inset-0 bg-[url('https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800&q=60')] bg-cover bg-center opacity-25"
-            aria-hidden
-          />
           <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-slate-950/85 via-slate-900/75 to-brand/30" aria-hidden />
           <motion.div
             className="pointer-events-none absolute -right-10 top-0 h-40 w-40 rounded-full bg-brand/30 blur-3xl"
@@ -417,130 +413,128 @@ export function LabourHomeScreen({ user }) {
           />
 
           <motion.div className="relative p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
+            {/* Top bar: menu · title · bell */}
+            <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={openDrawer}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
                 aria-label="Open menu"
               >
                 <Menu className="h-5 w-5" />
               </button>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/60">Worker home</p>
+              <button
+                type="button"
+                onClick={() => navigate('/app/notifications')}
+                className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                aria-label={
+                  bellUnread > 0
+                    ? `Notifications, ${bellUnread} unread`
+                    : 'Notifications'
+                }
+              >
+                <Bell className="h-5 w-5" />
+                {bellUnread > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-md ring-2 ring-slate-900/80">
+                    {bellUnread > 9 ? '9+' : bellUnread}
+                  </span>
+                ) : null}
+              </button>
+            </div>
 
-              <div className="flex items-center gap-2 sm:gap-3">
-                <button
-                  type="button"
-                  onClick={() => navigate('/app/notifications')}
-                  className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/20"
-                  aria-label={
-                    bellUnread > 0
-                      ? `Notifications, ${bellUnread} unread`
-                      : 'Notifications'
-                  }
-                >
-                  <Bell className="h-5 w-5" />
-                  {bellUnread > 0 ? (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-md ring-2 ring-slate-900/80">
-                      {bellUnread > 9 ? '9+' : bellUnread}
-                    </span>
-                  ) : null}
-                </button>
-
-                <Link
-                  to="/app/profile"
-                  className="relative shrink-0 rounded-xl p-0.5 ring-2 ring-white/40 transition hover:ring-white/70"
-                  aria-label="Open profile"
-                >
-                  {profileImageUrl ? (
-                    <img
-                      src={profileImageUrl}
-                      alt=""
-                      className="h-10 w-10 rounded-[0.6rem] object-cover sm:h-11 sm:w-11 sm:rounded-xl"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <span className="flex h-10 w-10 items-center justify-center rounded-[0.6rem] bg-white/15 text-sm font-black sm:h-11 sm:w-11 sm:rounded-xl sm:text-base">
-                      {initials}
-                    </span>
-                  )}
-                  {kycOk ? (
-                    <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand text-white ring-2 ring-slate-900">
-                      <Check className="h-2.5 w-2.5" strokeWidth={3} aria-hidden />
-                    </span>
-                  ) : null}
-                </Link>
+            {/* Profile block, centred */}
+            <div className="mt-4 flex flex-col items-center text-center">
+              <Link
+                to="/app/profile"
+                className="relative rounded-full p-0.5 ring-2 ring-white/40 transition hover:ring-white/70"
+                aria-label="Open profile"
+              >
+                {profileImageUrl ? (
+                  <img
+                    src={profileImageUrl}
+                    alt=""
+                    className="h-20 w-20 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/15 text-2xl font-black">
+                    {initials}
+                  </span>
+                )}
+                {kycOk ? (
+                  <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-brand text-white ring-2 ring-slate-900">
+                    <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden />
+                  </span>
+                ) : null}
+              </Link>
+              <p className="mt-3 text-xs font-semibold text-white/75">
+                {greeting}
+                {firstName ? `, ${firstName}` : ''} 👋
+              </p>
+              <h1 className="mt-0.5 max-w-full truncate text-xl font-extrabold tracking-tight">
+                {user?.fullName?.trim() || firstName || 'Worker'}
+              </h1>
+              <div className="mt-1.5 flex max-w-full flex-wrap items-center justify-center gap-2">
+                <span className="truncate text-xs font-medium text-white/70">{primaryTrade}</span>
+                {kycOk ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-400/40 bg-blue-600/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-100">
+                    <ShieldCheck className="h-3 w-3" aria-hidden />
+                    Verified
+                  </span>
+                ) : (
+                  <Link
+                    to="/app/kyc"
+                    className="inline-flex items-center gap-0.5 rounded-full border border-amber-300/50 bg-amber-500/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-50"
+                  >
+                    KYC
+                    <ChevronRight className="h-3 w-3" aria-hidden />
+                  </Link>
+                )}
               </div>
             </div>
 
-            <div className="mt-4 flex items-stretch gap-2.5 sm:gap-3">
-
-              <div className="flex min-w-0 flex-1 flex-col justify-center">
-                <p className="text-[11px] font-semibold text-white/75">
-                  {greeting}
-                  {firstName ? `, ${firstName}` : ''} 👋
-                </p>
-                <h1 className="truncate text-lg font-extrabold tracking-tight sm:text-xl">
-                  {user?.fullName?.trim() || firstName || 'Worker'}
-                </h1>
-                <p className="truncate text-xs font-medium text-white/70">{primaryTrade}</p>
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  {kycOk ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-400/40 bg-blue-600/20 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-blue-100">
-                      <ShieldCheck className="h-2.5 w-2.5" aria-hidden />
-                      Verified
-                    </span>
-                  ) : (
-                    <Link
-                      to="/app/kyc"
-                      className="inline-flex items-center gap-0.5 rounded-full border border-amber-300/50 bg-amber-500/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-50"
-                    >
-                      KYC
-                      <ChevronRight className="h-2.5 w-2.5" aria-hidden />
-                    </Link>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex w-[7.4rem] shrink-0 flex-col justify-between rounded-2xl border border-blue-400/35 bg-linear-to-br from-blue-600/25 to-white/10 p-2.5 shadow-inner backdrop-blur-md sm:w-[8.25rem] sm:p-3">
-                <div>
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-blue-100/90">This month</p>
-                  <p className="mt-0.5 font-mono text-base font-black leading-tight tabular-nums text-white sm:text-lg">
+            {/* Earnings + location panel */}
+            <div className="mt-5 overflow-hidden rounded-2xl border border-white/15 bg-white/10 backdrop-blur-md">
+              <div className="flex items-center justify-between gap-3 p-3.5">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-100/90">This month</p>
+                  <p className="mt-0.5 font-mono text-2xl font-black leading-tight tabular-nums text-white">
                     {formatInrFromPaise(earnings.monthPaise)}
                   </p>
                   {(earnings.availablePaise ?? 0) > 0 ? (
-                    <p className="mt-0.5 truncate text-[9px] font-semibold text-blue-100/85">
+                    <p className="mt-0.5 truncate text-[11px] font-semibold text-blue-100/85">
                       {formatInrFromPaise(earnings.availablePaise)} withdraw
                     </p>
                   ) : earnings.pendingPaise > 0 ? (
-                    <p className="mt-0.5 truncate text-[9px] font-semibold text-amber-100/85">
+                    <p className="mt-0.5 truncate text-[11px] font-semibold text-amber-100/85">
                       {formatInrFromPaise(earnings.pendingPaise)} clearing
                     </p>
                   ) : (
-                    <p className="mt-0.5 text-[9px] text-white/55">From attendance</p>
+                    <p className="mt-0.5 text-[11px] text-white/55">From attendance</p>
                   )}
                 </div>
                 <Link
                   to="/app/earnings"
-                  className="mt-2 flex w-full items-center justify-center gap-1 rounded-xl bg-linear-to-r from-brand-bright to-brand py-2 text-[10px] font-black text-white shadow-md shadow-brand/30 transition hover:brightness-110 active:scale-[0.98]"
+                  className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-linear-to-r from-brand-bright to-brand px-4 py-2.5 text-xs font-black text-white shadow-md shadow-brand/30 transition hover:brightness-110 active:scale-[0.98]"
                 >
-                  <Wallet className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <Wallet className="h-4 w-4 shrink-0" aria-hidden />
                   Withdraw
                 </Link>
               </div>
+              <button
+                type="button"
+                onClick={() => setWorkAreaModalOpen(true)}
+                className={`flex w-full items-center gap-2 border-t px-3.5 py-3 text-left text-sm transition hover:bg-white/10 ${hasWorkLocation
+                  ? 'border-white/15'
+                  : 'border-amber-300/50 bg-amber-500/20'
+                  }`}
+              >
+                <MapPin className="h-4 w-4 shrink-0 text-brand-bright" aria-hidden />
+                <span className="min-w-0 flex-1 truncate font-medium text-white/90">{locationLabel}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-white/50" aria-hidden />
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setWorkAreaModalOpen(true)}
-              className={`mt-4 flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm backdrop-blur-sm transition hover:bg-white/15 ${hasWorkLocation
-                ? 'border-white/20 bg-white/10'
-                : 'border-amber-300/50 bg-amber-500/20 ring-1 ring-amber-300/40'
-                }`}
-            >
-              <MapPin className="h-4 w-4 shrink-0 text-brand-bright" aria-hidden />
-              <span className="min-w-0 flex-1 truncate font-medium text-white/90">{locationLabel}</span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-white/50" aria-hidden />
-            </button>
           </motion.div>
         </motion.div>
       </section>
@@ -791,15 +785,15 @@ export function LabourHomeScreen({ user }) {
         {/* 4. Quick actions */}
         <section aria-label="Quick actions">
           <AppSectionHeader title="Quick actions" className="mb-2 px-0.5" />
-          <div className="-mx-1 flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 scrollbar-none [&::-webkit-scrollbar]:hidden">
+          <div className="grid grid-cols-3 gap-x-2 gap-y-3 rounded-2xl border border-slate-200/80 bg-white px-2 py-3 shadow-sm">
             {QUICK_ACTIONS.map((a) => (
               <Link
                 key={a.label}
                 to={a.to}
-                className={`flex min-w-[5.5rem] shrink-0 snap-start flex-col items-center gap-2 rounded-2xl border border-slate-200/80 bg-linear-to-b ${a.bg} px-3 py-3.5 shadow-sm transition active:scale-[0.98] hover:shadow-md`}
+                className={`flex flex-col items-center gap-2 py-1 transition active:scale-[0.97]`}
               >
-                <span className={`flex h-11 w-11 items-center justify-center rounded-xl bg-white shadow-sm ${a.iconTone}`}>
-                  <a.icon className="h-5 w-5" aria-hidden />
+                <span className={`flex h-14 w-14 items-center justify-center rounded-full border border-slate-200 bg-slate-50 shadow-sm ${a.iconTone}`}>
+                  <a.icon className="h-6 w-6" strokeWidth={1.75} aria-hidden />
                 </span>
                 <span className="text-center text-[10px] font-bold leading-tight text-slate-800">{a.label}</span>
               </Link>
@@ -851,30 +845,32 @@ export function LabourHomeScreen({ user }) {
         >
           <AppSectionHeader title="Earnings breakdown" className="mb-2 px-0.5" />
           <GlassPanel className="border-slate-200/90 p-3">
-            <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
+            <div className="mb-3 rounded-xl bg-slate-50 px-3 py-3 text-center ring-1 ring-slate-200/80">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">All-time earned</p>
-              <p className="font-mono text-sm font-black tabular-nums text-slate-900">
+              <p className="mt-1 font-mono text-2xl font-black tabular-nums text-slate-900">
                 {formatInrFromPaise(earnings.earnedPaise ?? 0)}
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <ul className="divide-y divide-slate-100">
               {[
                 { label: 'Today', value: earnings.todayPaise },
                 { label: 'This week', value: earnings.weekPaise },
                 { label: 'Available', value: earnings.availablePaise ?? 0 },
               ].map((cell) => (
-                <Link
-                  key={cell.label}
-                  to="/app/earnings"
-                  className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-2 py-2 text-center transition hover:border-brand/30 hover:bg-brand/5"
-                >
-                  <p className="text-[9px] font-bold uppercase text-slate-500">{cell.label}</p>
-                  <p className="mt-0.5 text-xs font-black tabular-nums text-slate-900">
-                    {formatInrFromPaise(cell.value)}
-                  </p>
-                </Link>
+                <li key={cell.label}>
+                  <Link
+                    to="/app/earnings"
+                    className="flex items-center justify-between px-1 py-2.5 transition hover:bg-slate-50"
+                  >
+                    <span className="text-xs font-bold text-slate-600">{cell.label}</span>
+                    <span className="flex items-center gap-1 text-sm font-black tabular-nums text-slate-900">
+                      {formatInrFromPaise(cell.value)}
+                      <ChevronRight className="h-3.5 w-3.5 text-slate-300" aria-hidden />
+                    </span>
+                  </Link>
+                </li>
               ))}
-            </div>
+            </ul>
           </GlassPanel>
         </motion.section>
 
@@ -1037,29 +1033,29 @@ export function LabourHomeScreen({ user }) {
         {/* 11. Support & emergency */}
         <section aria-label="Support and emergency">
           <AppSectionHeader title="Support & emergency" className="mb-2 px-0.5" />
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2">
             <a
               href={`tel:${LABOUR_SUPPORT_PHONE}`}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-sky-200/80 bg-sky-50 px-3 py-4 text-center transition hover:bg-sky-100/80 active:scale-[0.98]"
+              className="flex items-center gap-3 rounded-2xl border border-sky-200/80 bg-sky-50 px-4 py-3 text-left transition hover:bg-sky-100/80 active:scale-[0.98]"
             >
               <Phone className="h-6 w-6 text-sky-700" aria-hidden />
-              <span className="text-xs font-extrabold text-sky-950">Call support</span>
+              <span className="flex-1 text-sm font-extrabold text-sky-950">Call support</span>
             </a>
             <a
               href={`tel:${LABOUR_EMERGENCY_PHONE}`}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-rose-300/80 bg-rose-50 px-3 py-4 text-center transition hover:bg-rose-100/80 active:scale-[0.98]"
+              className="flex items-center gap-3 rounded-2xl border border-rose-300/80 bg-rose-50 px-4 py-3 text-left transition hover:bg-rose-100/80 active:scale-[0.98]"
             >
               <AlertTriangle className="h-6 w-6 text-rose-700" aria-hidden />
-              <span className="text-xs font-extrabold text-rose-950">Emergency</span>
+              <span className="flex-1 text-sm font-extrabold text-rose-950">Emergency</span>
             </a>
             <a
               href={whatsAppSupportUrl()}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-col items-center gap-2 rounded-2xl border border-blue-300/80 bg-blue-50 px-3 py-4 text-center transition hover:bg-blue-100/80 active:scale-[0.98]"
+              className="flex items-center gap-3 rounded-2xl border border-blue-300/80 bg-blue-50 px-4 py-3 text-left transition hover:bg-blue-100/80 active:scale-[0.98]"
             >
               <MessageCircle className="h-6 w-6 text-blue-700" aria-hidden />
-              <span className="text-xs font-extrabold text-slate-950">WhatsApp</span>
+              <span className="flex-1 text-sm font-extrabold text-slate-950">WhatsApp</span>
             </a>
           </div>
           <AppSecondaryButton as={Link} to="/app/support" className="mt-3 w-full py-3">

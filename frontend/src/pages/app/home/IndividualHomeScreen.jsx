@@ -301,10 +301,7 @@ export function IndividualHomeScreen({ user }) {
       className="-mx-4 flex flex-col pb-2"
       aria-label={user?.fullName ? `Home for ${user.fullName}` : 'Discover workers home'}
     >
-      <div 
-        className="sticky z-20 bg-transparent px-4 pb-3"
-        style={{ top: 'var(--individual-home-sticky-top, 3.5rem)' }}
-      >
+      <div className="relative z-10 bg-transparent px-4 pb-3">
         <IndividualHomeCategoryRail
           groups={tradeGroups}
           loading={groupsLoading}

@@ -10,7 +10,7 @@ function openAppDrawer() {
  */
 export function AppStackScreenHeader({ title, backTo = '/app', onBack, className = '' }) {
   return (
-    <div className={`sticky top-0 z-40 -mx-4 mb-4 -mt-2 border-b border-slate-200 bg-white px-4 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] shadow-sm ${className}`}>
+    <div className={`sticky top-0 z-40 -mx-4 mb-4 -mt-2 border-b border-slate-200 bg-white px-4 pb-3 pt-3 shadow-sm ${className}`}>
       <div className="flex items-center gap-3.5">
         {onBack ? (
           <button

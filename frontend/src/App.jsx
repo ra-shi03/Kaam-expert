@@ -6,6 +6,7 @@ import { AppShell } from './layouts/AppShell.jsx'
 import { AdminLayout } from './layouts/AdminLayout.jsx'
 import { LandingPage } from './pages/LandingPage'
 const AuthEntryPage = lazy(() => import('./pages/auth/AuthEntryPage.jsx').then((m) => ({ default: m.AuthEntryPage })))
+const AuthLegalPage = lazy(() => import('./pages/legal/AuthLegalPage.jsx').then((m) => ({ default: m.AuthLegalPage })))
 const LegalPublicPage = lazy(() => import('./pages/legal/LegalPublicPage.jsx').then((m) => ({ default: m.LegalPublicPage })))
 const AdminSupportPage = lazy(() => import('./pages/admin/AdminSupportPage.jsx').then((m) => ({ default: m.AdminSupportPage })))
 const ReferralLandingPage = lazy(() => import('./pages/ReferralLandingPage.jsx').then((m) => ({ default: m.ReferralLandingPage })))
@@ -53,6 +54,7 @@ import { NotificationSoundListener } from './components/app/NotificationSoundLis
 import { BroadcastPopup } from './components/app/BroadcastPopup.jsx'
 import { EnableJobAlertsBanner } from './components/app/EnableJobAlertsBanner.jsx'
 import { ViewportLock } from './components/app/ViewportLock.jsx'
+import { NetworkStatusListener } from './components/app/NetworkStatusListener.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 import { lazy, Suspense, useEffect } from 'react'
 import { APP_B2C_ROLES } from './constants/panelRoles.js'
@@ -77,6 +79,7 @@ function App() {
   return (
     <BrowserRouter>
       <ViewportLock />
+      <NetworkStatusListener />
       <BrandingProvider>
         <AuthProvider>
         <Suspense fallback={<div className="min-h-dvh bg-white" />}>
@@ -88,11 +91,13 @@ function App() {
           <Route path="/labours/auth" element={<AuthEntryPage authGroup="labours" />} />
           {['users', 'labours'].map((audience) => (
             <Route key={audience}>
-              <Route path={`/${audience}/privacy-policy`} element={<LegalPublicPage audience={audience} type="privacy" />} />
-              <Route path={`/${audience}/terms-and-conditions`} element={<LegalPublicPage audience={audience} type="terms" />} />
+              <Route path={`/${audience}/privacy-policy`} element={<AuthLegalPage audience={audience} type="privacy" />} />
+              <Route path={`/${audience}/terms-and-conditions`} element={<AuthLegalPage audience={audience} type="terms" />} />
               <Route path={`/${audience}/support`} element={<LegalPublicPage audience={audience} type="support" />} />
             </Route>
           ))}
+          <Route path="/terms-and-conditions" element={<Navigate to="/users/terms-and-conditions" replace />} />
+          <Route path="/privacy-policy" element={<Navigate to="/users/privacy-policy" replace />} />
           <Route path="/r/:code" element={<ReferralLandingPage />} />
           <Route
             path="/app"

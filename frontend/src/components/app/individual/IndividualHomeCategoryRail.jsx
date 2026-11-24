@@ -1,10 +1,8 @@
-import { Loader2 } from 'lucide-react'
+import { Loader2, LayoutGrid } from 'lucide-react'
 import { getGroupImageUrl } from '../../../lib/labourCategoryDisplay.js'
-import allCategoryImg from '../../../assets/all-category.jpg'
-
-const ALL_TILE_IMAGE = allCategoryImg
 
 function CategoryTile({ label, imageSrc, active, onClick, onBrand }) {
+  const isAll = !imageSrc
   return (
     <button
       type="button"
@@ -13,6 +11,9 @@ function CategoryTile({ label, imageSrc, active, onClick, onBrand }) {
       data-active={active ? 'true' : 'false'}
     >
       <span className="lc-swiggy-cat-img">
+        {isAll ? (
+          <LayoutGrid className="h-8 w-8" strokeWidth={1.75} aria-hidden />
+        ) : (
         <img
           src={imageSrc}
           alt=""
@@ -21,6 +22,7 @@ function CategoryTile({ label, imageSrc, active, onClick, onBrand }) {
           decoding="async"
           onLoad={(e) => e.currentTarget.classList.add('lc-img-loaded')}
         />
+        )}
       </span>
       <span className="lc-swiggy-cat-tile-label lc-swiggy-cat-label">{label}</span>
     </button>
@@ -51,7 +53,6 @@ export function IndividualHomeCategoryRail({ groups, loading, selectedGroupId, o
       >
         <CategoryTile
           label="All"
-          imageSrc={ALL_TILE_IMAGE}
           active={selectedGroupId == null}
           onClick={() => onSelectGroup(null)}
           onBrand={onBrand}

@@ -26,6 +26,10 @@ export function BroadcastPopup() {
   const user = useSelector((s) => s.auth.user)
   const timerRef = useRef(null)
   const lastFetchRef = useRef(0)
+  const socketRef = useRef(socket)
+  useEffect(() => {
+    socketRef.current = socket
+  }, [socket])
   const initialTimeoutRef = useRef(30)
   // Offers this worker already rejected / let expire / accepted: never show them again
   const [dismissed] = useState(() => {
@@ -167,14 +171,21 @@ export function BroadcastPopup() {
 
     window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibility)
-    const timer = setInterval(fetchPending, 6000)
+    // Offers arrive over the socket; polling is only a slow fallback for when it is down
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible' && !socketRef.current?.connected) fetchPending()
+    }, 30000)
+    const onSocketConnect = () => fetchPending()
+    socket?.on('connect', onSocketConnect)
 
     return () => {
       window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleVisibility)
       clearInterval(timer)
+      socket?.off('connect', onSocketConnect)
     }
-  }, [isWorkerOrContractor, dismissed])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isWorkerOrContractor, socket])
 
   // Countdown timer
   useEffect(() => {

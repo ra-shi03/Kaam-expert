@@ -121,17 +121,16 @@ export function useLabourSocket() {
 
     window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibility)
-    const pollInterval = setInterval(loadPending, 6000)
 
     return () => {
       socket.off('connect', onConnect)
+      socket.off('connect', loadPending)
       socket.off('disconnect', onDisconnect)
       socket.off('connect_error', onConnectError)
       socket.off('BOOKING_RECEIVED', onBookingReceived)
       socket.off('BOOKING_EXPIRED', onBookingExpired)
       window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleVisibility)
-      clearInterval(pollInterval)
       // Do not disconnect the socket here to avoid React Strict Mode closing it
     }
   }, [token])

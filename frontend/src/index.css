@@ -206,3 +206,17 @@ body {
     margin: 0;
   }
 }
+
+/* Hide floating bottom navigation and fixed footers when virtual keyboard is active */
+html.keyboard-open nav[aria-label="Bottom navigation"],
+html.keyboard-open .app-bottom-nav,
+html.keyboard-open [data-hide-on-keyboard="true"],
+html.keyboard-open .hide-on-keyboard {
+  display: none !important;
+}
+
+/* Ensure scroll container has room to scroll any field to the top when keyboard is active */
+html.app-locked.keyboard-open #root {
+  padding-bottom: max(18rem, var(--kb-inset, 18rem));
+}
+

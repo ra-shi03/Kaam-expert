@@ -162,7 +162,7 @@ export function AppSubCategoryServicePage() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 -mx-4 -mt-4">
       {/* Header */}
-      <div className="sticky top-0 z-30 px-4 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] pb-1 bg-slate-50/80 backdrop-blur-md">
+      <div className="sticky top-0 z-30 px-4 pt-2 pb-1 bg-slate-50/80 backdrop-blur-md">
         <div className="rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-3.5">
             <button 
@@ -250,7 +250,7 @@ export function AppSubCategoryServicePage() {
                           <img
                             src={getCategoryImageUrl({ name: service.name, imageUrl: service.iconUrl })}
                             alt={service.name}
-                            className="h-full w-full min-w-full block object-cover object-center scale-110"
+                            className="h-full w-full min-w-full block object-cover object-center"
                           />
                         </div>
 
@@ -285,11 +285,11 @@ export function AppSubCategoryServicePage() {
                     {isExpanded && (
                       <div>
                         {/* 1. Large Image Banner */}
-                        <div className="relative h-48 sm:h-56 w-full overflow-hidden bg-slate-900 rounded-t-3xl">
+                        <div className="relative w-full overflow-hidden bg-slate-100 rounded-t-3xl">
                           <img
                             src={getCategoryImageUrl({ name: service.name, imageUrl: service.iconUrl })}
                             alt={service.name}
-                            className="h-full w-full min-w-full block object-cover object-center scale-115 transform transition-transform duration-300"
+                            className="block h-auto w-full"
                           />
                           {/* Collapse button */}
                           <button

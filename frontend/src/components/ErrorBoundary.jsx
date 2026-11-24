@@ -1,5 +1,5 @@
 import React from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, WifiOff, RefreshCw } from 'lucide-react'
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -16,27 +16,52 @@ export class ErrorBoundary extends React.Component {
     this.setState({ errorInfo })
   }
 
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null })
+  }
+
   render() {
     if (this.state.hasError) {
+      const isNetwork =
+        typeof navigator !== 'undefined' &&
+        (!navigator.onLine ||
+          this.state.error?.message?.toLowerCase().includes('fetch') ||
+          this.state.error?.message?.toLowerCase().includes('network') ||
+          this.state.error?.message?.toLowerCase().includes('loading chunk') ||
+          this.state.error?.name === 'ChunkLoadError')
+
       return (
-        <div className="p-6 m-4 bg-rose-50 border border-rose-200 rounded-2xl flex flex-col items-center justify-center text-center">
-          <AlertCircle className="h-12 w-12 text-rose-500 mb-4" />
-          <h2 className="text-lg font-black text-rose-900 mb-2">Something went wrong</h2>
-          <p className="text-sm font-semibold text-rose-700 mb-4">
-            {this.state.error?.toString()}
-          </p>
-          {this.state.errorInfo && (
-            <pre className="text-[10px] text-left w-full bg-white p-4 rounded-xl overflow-auto text-rose-900 border border-rose-100">
-              {this.state.errorInfo.componentStack}
-            </pre>
+        <div className="p-6 m-4 bg-amber-50/90 border border-amber-200 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
+          {isNetwork ? (
+            <WifiOff className="h-10 w-10 text-amber-600 mb-3" />
+          ) : (
+            <AlertCircle className="h-10 w-10 text-rose-500 mb-3" />
           )}
-          <button
-            type="button"
-            className="mt-6 px-6 py-2.5 bg-rose-600 text-white text-sm font-bold rounded-xl"
-            onClick={() => window.location.reload()}
-          >
-            Reload Page
-          </button>
+          <h2 className="text-base font-bold text-slate-900 mb-1">
+            {isNetwork ? 'Slow or Offline Connection' : 'Something went wrong'}
+          </h2>
+          <p className="text-xs font-medium text-slate-600 mb-4 max-w-xs">
+            {isNetwork
+              ? 'Could not load data due to slow or disconnected internet. Please check your network and tap Retry to continue on this page.'
+              : this.state.error?.message || 'An unexpected error occurred.'}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand text-white text-xs font-bold rounded-xl shadow-sm hover:opacity-90 active:scale-95"
+              onClick={this.handleRetry}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 active:scale-95"
+              onClick={() => window.location.reload()}
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       )
     }

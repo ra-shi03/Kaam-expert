@@ -1,10 +1,18 @@
 import { Link } from 'react-router-dom'
-import { Star } from 'lucide-react'
+import { Star, Briefcase } from 'lucide-react'
 import { AppListSkeleton } from '../../app-ui/feedback/AppListSkeleton.jsx'
 import { getCategoryImageUrl } from '../../../lib/labourCategoryDisplay.js'
 
-const FALLBACK_BOOKING_IMG =
-  'https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=400&q=70'
+/** Real admin-uploaded image (subcategory, then service icon); null when none exists. */
+function bookingImage(b) {
+  const sub = b.subcategoryId
+  const svc = b.serviceId
+  const raw = [sub?.imageUrl, svc?.iconUrl, svc?.imageUrl]
+    .map((u) => String(u || '').trim())
+    .find(Boolean)
+  if (!raw) return null
+  return getCategoryImageUrl({ imageUrl: raw })
+}
 
 export function IndividualHomeRecentlyBooked({ bookings, loading, formatDay }) {
   if (loading) {
@@ -35,9 +43,7 @@ export function IndividualHomeRecentlyBooked({ bookings, loading, formatDay }) {
         {bookings.map((b) => {
           const itemLabel = b.serviceId?.name || b.subcategoryId?.name || 'Labour booking'
           const day = formatDay(b.scheduledAt || b.createdAt)
-          const img = b.subcategoryId?._id
-            ? getCategoryImageUrl({ _id: b.subcategoryId._id, name: itemLabel })
-            : FALLBACK_BOOKING_IMG
+          const img = bookingImage(b)
             
           let statusLabel = 'Active request'
           let statusColor = 'text-brand'
@@ -60,7 +66,13 @@ export function IndividualHomeRecentlyBooked({ bookings, loading, formatDay }) {
               to={`/app/tracking/${b._id}`}
               className="flex w-[280px] shrink-0 snap-start items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-brand/30 hover:shadow-md"
             >
-              <img src={img} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+              {img ? (
+                <img src={img} alt="" className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+              ) : (
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
+                  <Briefcase className="h-6 w-6" aria-hidden />
+                </span>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="line-clamp-1 text-sm font-bold text-slate-900">{itemLabel}</p>
                 <p className="mt-0.5 line-clamp-1 text-[11px] font-medium text-slate-500">

@@ -241,7 +241,7 @@ export function LabourAssignmentDetailModal({ open, onClose, job, rawJob, assign
             />
             <div className="absolute inset-0 bg-linear-to-t from-slate-950 via-slate-900/85 to-slate-900/60" aria-hidden />
 
-            <div className="relative px-4 pb-5 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <div className="relative px-4 pb-5 pt-3">
               <motion.div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <button

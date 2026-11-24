@@ -34,7 +34,7 @@ export function AppIndividualSearchPage() {
 
   return (
     <div className="-mx-4 flex h-[100dvh] flex-col bg-white overflow-hidden">
-      <div className="shrink-0 px-4 pt-2 pb-4">
+      <div className="shrink-0 px-4 pt-0 pb-4">
         <div className="rounded-3xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-3.5">
             <button 

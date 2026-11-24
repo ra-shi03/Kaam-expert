@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AppRouteLoader } from '../../components/app/AppRouteLoader.jsx'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
@@ -67,9 +67,14 @@ function FeedbackBanner({ variant, children }) {
   )
 }
 
-function AuthField({ label, hint, children }) {
+function AuthField({ label, hint, children, className = '', scrollBlock, ...props }) {
   return (
-    <div>
+    <div
+      data-auth-field
+      data-scroll-block={scrollBlock}
+      className={`scroll-mt-4 ${className}`}
+      {...props}
+    >
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</label>
         {hint}
@@ -112,22 +117,62 @@ function AuthEntryForm({ authGroup = 'users' }) {
 
   const [mode, setMode] = useState(invitedCode ? 'register' : 'login')
   const [step, setStep] = useState('form')
+
+  const DRAFT_KEY = `lc_auth_draft_${authGroup}`
+  const savedDraft = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY)
+      return raw ? JSON.parse(raw) : {}
+    } catch {
+      return {}
+    }
+  }, [DRAFT_KEY])
+
   const allowedRoles = authGroup === 'labours' ? [USER_ROLES.LABOUR] : [USER_ROLES.CUSTOMER, USER_ROLES.CONTRACTOR]
-  const [role, setRole] = useState(location.state?.defaultRole && allowedRoles.includes(location.state.defaultRole) ? location.state.defaultRole : allowedRoles[0])
-  const [phone, setPhone] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [companyName, setCompanyName] = useState('')
-  const [businessName, setBusinessName] = useState('')
-  const [gstNumber, setGstNumber] = useState('')
+  const [role, setRole] = useState(
+    location.state?.defaultRole && allowedRoles.includes(location.state.defaultRole)
+      ? location.state.defaultRole
+      : (savedDraft.role && allowedRoles.includes(savedDraft.role) ? savedDraft.role : allowedRoles[0])
+  )
+  const [phone, setPhone] = useState(savedDraft.phone || '')
+  const [fullName, setFullName] = useState(savedDraft.fullName || '')
+  const [companyName, setCompanyName] = useState(savedDraft.companyName || '')
+  const [businessName, setBusinessName] = useState(savedDraft.businessName || '')
+  const [gstNumber, setGstNumber] = useState(savedDraft.gstNumber || '')
   const [otpCells, setOtpCells] = useState(() => Array(6).fill(''))
   const [challengeId, setChallengeId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [banner, setBanner] = useState(null)
-  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(Boolean(savedDraft.termsAccepted))
+  const [resendTimer, setResendTimer] = useState(0)
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ mode, role, phone, fullName, companyName, businessName, gstNumber, termsAccepted })
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [DRAFT_KEY, mode, role, phone, fullName, companyName, businessName, gstNumber, termsAccepted])
 
   const p = isValidIndianMobile(phone) ? phone : null
   const code = otpCells.join('')
   const phoneComplete = phone.length === 10
+
+  const scrollToFieldTop = useCallback((el) => {
+    if (!el) return
+    const target = el.closest?.('[data-auth-field]') || el
+    const scrollContainer = document.getElementById('root') || document.documentElement
+    const currentScroll = scrollContainer === document.documentElement ? window.scrollY : scrollContainer.scrollTop
+    const targetTop = Math.max(0, currentScroll + target.getBoundingClientRect().top - 16)
+    if (scrollContainer.scrollTo) {
+      scrollContainer.scrollTo({ top: targetTop, behavior: 'smooth' })
+    } else {
+      target.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    }
+  }, [])
 
   function clearOtpError() {
     setBanner((b) => (b?.variant === 'error' ? null : b))
@@ -169,7 +214,16 @@ function AuthEntryForm({ authGroup = 'users' }) {
     setChallengeId(null)
     setBanner(null)
     setOtpCells(Array(6).fill(''))
+    setResendTimer(0)
   }
+
+  useEffect(() => {
+    if (step !== 'otp' || resendTimer <= 0) return
+    const id = setInterval(() => {
+      setResendTimer((prev) => Math.max(0, prev - 1))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [step, resendTimer])
 
   function switchMode(next) {
     setMode(next)
@@ -207,12 +261,44 @@ function AuthEntryForm({ authGroup = 'users' }) {
         setChallengeId(res.data?.challengeId ?? null)
       }
       setOtpCells(Array(6).fill(''))
+      setResendTimer(30)
       setStep('otp')
       setBanner(null)
     } catch (e) {
       setBanner({
         variant: 'error',
         message: e instanceof ApiError ? e.message : 'Could not send OTP. Try again.',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleResendOtp() {
+    if (resendTimer > 0 || busy) return
+    setBanner(null)
+    setBusy(true)
+    try {
+      if (mode === 'login') {
+        const res = await requestLoginOtp({ phone: p, authGroup })
+        setChallengeId(res.data?.challengeId ?? null)
+      } else {
+        const res = await requestRegisterOtp({
+          phone: p,
+          role,
+          fullName: fullName.trim() || undefined,
+          referralCode: referralCode || undefined,
+        })
+        setChallengeId(res.data?.challengeId ?? null)
+      }
+      setOtpCells(Array(6).fill(''))
+      setResendTimer(30)
+      setBanner({ variant: 'info', message: 'A new OTP has been sent to your mobile number.' })
+      otpInputRefs.current[0]?.focus({ preventScroll: true })
+    } catch (e) {
+      setBanner({
+        variant: 'error',
+        message: e instanceof ApiError ? e.message : 'Could not resend OTP. Try again.',
       })
     } finally {
       setBusy(false)
@@ -240,6 +326,7 @@ function AuthEntryForm({ authGroup = 'users' }) {
         const res = await verifyLogin({ phone: p, code, challengeId })
         const { token, user } = res.data
         clearPendingReferralCode()
+        try { sessionStorage.removeItem(DRAFT_KEY) } catch {}
         applySession(token, user)
         signedInUser = user
       } else {
@@ -259,9 +346,17 @@ function AuthEntryForm({ authGroup = 'users' }) {
         const res = await verifyRegister(body)
         const { token, user } = res.data
         clearPendingReferralCode()
+        try { sessionStorage.removeItem(DRAFT_KEY) } catch {}
         applySession(token, user)
         signedInUser = user
       }
+
+      try {
+        localStorage.setItem(
+          'lc_last_auth_group',
+          signedInUser.role === USER_ROLES.LABOUR ? 'labours' : 'users',
+        )
+      } catch {}
 
         let returnPath = location.state?.from || getRoleHomePath(signedInUser.role)
         if (mode === 'register' && (signedInUser.role === USER_ROLES.CUSTOMER || signedInUser.role === USER_ROLES.CONTRACTOR)) {
@@ -305,8 +400,8 @@ function AuthEntryForm({ authGroup = 'users' }) {
   }
 
   return (
-    <div className="fixed inset-0 overflow-y-auto overflow-x-hidden overscroll-none bg-white selection:bg-brand/20 pb-[var(--kb-inset,0px)] [-webkit-overflow-scrolling:touch]">
-    <div className="flex min-h-full flex-col">
+    <div className="relative min-h-full w-full overflow-x-hidden bg-white selection:bg-brand/20 [-webkit-overflow-scrolling:touch]">
+      <div className="flex min-h-full flex-col">
       {/* Top Header Section with Wave */}
       <div className="relative flex flex-col pt-10 pb-10 text-white bg-linear-to-b from-brand to-brand-bright shrink-0">
         {/* Wave SVG */}
@@ -447,6 +542,19 @@ function AuthEntryForm({ authGroup = 'users' }) {
                       onKeyDown={(e) => {
                         const allowed = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End']
                         if (allowed.includes(e.key)) return
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          if (mode === 'register') {
+                            const nameEl = document.getElementById('auth-fullname')
+                            if (nameEl) {
+                              nameEl.focus()
+                              scrollToFieldTop(nameEl)
+                            }
+                          } else {
+                            void handleSendOtp()
+                          }
+                          return
+                        }
                         if (e.ctrlKey || e.metaKey) return
                         if (!/^\d$/.test(e.key)) e.preventDefault()
                       }}
@@ -456,12 +564,30 @@ function AuthEntryForm({ authGroup = 'users' }) {
 
                 {mode === 'register' ? (
                   <>
-                    <AuthField label="Full name">
+                    <AuthField label="Full name" scrollBlock="start">
                       <input
+                        id="auth-fullname"
                         type="text"
+                        data-scroll-block="start"
                         className={inputClass}
                         value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
+                        onFocus={(e) => scrollToFieldTop(e.target)}
+                        onChange={(e) => {
+                          setFullName(e.target.value)
+                          scrollToFieldTop(e.target)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const refEl = document.getElementById('auth-referral-code')
+                            if (refEl) {
+                              refEl.focus()
+                              scrollToFieldTop(refEl)
+                            } else {
+                              void handleSendOtp()
+                            }
+                          }
+                        }}
                         placeholder="As on your ID"
                         autoComplete="name"
                       />
@@ -469,6 +595,7 @@ function AuthEntryForm({ authGroup = 'users' }) {
                     {showReferralField ? (
                     <AuthField
                       label="Referral code (optional)"
+                      scrollBlock="start"
                       hint={
                         invitedCode && referralCode === invitedCode ? (
                           <span className="inline-flex items-center gap-1 text-xs font-bold text-brand">
@@ -479,12 +606,22 @@ function AuthEntryForm({ authGroup = 'users' }) {
                       }
                     >
                       <input
+                        id="auth-referral-code"
                         type="text"
+                        data-scroll-block="start"
                         className={`${inputClass} font-mono uppercase tracking-widest`}
                         value={referralCode}
+                        onFocus={(e) => scrollToFieldTop(e.target)}
                         onChange={(e) => {
                           setReferralCode(normalizeReferralCode(e.target.value))
                           if (banner?.variant === 'error') setBanner(null)
+                          scrollToFieldTop(e.target)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            void handleSendOtp()
+                          }
                         }}
                         placeholder="e.g. RAHU7K3MX"
                         autoComplete="off"
@@ -498,7 +635,11 @@ function AuthEntryForm({ authGroup = 'users' }) {
               </div>
 
               {mode === 'login' ? null : (
-                <div className="mt-4 mb-2 flex items-center px-1">
+                <div
+                  data-auth-field
+                  data-scroll-block="start"
+                  className="mt-4 mb-2 flex items-center px-1 scroll-mt-4"
+                >
                   <label className="flex items-start gap-2.5 text-[13px] font-medium text-slate-500 cursor-pointer">
                     <input 
                       type="checkbox" 
@@ -508,9 +649,10 @@ function AuthEntryForm({ authGroup = 'users' }) {
                         setTermsAccepted(e.target.checked)
                         if (e.target.checked && banner?.variant === 'error') setBanner(null)
                       }}
+                      onFocus={(e) => scrollToFieldTop(e.target)}
                     />
                     <span>
-                      I agree to the <Link to={`/${authGroup}/terms-and-conditions`} target="_blank" rel="noopener noreferrer" className="font-bold text-brand hover:underline">Terms &amp; Conditions</Link> and <Link to={`/${authGroup}/privacy-policy`} target="_blank" rel="noopener noreferrer" className="font-bold text-brand hover:underline">Privacy Policy</Link>
+                      I agree to the <Link to={`/${authGroup}/terms-and-conditions`} className="font-bold text-brand hover:underline">Terms &amp; Conditions</Link> and <Link to={`/${authGroup}/privacy-policy`} className="font-bold text-brand hover:underline">Privacy Policy</Link>
                     </span>
                   </label>
                 </div>
@@ -614,6 +756,24 @@ function AuthEntryForm({ authGroup = 'users' }) {
                       }}
                     />
                   ))}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-[13px]">
+                  <span className="text-slate-500 font-medium">Didn't receive code?</span>
+                  {resendTimer > 0 ? (
+                    <span className="font-semibold text-slate-400 tabular-nums">
+                      Resend in <span className="font-bold text-slate-700">{resendTimer}s</span>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void handleResendOtp()}
+                      className="font-bold text-brand hover:underline disabled:opacity-50"
+                    >
+                      Resend OTP
+                    </button>
+                  )}
                 </div>
               </GlassPanel>
 

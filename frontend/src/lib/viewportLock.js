@@ -68,21 +68,52 @@ export function installZoomGuards() {
 }
 
 /**
- * Keyboard handling (iOS Safari especially):
- *  - exposes the on-screen keyboard height as --kb-inset so scroll containers can pad for it
- *  - scrolls the focused field into view (centered) inside its scroll container
- *  - snaps the page back after the keyboard closes so it never stays shifted
+ * Keyboard handling (iOS Safari & Android Chrome):
+ *  - detects virtual keyboard on touch screens and exposes --kb-inset
+ *  - toggles html.keyboard-open to cleanly hide floating bottom bars and footers
+ *  - adjusts scroll only if focused field is obscured
+ *  - snaps viewport back after keyboard dismissal
  */
 export function installKeyboardGuards() {
   const root = document.documentElement
   const vv = window.visualViewport
-  const isField = (t) => t instanceof Element && t.matches('input, textarea, select, [contenteditable="true"]')
+  const isField = (t) =>
+    t instanceof Element &&
+    t.matches(
+      'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]), textarea, select, [contenteditable="true"]',
+    )
+
+  let initialInnerHeight = window.innerHeight
+
+  const isTouchDevice = () =>
+    window.matchMedia('(pointer: coarse)').matches ||
+    'ontouchstart' in window ||
+    navigator.maxTouchPoints > 0
 
   const syncInset = () => {
-    if (!vv) return
-    const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+    let inset = 0
+    if (vv) {
+      inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+    }
     root.style.setProperty('--kb-inset', `${inset}px`)
+
+    const activeField = document.activeElement && isField(document.activeElement)
+    const heightDrop = Math.max(0, initialInnerHeight - window.innerHeight)
+    const isKeyboardOpen =
+      (Boolean(activeField) && isTouchDevice()) ||
+      inset > 100 ||
+      heightDrop > 120
+
+    root.classList.toggle('keyboard-open', Boolean(isKeyboardOpen))
   }
+
+  window.addEventListener('resize', () => {
+    if (!document.activeElement || !isField(document.activeElement)) {
+      initialInnerHeight = window.innerHeight
+    }
+    syncInset()
+  })
+
   vv?.addEventListener('resize', syncInset)
   vv?.addEventListener('scroll', syncInset)
 
@@ -90,12 +121,33 @@ export function installKeyboardGuards() {
   document.addEventListener('focusin', (e) => {
     if (!isField(e.target)) return
     const el = e.target
+    // Instantly hide bottom bars on mobile touch devices
+    if (isTouchDevice()) {
+      root.classList.add('keyboard-open')
+    }
     clearTimeout(timer)
-    // wait for the keyboard animation, then centre the field
+    // Wait for the virtual keyboard to slide in, then adjust scroll
     timer = window.setTimeout(() => {
       syncInset()
-      el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-    }, 320)
+      const blockPref = el.dataset?.scrollBlock || el.closest?.('[data-scroll-block]')?.dataset?.scrollBlock
+      if (blockPref === 'start') {
+        const target = el.closest?.('[data-auth-field]') || el
+        const scrollContainer = document.getElementById('root') || document.documentElement
+        const currentScroll = scrollContainer === document.documentElement ? window.scrollY : scrollContainer.scrollTop
+        const targetTop = Math.max(0, currentScroll + target.getBoundingClientRect().top - 16)
+        if (scrollContainer.scrollTo) {
+          scrollContainer.scrollTo({ top: targetTop, behavior: 'smooth' })
+        } else {
+          target.scrollIntoView({ block: 'start', behavior: 'smooth' })
+        }
+      } else {
+        const rect = el.getBoundingClientRect()
+        const availableHeight = vv ? vv.height : window.innerHeight
+        if (rect.bottom > availableHeight - 16 || rect.top < 16) {
+          el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        }
+      }
+    }, 280)
   })
 
   document.addEventListener('focusout', () => {
@@ -103,7 +155,8 @@ export function installKeyboardGuards() {
     timer = window.setTimeout(() => {
       if (isField(document.activeElement)) return
       root.style.setProperty('--kb-inset', '0px')
-      // iOS can leave the window shifted after the keyboard closes
+      root.classList.remove('keyboard-open')
+      // Reset scroll position after keyboard closes
       window.scrollTo(0, 0)
     }, 150)
   })

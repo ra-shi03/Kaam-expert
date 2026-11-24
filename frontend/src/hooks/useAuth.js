@@ -29,20 +29,7 @@ export function useAuth() {
   }, [])
 
   const logout = useCallback(async () => {
-    try {
-      // Clean up FCM token from backend
-      const fcmToken = localStorage.getItem('fcm_token_web')
-      if (fcmToken) {
-        await apiRequest('/fcm-tokens/remove', {
-          method: 'DELETE',
-          body: { token: fcmToken, platform: 'web' }
-        })
-        localStorage.removeItem('fcm_token_web')
-      }
-      await apiRequest('/auth/logout', { method: 'POST' })
-    } catch (e) {
-      // Ignore network errors on logout
-    }
+    // 1. Immediately clear local session state so routes update synchronously
     clearBootRole()
     setBootRoleState(null)
     dispatch(clearSession())
@@ -50,6 +37,21 @@ export function useAuth() {
       dispatch(baseApi.util.resetApiState())
     } catch (err) {
       // Ignore if store is not ready
+    }
+
+    // 2. Perform backend cleanup asynchronously in the background
+    try {
+      const fcmToken = localStorage.getItem('fcm_token_web')
+      if (fcmToken) {
+        await apiRequest('/fcm-tokens/remove', {
+          method: 'DELETE',
+          body: { token: fcmToken, platform: 'web' },
+        })
+        localStorage.removeItem('fcm_token_web')
+      }
+      await apiRequest('/auth/logout', { method: 'POST' })
+    } catch (e) {
+      // Ignore network errors on logout
     }
   }, [dispatch])
 

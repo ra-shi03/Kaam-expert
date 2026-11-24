@@ -2,7 +2,7 @@
 
 .lc-swiggy-cat-tile {
   display: flex;
-  width: 4rem;
+  width: 5rem;
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
@@ -14,13 +14,16 @@
 }
 
 .lc-swiggy-cat-img {
-  display: block;
-  height: 4rem;
-  width: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 5rem;
+  width: 5rem;
   overflow: hidden;
-  border-radius: 1rem;
-  border: 2px solid #e2e8f0;
+  border-radius: 9999px;
+  border: 1.5px solid #cbd5e1;
   background: #f1f5f9;
+  color: #002b5c;
   transition:
     outline 0.2s ease,
     box-shadow 0.2s ease,
@@ -29,7 +32,7 @@
 
 .lc-swiggy-cat-tile[data-active='true'] .lc-swiggy-cat-img {
   outline: none;
-  border: 2px solid #002b5c;
+  border: 1.5px solid #002b5c;
   box-shadow: 0 4px 14px -6px rgb(0 43 92 / 0.3);
 }
 
@@ -153,6 +156,7 @@
 }
 
 .lc-home-service-card-img {
+  display: block;
   aspect-ratio: 4 / 3;
   width: 100%;
   background: #f1f5f9;
@@ -236,12 +240,14 @@
 }
 
 .lc-swiggy-cat-tile--on-brand .lc-swiggy-cat-img {
-  border-color: rgb(255 255 255 / 0.35);
+  border: 1.5px solid rgb(255 255 255 / 0.75);
+  background: rgb(255 255 255 / 0.14);
+  color: #ffffff;
 }
 
 .lc-swiggy-cat-tile--on-brand[data-active='true'] .lc-swiggy-cat-img {
   outline: none;
-  border: 2px solid #ffffff;
+  border: 1.5px solid #ffffff;
   box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.2);
 }
 

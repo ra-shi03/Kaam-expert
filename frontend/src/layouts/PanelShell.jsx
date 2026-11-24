@@ -134,10 +134,15 @@ export function PanelShell({
               <div className="border-t border-slate-200/70 p-3">
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const role = user?.role
-                    logout()
-                    navigate(role === USER_ROLES.LABOUR ? '/labours/auth' : '/users/auth', { replace: true })
+                    const authGroup = role === USER_ROLES.LABOUR ? 'labours' : 'users'
+                    try {
+                      localStorage.setItem('lc_last_auth_group', authGroup)
+                    } catch {}
+                    setDrawerOpen(false)
+                    await logout()
+                    navigate(authGroup === 'labours' ? '/labours/auth' : '/users/auth', { replace: true })
                   }}
                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200/90 bg-rose-50 py-3 text-sm font-semibold text-rose-800"
                 >
@@ -152,7 +157,7 @@ export function PanelShell({
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-lg flex-col print:min-h-0 print:block">
         {!hideShellHeader ? (
-          <header className="sticky top-0 z-30 px-3 pt-[env(safe-area-inset-top,0px)]">
+          <header className="sticky top-0 z-30 px-3 pt-2">
             <GlassPanel className="flex items-center gap-3 px-3 py-2.5">
               <button
                 type="button"
@@ -175,7 +180,7 @@ export function PanelShell({
 
         <main
           className={`relative z-10 flex-1 px-4 pb-32 print:p-0 ${
-            hideShellHeader ? 'pt-[max(0.5rem,env(safe-area-inset-top,0px))] print:pt-0' : 'pt-4'
+            hideShellHeader ? 'pt-2 print:pt-0' : 'pt-2'
           }`}
         >
           <AppPageTransition />

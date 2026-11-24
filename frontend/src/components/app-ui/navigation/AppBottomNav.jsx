@@ -10,17 +10,18 @@ export function AppBottomNav({ items }) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/90 bg-white print:hidden"
-      style={{ paddingBottom: 'max(0.5rem, env(safe-area-bottom))' }}
+      className="app-bottom-nav hide-on-keyboard fixed inset-x-0 bottom-0 z-30 border-t border-slate-200/90 bg-white print:hidden transition-transform duration-150"
+      data-hide-on-keyboard="true"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       aria-label="Bottom navigation"
     >
-      <div className="mx-auto flex w-full max-w-lg items-stretch justify-around px-1 pt-1.5">
+      <div className="mx-auto flex w-full max-w-lg items-stretch justify-around px-1 pt-1 pb-0.5">
         {items.map(({ id, to, end, label, icon: Icon, premium, center }) => (
           <NavLink
             key={`${id}-${to}`}
             to={to}
             end={Boolean(end)}
-            className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 outline-none transition active:scale-95 ${
+            className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-1 outline-none transition active:scale-95 ${
               center ? '-mt-3 max-w-[4.25rem] flex-[1.15]' : ''
             }`}
           >

@@ -39,7 +39,7 @@ export function AppShell() {
     <>
       <AutoLocationFetcher />
       {notice ? (
-        <div className="fixed inset-x-0 top-0 z-[100] mx-auto max-w-md px-4 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
+        <div className="fixed inset-x-0 top-0 z-[100] mx-auto max-w-md px-4 pt-3">
           <div
             role="status"
             className={`flex items-start gap-3 rounded-2xl px-4 py-3 text-white shadow-xl ${notice.status === KYC_STATUS.VERIFIED ? 'bg-emerald-600' : notice.status === 'recharge' ? 'bg-amber-600' : 'bg-rose-600'}`}
@@ -81,7 +81,7 @@ function AppShellContent({ kycLocked }) {
     return showReferral ? nav : { ...nav, drawerNav: nav.drawerNav.filter((item) => item.id !== 'refer') }
   }, [user?.role, showReferral])
 
-  const isIndividualAppHome = (user?.role === USER_ROLES.CUSTOMER || user?.role === USER_ROLES.CONTRACTOR) && pathname === '/app'
+  const isIndividualAppHome = (!user?.role || user?.role === USER_ROLES.CUSTOMER || user?.role === USER_ROLES.CONTRACTOR) && pathname === '/app'
   const isLabourAppHome = user?.role === USER_ROLES.LABOUR && pathname === '/app'
   const isLabourNotifications = user?.role === USER_ROLES.LABOUR && pathname === '/app/notifications'
   const isLabourJobs = user?.role === USER_ROLES.LABOUR && pathname === '/app/jobs'
@@ -375,10 +375,15 @@ function AppShellContent({ kycLocked }) {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       const role = user?.role
-                      logout()
-                      navigate(role === USER_ROLES.LABOUR ? '/labours/auth' : '/users/auth', { replace: true })
+                      const authGroup = role === USER_ROLES.LABOUR ? 'labours' : 'users'
+                      try {
+                        localStorage.setItem('lc_last_auth_group', authGroup)
+                      } catch {}
+                      setDrawerOpen(false)
+                      await logout()
+                      navigate(authGroup === 'labours' ? '/labours/auth' : '/users/auth', { replace: true })
                     }}
                     className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-rose-200/90 bg-rose-50 py-3 text-sm font-semibold text-rose-800 shadow-sm transition hover:bg-rose-50/90"
                   >
@@ -408,7 +413,7 @@ function AppShellContent({ kycLocked }) {
         {!hideShellHeader ? (
           <header
             ref={headerRef}
-            className={`sticky top-0 z-30 hide-on-print ${isIndividualAppHome ? 'bg-transparent px-4 pb-1 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]' : 'px-3 pt-[env(safe-area-inset-top,0px)]'
+            className={`${isIndividualAppHome ? 'relative' : 'sticky top-0'} z-30 hide-on-print ${isIndividualAppHome ? 'bg-transparent px-4 pb-1 pt-2 sm:pt-3' : 'px-3 pt-2'
               }`}
           >
             {isIndividualAppHome ? (
@@ -499,10 +504,10 @@ function AppShellContent({ kycLocked }) {
 
         <main
           className={`relative z-10 flex-1 px-4 pb-32 ${hideShellHeader
-            ? 'pt-[max(0.5rem,env(safe-area-inset-top,0px))]'
+            ? 'pt-2'
             : isIndividualAppHome
               ? 'pt-0'
-              : 'pt-4'
+              : 'pt-2'
             }`}
         >
           <AppPageTransition />

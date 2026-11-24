@@ -178,7 +178,7 @@ function FeaturedLayout({ categories, onQuickBook }) {
               onClick={() => onQuickBook?.(cat)}
               className="lc-home-service-mini-tile"
             >
-              <ServiceImage src={getCategoryImageUrl(cat)} alt="" className="h-20 w-full" />
+              <ServiceImage src={getCategoryImageUrl(cat)} alt="" className="block aspect-[4/3] w-full bg-slate-100 object-cover" />
               <span className="block truncate px-2 py-2 text-left text-xs font-bold text-slate-900">
                 {cat.name}
               </span>
